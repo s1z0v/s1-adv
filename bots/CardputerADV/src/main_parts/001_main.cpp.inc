@@ -74,7 +74,7 @@ constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #define OPENCLAW_TLS_VERIFY 1
 #endif
 #if !OPENCLAW_TLS_VERIFY
-#error "PulseOS requires verified TLS for bridge credentials and OTA"
+#error "S1-ADV requires verified TLS for bridge credentials and OTA"
 #endif
 constexpr const char* kAppVersion = APP_VERSION;
 constexpr const char* kBuildGitSha = BUILD_GIT_SHA;

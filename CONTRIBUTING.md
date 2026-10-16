@@ -1,7 +1,7 @@
-# Contributing to PulseOS
+# Contributing to S1-ADV
 
 Read [the architecture](docs/ARCHITECTURE.md) and use `bots/CardputerADV` for
-firmware, `bridge/` for the OpenClaw adapter, and `skills/pulseos-cardputer/`
+firmware, `bridge/` for the OpenClaw adapter, and `skills/s1-adv/`
 for the optional agent setup skill.
 
 ## Verify a change

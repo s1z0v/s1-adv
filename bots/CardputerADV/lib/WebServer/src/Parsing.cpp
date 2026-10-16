@@ -41,7 +41,7 @@ const char * _http_method_str[] = {
 static const char Content_Type[] PROGMEM = "Content-Type";
 static const char filename[] PROGMEM = "filename";
 
-// PulseOS provisioning never needs an unbounded request/header/form line.
+// S1-ADV provisioning never needs an unbounded request/header/form line.
 static String readBoundedLine(WiFiClient& client) {
   char line[1025];
   size_t size = client.readBytesUntil('\r', line, sizeof(line) - 1);
@@ -363,7 +363,7 @@ int WebServer::_uploadReadByte(WiFiClient& client){
 }
 
 bool WebServer::_parseForm(WiFiClient& client, String boundary, uint32_t len){
-  // PulseOS: RFC 2046 boundary cap before any attacker-sized allocation.
+  // S1-ADV: RFC 2046 boundary cap before any attacker-sized allocation.
   if (boundary.length() == 0 || boundary.length() > 70) return false;
   (void) len;
   log_v("Parse Form: Boundary: %s Length: %d", boundary.c_str(), len);

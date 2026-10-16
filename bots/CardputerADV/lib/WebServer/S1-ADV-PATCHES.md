@@ -16,6 +16,6 @@ Changes on 2026-10-16:
   Content-Length into the body buffer.
 
 Digest authentication, NetBIOS and browser-based firmware upload are not used
-by PulseOS. The full framework remains legacy; these specific backports do not
+by S1-ADV. The full framework remains legacy; these specific backports do not
 constitute an audit of every framework/ESP-IDF component. Revisit the backports
 when moving to a current Arduino ESP32 toolchain.

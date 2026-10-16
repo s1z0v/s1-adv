@@ -1,6 +1,6 @@
 # Security review, 2026-10-16
 
-Scope: PulseOS source, bridge dependencies, HTTP/WS authorization boundaries,
+Scope: S1-ADV source, bridge dependencies, HTTP/WS authorization boundaries,
 OTA/media transport, setup provisioning, gateway routing and deployment
 templates. This is a maintainer review with local attack regression tests,
 not an independent penetration test or a guarantee that no vulnerabilities exist.
@@ -39,7 +39,7 @@ to a physical Cardputer.
 - Security policy tests, 3 gateway interruption tests, full bridge mock smoke,
   compatibility smoke and realtime contract smoke pass.
 - Firmware URL/path policy tests and ESP32-S3 / 8 MB build pass. Build output
-  selects project-local `WebServer 2.0.0-pulseos.1`.
+  selects project-local `WebServer 2.0.0-s1adv.1`.
 - `npm audit` reports no known dependency vulnerabilities at review time.
 - Source/history credential scan is bounded by known patterns and local current
   credentials; a clean result cannot detect every possible secret format.

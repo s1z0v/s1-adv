@@ -1,4 +1,4 @@
-# PulseOS OpenClaw bridge
+# S1-ADV OpenClaw bridge
 
 Node.js companion service between Cardputer ADV and an existing OpenClaw gateway.
 Start with the complete [OpenClaw setup guide](../docs/OPENCLAW.md).

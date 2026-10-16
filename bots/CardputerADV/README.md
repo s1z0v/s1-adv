@@ -1,4 +1,4 @@
-# PulseOS for Cardputer ADV
+# S1-ADV for Cardputer ADV
 
 For this fork's current OpenClaw installation, follow the
 [project README](../../README.md), [USB guide](../../docs/FLASHING.md) and
@@ -7,7 +7,7 @@ repository root. The original OmniBot hub/BLE workflow below is historical;
 current firmware uses a Wi-Fi setup portal.
 
 
-`CardputerADV` is the PulseOS firmware target for M5Stack Cardputer ADV.
+`CardputerADV` is the S1-ADV firmware target for M5Stack Cardputer ADV.
 The project began with OmniBot; see [Credits](../../CREDITS.md) for its origin.
 
 ## Current OpenClaw workflow

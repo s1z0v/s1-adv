@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/pulseos-cardputer-hero.jpg" alt="PulseOS for Cardputer ADV: voice, code and firmware" width="100%"></p>
+<p align="center"><img src="docs/assets/s1-adv-hero.jpg" alt="S1-ADV for Cardputer ADV: voice, AI and firmware" width="100%"></p>
 
 <p align="center">
 <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-a7f3d0?style=flat-square"></a>
@@ -7,16 +7,16 @@
 <img alt="Status experimental" src="https://img.shields.io/badge/status-experimental-fde68a?style=flat-square">
 </p>
 
-# PulseOS for Cardputer ADV
+# S1-ADV for Cardputer ADV
 
 Security update: [2026-10-16 review and fixes](docs/SECURITY-REVIEW.md).
 
-**PulseOS** turns a M5Stack Cardputer ADV into a pocket workspace for your
+**S1-ADV** turns a M5Stack Cardputer ADV into a pocket workspace for your
 **OpenClaw** agent: keyboard, voice, local tools and firmware you can extend.
 Type a question, hold the talk button, check a reply, or use the offline apps.
 The agent runs on your computer or server; the Cardputer runs this firmware.
 
-PulseOS is experimental firmware built on Arduino/FreeRTOS, with an included
+S1-ADV is experimental firmware built on Arduino/FreeRTOS, with an included
 OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover details.
 
 [Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Русский](docs/README.ru.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
@@ -43,7 +43,7 @@ keyboard / mic / speaker       Node.js on your host                  your agent
 
 The repository includes both sides: [firmware](bots/CardputerADV) and
 [bridge](bridge). The bridge is a standalone companion service. The included
-[OpenClaw skill](skills/pulseos-cardputer) gives your agent the setup instructions;
+[OpenClaw skill](skills/s1-adv) gives your agent the setup instructions;
 it does not install or start the bridge by itself.
 
 ## What you need
@@ -59,8 +59,8 @@ it does not install or start the bridge by itself.
 ## Start here
 
 ```bash
-git clone https://github.com/srg0/pulseos-cardputer.git
-cd pulseos-cardputer
+git clone https://github.com/srg0/s1-adv.git
+cd s1-adv
 ```
 
 1. [Set up the bridge and generate your device token](docs/OPENCLAW.md).
@@ -72,7 +72,7 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 ## Project status
 
-PulseOS is an independent experimental project. Its firmware began with
+S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
 The public source starts from the 0.2.146-dev firmware line with portable
 configuration. It is not a new hardware-certified release. Public builds have
@@ -86,7 +86,7 @@ There is no shared hosted bridge, subscription, or bundled model account.
 | --- | --- |
 | `bots/CardputerADV/` | ESP32-S3 firmware, partition layouts and host tests |
 | `bridge/` | OpenClaw adapter, examples and synthetic smoke tests |
-| `skills/pulseos-cardputer/` | Optional OpenClaw setup skill |
+| `skills/s1-adv/` | Optional OpenClaw setup skill |
 | `docs/` | Setup, flashing, architecture and troubleshooting |
 | `CREDITS.md` | Project origin, upstream acknowledgements and image provenance |
 
@@ -104,7 +104,7 @@ FFmpeg first. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).
 
 ## Creator and credits
 
-PulseOS is maintained by **Sergey Sizov**.
+S1-ADV is maintained by **Sergey Sizov**.
 
 [Instagram @s1z0v](https://www.instagram.com/s1z0v/) ·
 [YouTube @s1z0v](https://www.youtube.com/@s1z0v) ·

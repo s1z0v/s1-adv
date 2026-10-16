@@ -1,4 +1,4 @@
-# PulseOS security
+# S1-ADV security
 
 Use a separate random bridge token and an explicit topic allowlist for each
 device. Gateway credentials and its persistent device identity stay on the
@@ -14,7 +14,7 @@ provider routes are disabled by default. Do not copy rotating OAuth stores into
 competing refresh writers. Configure only the agent actions you intend a
 handheld client to invoke.
 
-PulseOS is experimental and has not had a complete independent security audit.
+S1-ADV is experimental and has not had a complete independent security audit.
 The maintainer's bounded [2026-10-16 review](docs/SECURITY-REVIEW.md) records
 confirmed findings, fixes, verification and remaining trust boundaries.
 See [architecture](docs/ARCHITECTURE.md) and [setup](docs/OPENCLAW.md).

@@ -1,4 +1,4 @@
-# PulseOS architecture
+# S1-ADV architecture
 
 The ESP32-S3 owns keyboard input, recording/playback, display, local apps and
 OTA application. It stores settings in NVS and optional media on microSD.

@@ -17,7 +17,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const token = "test-only-device-token-00000000000000000000000000000001";
 
 async function withBridge(run, security = {}) {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "pulseos-security-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "s1-adv-security-"));
   const reservation = createServer();
   await new Promise(resolve => reservation.listen(0, "127.0.0.1", resolve));
   const port = reservation.address().port;
@@ -179,7 +179,7 @@ test("session creation and firmware jobs preserve the configured agent", () => w
 }));
 
 test("a config session remap revokes cached history and old media", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "pulseos-remap-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "s1-adv-remap-"));
   try {
     const config = { stateDir: tmp, devices: [{ device_id: "d", device_token: token, topics: ["t"] }],
       topics: [{ topic_key: "t", session_key: "agent:main:old" }] };
@@ -199,7 +199,7 @@ test("a config session remap revokes cached history and old media", async () => 
 });
 
 test("uploaded playlists cannot make FFmpeg fetch internal URLs", async () => {
-  const tmp = await mkdtemp(path.join(os.tmpdir(), "pulseos-media-"));
+  const tmp = await mkdtemp(path.join(os.tmpdir(), "s1-adv-media-"));
   let requested = false;
   const { createServer } = await import("node:http");
   const target = createServer((_req, res) => { requested = true; res.end("private"); });

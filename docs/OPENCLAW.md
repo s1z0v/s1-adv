@@ -1,4 +1,4 @@
-# Connect PulseOS to your OpenClaw
+# Connect S1-ADV to your OpenClaw
 
 The integration is a **standalone Node.js bridge** plus an optional setup skill.
 It is not an npm OpenClaw plugin, so `openclaw plugins install` is not the
@@ -127,7 +127,7 @@ Find your actual OpenClaw workspace, then copy the skill there:
 
 ```bash
 mkdir -p /path/to/openclaw-workspace/skills
-cp -R skills/pulseos-cardputer /path/to/openclaw-workspace/skills/
+cp -R skills/s1-adv /path/to/openclaw-workspace/skills/
 ```
 
 Run these commands from the repository root. Open a new agent session or follow
@@ -138,8 +138,8 @@ This only installs documentation for the agent; install/start the bridge above.
 ## Give this to your OpenClaw agent
 
 ```text
-Help me set up PulseOS on my M5Stack Cardputer ADV from this repository:
-https://github.com/srg0/pulseos-cardputer
+Help me set up S1-ADV on my M5Stack Cardputer ADV from this repository:
+https://github.com/srg0/s1-adv
 
 Read README.md, docs/OPENCLAW.md and docs/FLASHING.md from the checked-out source.
 Use the bridge/ service in this repository and my existing OpenClaw gateway.
@@ -148,7 +148,7 @@ Create a dedicated Cardputer session and a device token in private local files.
 Keep the gateway token and model credentials on the server. Never print secrets.
 Configure a bridge address reachable from my 2.4 GHz Wi-Fi, with verified TLS
 for remote access. Preserve my other agent and channel settings.
-Install the optional skills/pulseos-cardputer skill into my actual agent workspace.
+Install the optional skills/s1-adv skill into my actual agent workspace.
 Run local bridge smoke/security checks, then check authenticated topics/history.
 Prepare a private firmware .env matching the bridge device ID, token and topic.
 Build for ESP32-S3 / 8 MB with scripts/cardputer.py. Let me connect the device

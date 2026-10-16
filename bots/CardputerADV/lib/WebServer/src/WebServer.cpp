@@ -363,7 +363,7 @@ void WebServer::stop() {
 }
 
 void WebServer::sendHeader(const String& name, const String& value, bool first) {
-  // PulseOS: never allow an application value to split response headers.
+  // S1-ADV: never allow an application value to split response headers.
   if (name.indexOf('\r') >= 0 || name.indexOf('\n') >= 0 ||
       value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) return;
   String headerLine = name;

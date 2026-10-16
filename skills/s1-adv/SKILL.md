@@ -1,11 +1,11 @@
 ---
-name: pulseos-cardputer
+name: s1-adv
 description: Help set up or troubleshoot the M5Stack Cardputer ADV firmware and standalone bridge for an existing OpenClaw gateway.
 ---
 
-# PulseOS Cardputer ADV setup
+# S1-ADV Cardputer ADV setup
 
-Use the checked-out source at https://github.com/srg0/pulseos-cardputer.
+Use the checked-out source at https://github.com/srg0/s1-adv.
 Read README.md, docs/OPENCLAW.md, docs/FLASHING.md and docs/TROUBLESHOOTING.md.
 
 Inspect the installed gateway version, actual workspace and session routing.
