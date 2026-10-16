@@ -1,0 +1,25 @@
+# Private provisioning and local Python tools
+.env
+.env.*
+!.env.example
+.venv/
+__pycache__/
+*.pyc
+
+# PlatformIO and build artifacts
+.pio/
+*.bin
+*.elf
+*.map
+
+# Bridge dependencies, credentials and private runtime
+node_modules/
+bridge/config.json
+bridge/config.*.local.json
+bridge/data/
+bridge/tmp-*/
+bridge/fixtures/
+bots/CardputerADV/test-results/
+
+.DS_Store
+Thumbs.db

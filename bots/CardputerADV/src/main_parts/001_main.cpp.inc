@@ -1,0 +1,422 @@
+#include <Arduino.h>
+#include <M5Cardputer.h>
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <WebServer.h>
+#include <DNSServer.h>
+#include <SPI.h>
+#include <SD.h>
+#include <LittleFS.h>
+#include <Preferences.h>
+#include <ArduinoJson.h>
+#include <WebSocketsClient.h>
+#include <base64.h>
+#include <WiFiClient.h>
+#include <Wire.h>
+#include <Update.h>
+#include <MFRC522.h>
+#include <esp_heap_caps.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <esp_wifi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <mbedtls/sha256.h>
+
+#ifndef RAW_BUFFER_LENGTH
+#define RAW_BUFFER_LENGTH 180
+#endif
+#ifndef NO_LED_FEEDBACK_CODE
+#define NO_LED_FEEDBACK_CODE
+#endif
+#include <IRremote.hpp>
+
+#include "daikin280_encoder.h"
+#include "launcher_shortcuts.h"
+#include "mic_input_meter.h"
+#include "release_delivery.h"
+#include "smartlamp_gl2_protocol.h"
+#include "tcl112ac_encoder.h"
+
+extern "C" {
+#include "libb64/cdecode.h"
+}
+
+#include <cctype>
+#include <algorithm>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdarg>
+#include <cstring>
+#include <deque>
+#include <cmath>
+#include <time.h>
+#include <vector>
+#include <memory>
+
+namespace {
+
+constexpr const char* kDeviceType = "cardputer_adv";
+constexpr const char* kDefaultDisplayName = "ADV Cardputer";
+#ifndef APP_VERSION
+#define APP_VERSION "0.2.146-dev"
+#endif
+#ifndef BUILD_GIT_SHA
+#define BUILD_GIT_SHA "local"
+#endif
+#ifndef BUILD_TIME
+#define BUILD_TIME __DATE__ " " __TIME__
+#endif
+#ifndef OPENCLAW_TLS_VERIFY
+#define OPENCLAW_TLS_VERIFY 1
+#endif
+constexpr const char* kAppVersion = APP_VERSION;
+constexpr const char* kBuildGitSha = BUILD_GIT_SHA;
+constexpr const char* kBuildTime = BUILD_TIME;
+constexpr const char* kPostInstallStoryVersion = "0.2.117-dev";
+constexpr const char* kPostInstallStoryPrefsKey = "story_02117";
+constexpr const char* kPostInstallStoryText =
+    "Firmware installed. RFID Lab now targets the 8-pin SPI RFID-RC522 module on the EXT header. Use D to copy and W to write.";
+constexpr const char* kPomodoroAssetSyncVersion = "0.2.114-dev";
+constexpr const char* kPomodoroAssetSyncPrefsKey = "pomasset_02112";
+constexpr const char* kWsPath = "/ws/stream";
+constexpr const char* kDeviceTextTurnPath = "/api/device-text-turn";
+constexpr const char* kDeviceAudioTurnPath = "/api/device-audio-turn";
+constexpr const char* kDeviceAudioTurnRawPath = "/api/device-audio-turn-raw";
+constexpr const char* kDeviceTtsPath = "/api/device-tts";
+constexpr const char* kCardputerCommandPath = "/api/cardputer/command";
+constexpr const char* kCardputerLogsPath = "/api/cardputer/logs";
+constexpr const char* kRealtimeWsPath = "/api/cardputer/v1/realtime";
+constexpr const char* kAssetManifestFetchPath = "/api/cardputer/assets/manifest";
+constexpr const char* kFirmwareManifestFetchPath = "/api/cardputer/firmware/manifest";
+constexpr bool kSingleCardputerTopicMode = true;
+constexpr int32_t kPrimaryCardputerThreadId = 0;
+#ifndef DEFAULT_TOPIC_KEY
+#define DEFAULT_TOPIC_KEY "cardputer:main"
+#endif
+constexpr const char* kPrimaryCardputerTopicKey = DEFAULT_TOPIC_KEY;
+constexpr const char* kPrimaryCardputerTopicTitle = "Cardputer";
+
+constexpr const char* kPrefsWifiNs = "wifi_creds";
+constexpr const char* kPrefsHubNs = "hub_ep";
+constexpr const char* kPrefsDeviceNs = "device_cfg";
+constexpr const char* kPrefsFocusNs = "focus_cfg";
+constexpr const char* kPrefsContextNs = "ctx_cfg";
+constexpr const char* kPrefsOtaGuardNs = "ota_guard";
+constexpr const char* kPrefsPetNs = "pet_v1";
+constexpr const char* kPrefsAlarmNs = "alarm_cfg";
+constexpr const char* kPrefsIrRemoteNs = "ir_remote";
+constexpr const char* kLegacyBridgeHost = "";
+constexpr uint16_t kLegacyBridgePort = 31889;
+constexpr const char* kProdBridgeHost = "";
+constexpr uint16_t kProdBridgePort = 443;
+constexpr const char* kTlsRootCaPem = R"PEM(-----BEGIN CERTIFICATE-----
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
+ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
+MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
+h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
+A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
+T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
+B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
+B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
+KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
+OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
+jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
+qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
+rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
+HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
+hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
+ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
+3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
+NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
+ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
+TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
+jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
+oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
+4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
+mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
+emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+-----END CERTIFICATE-----
+)PEM";
+constexpr uint32_t kOtaHealthProbeIntervalMs = 10000;
+constexpr uint32_t kOtaCoreBootGraceMs = 90000;
+
+constexpr uint16_t kDefaultHubPort = 8000;
+constexpr uint32_t kWifiConnectTimeoutMs = 20000;
+constexpr uint32_t kWifiReconnectIntervalMs = 5000;
+constexpr uint32_t kSetupPortalReconnectIntervalMs = 15000;
+constexpr const char* kSetupPortalPassword = "12345678";
+constexpr byte kSetupPortalDnsPort = 53;
+constexpr uint32_t kWsReconnectIntervalMs = 3000;
+constexpr uint32_t kRenderIntervalMs = 20;
+constexpr uint32_t kThinkRenderIntervalMs = 40;
+constexpr uint32_t kBusyRenderIntervalMs = 60;
+constexpr uint32_t kHttpReconnectTimeoutMs = 9000;
+constexpr uint16_t kTurnHttpTimeoutMs = 65000;
+constexpr uint8_t kHttpConnectRetries = 3;
+constexpr bool kUseHubWebSocket = false;
+constexpr size_t kMaxChatLines = 24;
+constexpr size_t kMaxInputChars = 180;
+constexpr size_t kWrapColumns = 34;
+constexpr uint32_t kMicSampleRate = 24000;
+constexpr uint32_t kTtsDefaultSampleRate = 12000;
+constexpr float kMaxRecordSeconds = 600.0f;
+constexpr float kMaxTtsSeconds = 14.0f;
+constexpr float kMinRecordSeconds = 0.35f;
+constexpr uint32_t kImuSampleIntervalMs = 30;
+constexpr size_t kMaxRecordSamples = static_cast<size_t>(kMicSampleRate * kMaxRecordSeconds);
+constexpr size_t kRecordBufferBytes = kMaxRecordSamples * sizeof(int16_t);
+constexpr size_t kMinRecordBufferBytes = static_cast<size_t>(kMicSampleRate * 2 * sizeof(int16_t));
+constexpr size_t kMaxTtsSamples = static_cast<size_t>(kTtsDefaultSampleRate * kMaxTtsSeconds);
+constexpr size_t kTtsBufferBytes = kMaxTtsSamples * sizeof(int16_t);
+constexpr size_t kMinTtsBufferBytes = static_cast<size_t>(kTtsDefaultSampleRate * 2 * sizeof(int16_t));
+constexpr size_t kMaxHeapRecordFallbackBytes = 160 * 1024;
+constexpr size_t kMaxHeapTtsFallbackBytes = 160 * 1024;
+constexpr size_t kHeapReserveBytes = 48 * 1024;
+constexpr size_t kHttpWriteChunkBytes = 512;
+constexpr size_t kHttpStageChunkBytes = 1024;
+constexpr uint32_t kVoiceSocketSettleMs = 300;
+constexpr uint32_t kCtrlDoubleTapWindowMs = 420;
+constexpr uint32_t kLauncherToggleDebounceMs = 140;
+constexpr uint8_t kLauncherGroupCount = 7;
+constexpr uint8_t kLauncherMaxSubItems = 7;
+constexpr uint32_t kKeyRushDurationMs = 30000;
+constexpr const char* kKeyRushPrefsNs = "keyrush";
+constexpr uint16_t kSmartLampUdpPort = 61197;
+constexpr uint8_t kSmartLampControlCount = 4;
+constexpr uint32_t kSmartLampOnlineTimeoutMs = 3500;
+constexpr uint32_t kSmartLampPresetSendDelayMs = 250;
+constexpr uint32_t kSmartLampMinCommandGapMs = 520;
+constexpr const char* kSmartLampPrefsNs = "smartlamp";
+constexpr uint8_t kDeviceSettingsItemCount = 7;
+constexpr uint8_t kFocusSettingsItemCount = 7;
+constexpr uint8_t kScreenSettingsItemCount = 9;
+constexpr uint8_t kSettingsItemCount = kScreenSettingsItemCount;
+constexpr uint8_t kDefaultDisplayBrightnessPct = 70;
+constexpr uint8_t kScreensaverStyleCount = 2;
+constexpr uint8_t kDefaultScreensaverStyle = 0;
+constexpr uint8_t kDefaultScreensaverTimeoutMin = 5;
+constexpr uint8_t kDefaultScreensaverDimAfterMin = 30;
+constexpr uint8_t kDefaultScreensaverDimBrightnessPct = 15;
+constexpr uint8_t kDefaultScreenOffAfterMin = 60;
+constexpr uint8_t kDefaultNotificationVolumePct = 100;
+constexpr uint8_t kClockFaceCount = 1;
+constexpr uint8_t kHidKeyEscape = 0x29;
+constexpr float kPi = 3.14159265358979323846f;
+constexpr uint32_t kClockTickMs = 1000;
+constexpr uint32_t kBatterySampleIntervalMs = 2000;
+constexpr uint32_t kBatteryHistorySampleIntervalMs = 30000;
+constexpr uint32_t kBatteryDrainMinWindowMs = 5UL * 60UL * 1000UL;
+constexpr uint8_t kBatteryHistoryCapacity = 120;
+constexpr uint32_t kInboxAutoPollIntervalMs = 15000;
+constexpr uint32_t kTimeSyncRetryMs = 15000;
+constexpr uint32_t kTimeResyncMs = 6UL * 60UL * 60UL * 1000UL;
+constexpr uint32_t kFocusMinDurationSec = 60;
+constexpr uint32_t kFocusMaxDurationSec = 60UL * 60UL;
+constexpr uint32_t kFocusDefaultSec = 25UL * 60UL;
+constexpr uint32_t kFocusShortBreakDefaultSec = 5UL * 60UL;
+constexpr uint32_t kFocusLongBreakDefaultSec = 15UL * 60UL;
+constexpr uint8_t kFocusDefaultCycles = 4;
+constexpr uint32_t kFocusSnoozeSec = 5UL * 60UL;
+constexpr uint32_t kAlarmSnoozeSec = 5UL * 60UL;
+constexpr uint32_t kAlarmBeepIntervalMs = 650;
+constexpr uint16_t kFocusMinBpm = 30;
+constexpr uint16_t kFocusMaxBpm = 160;
+constexpr uint32_t kPetMinuteMs = 60UL * 1000UL;
+constexpr uint32_t kPetTickMs = 1000;
+constexpr uint32_t kPetAutoSaveMs = 45UL * 1000UL;
+constexpr uint32_t kPetActionMs = 5UL * 1000UL;
+constexpr uint32_t kPetRestMinMs = 90UL * 1000UL;
+constexpr uint32_t kPetRestMaxMs = 180UL * 1000UL;
+constexpr uint32_t kPetDecisionMinMs = 45UL * 1000UL;
+constexpr uint32_t kPetDecisionMaxMs = 120UL * 1000UL;
+constexpr uint32_t kPetOfflineMaxMinutes = 8UL * 60UL;
+constexpr uint8_t kPetMaxPoop = 5;
+constexpr uint32_t kTextTurnTaskStackSize = 8192;
+constexpr uint32_t kTopicTaskStackSize = 8192;
+constexpr size_t kMaxFlashVoiceNotes = 12;
+constexpr size_t kMaxSdVoiceNotes = 48;
+constexpr size_t kMaxStoredPreviewChars = 84;
+constexpr size_t kMaxChatStoredChars = 720;
+constexpr size_t kMaxLowHeapChatLines = 10;
+constexpr uint32_t kLowHeapFreeBytes = 32000;
+constexpr uint32_t kLowHeapLargestBlockBytes = 12000;
+constexpr uint32_t kCriticalHeapFreeBytes = 16000;
+constexpr uint32_t kCriticalHeapLargestBlockBytes = 7000;
+constexpr size_t kMaxAudioAssets = 96;
+constexpr size_t kMaxRuntimeLogLines = 36;
+constexpr size_t kMaxContexts = 32;
+constexpr size_t kMaxContextPreviewLines = 5;
+constexpr size_t kMaxNotes = 128;
+constexpr size_t kMaxNoteInputChars = 512;
+constexpr size_t kVoicePreviewLineThreshold = 5;
+constexpr const char* kVoiceDir = "/voice";
+constexpr const char* kVoiceMetaExt = ".json";
+constexpr const char* kVoiceAudioExt = ".wav";
+constexpr const char* kNotesDir = "/notes";
+constexpr const char* kPomodoroDir = "/pomodoro";
+constexpr const char* kPomodoroAudioDir = "/pomodoro/audio";
+constexpr const char* kSdAudioDir = "/audio";
+constexpr const char* kPomodoroLogsDir = "/pomodoro/logs";
+constexpr const char* kAssetManifestPath = "/pomodoro/manifest.json";
+constexpr const char* kAudioIndexPath = "/pomodoro/audio/index.json";
+constexpr const char* kOtaManifestPath = "/pomodoro/firmware.json";
+constexpr const char* kContextRegistryPath = "/pomodoro/contexts.json";
+constexpr const char* kEmojiDir = "/emoji";
+constexpr const char* kRuntimeLogPath = "/pomodoro/logs/runtime.ndjson";
+constexpr const char* kOtaTempPath = "/pomodoro/firmware.tmp.bin";
+constexpr uint8_t kIrSendPin = 44;          // Built-in Cardputer-ADV IRG44 transmitter; TX only, not a receiver.
+constexpr uint8_t kIrReceivePin = 2;        // External Grove/HY2.0 IR receiver signal on yellow G2.
+constexpr uint8_t kIrReceiveAltPin = 1;     // External Grove/HY2.0 IR receiver signal on white G1.
+constexpr uint8_t kIrReceivePins[] = {kIrReceivePin, kIrReceiveAltPin};
+constexpr uint8_t kIrReceivePinCount = sizeof(kIrReceivePins) / sizeof(kIrReceivePins[0]);
+constexpr uint8_t kIrRemoteSlotCount = 6;
+constexpr uint32_t kIrLearnTimeoutMs = 15000;
+constexpr uint32_t kIrReceivePinProbeMs = 650;
+constexpr uint32_t kIrPersistMagic = 0x49523031;  // "IR01"
+constexpr uint8_t kRfidSckPin = 40;         // Cardputer ADV EXT: G40/SCK -> RC522 SCK.
+constexpr uint8_t kRfidMosiPin = 14;        // Cardputer ADV EXT: G14/MOSI -> RC522 MOSI.
+constexpr uint8_t kRfidMisoPin = 39;        // Cardputer ADV EXT: G39/MISO -> RC522 MISO.
+constexpr uint8_t kRfidCsPin = 5;           // Cardputer ADV EXT: G5/CS -> RC522 SDA/SS.
+constexpr uint8_t kRfidResetPin = 3;        // Cardputer ADV EXT: G3 -> RC522 RST.
+constexpr uint32_t kRfidPollIntervalMs = 350;
+constexpr uint32_t kRfidReconnectIntervalMs = 1500;
+constexpr uint16_t kRfidDumpMaxBlocks = 256;
+constexpr uint8_t kRfidBlockBytes = 16;
+constexpr const char* kFocusCuePath = "/pomodoro/audio/focus_ru.wav";
+constexpr const char* kBreakCuePath = "/pomodoro/audio/break_ru.wav";
+constexpr const char* kReflectionCuePath = "/pomodoro/audio/reflection_ru.wav";
+constexpr const char* kPomodoroAudioLanguages[] = {"ru", "en", "es"};
+constexpr const char* kPomodoroAudioCues[] = {"start", "break", "reflection"};
+constexpr size_t kPomodoroAudioLanguageCount = sizeof(kPomodoroAudioLanguages) / sizeof(kPomodoroAudioLanguages[0]);
+constexpr size_t kPomodoroAudioCueCount = sizeof(kPomodoroAudioCues) / sizeof(kPomodoroAudioCues[0]);
+constexpr const char* kActiveRecordPcmPath = "/voice/__active_record.pcm";
+constexpr const char* kActiveTtsPcmPath = "/voice/__active_tts.pcm";
+constexpr uint8_t kSdSckPin = 40;
+constexpr uint8_t kSdMisoPin = 39;
+constexpr uint8_t kSdMosiPin = 14;
+constexpr uint8_t kSdCsPin = 12;
+// Cardputer ADV SD is reliable for small reads at high SPI clocks, but OTA
+// writes a continuous ~2.4MB file. 25MHz produced intermittent token errors
+// on the user's 64GB card, so keep OTA/audio storage on a conservative clock.
+constexpr uint32_t kSdFrequencyHz = 8000000;
+constexpr size_t kRecordChunkSamples = 1024;
+constexpr size_t kRecordChunkBytes = kRecordChunkSamples * sizeof(int16_t);
+constexpr size_t kRecordChunkBufferCount = 3;
+// Realtime uses the model's native PCM clock. Keep the ordinary voice-note
+// path at kMicSampleRate; it has a separate codec lifecycle.
+constexpr uint32_t kRealtimeInputSampleRate = 24000;
+constexpr uint32_t kRealtimeModelSampleRate = 24000;
+// 720 mono PCM16 samples are exactly 30 ms at 24 kHz.
+constexpr size_t kRealtimeInputChunkSamples = 720;
+constexpr size_t kRealtimeInputChunkBytes = kRealtimeInputChunkSamples * sizeof(int16_t);
+constexpr size_t kRealtimeChunkBufferCount = 3;
+constexpr size_t kRealtimeBinaryHeaderBytes = 8;
+constexpr size_t kRealtimeWsHeaderReserve = 14;
+constexpr uint8_t kRealtimeBinaryMicPcmType = 0x01;
+constexpr uint8_t kRealtimeBinaryModelPcmType = 0x02;
+constexpr uint8_t kRealtimeBinaryVersion = 1;
+// Realtime playback is fixed-memory and half-duplex on CardPuter ADV.
+// 4 KiB is ~85 ms of 24 kHz mono PCM16; the ring absorbs ~341 ms.
+constexpr size_t kRealtimePlaybackRingBytes = 16 * 1024;
+constexpr size_t kRealtimePlaybackPrebufferBytes = 4 * 1024;
+constexpr size_t kRealtimePlaybackChunkBytes = 2 * 1024;
+constexpr uint32_t kRealtimeListenRestartDelayMs = 120;
+constexpr uint32_t kRealtimeStreamStallTimeoutMs = 4000;
+constexpr uint32_t kRealtimeSpeakerStallTimeoutMs = 2500;
+constexpr uint32_t kRealtimeTerminalEventGraceMs = 4000;
+static_assert(kRealtimeInputSampleRate == kRealtimeModelSampleRate,
+              "Realtime mic must run at the negotiated model PCM clock");
+static_assert(kRealtimeInputChunkSamples * 1000 / kRealtimeInputSampleRate >= 20 &&
+              kRealtimeInputChunkSamples * 1000 / kRealtimeInputSampleRate <= 40,
+              "Realtime mic DMA chunk must remain between 20 and 40 ms");
+
+struct RealtimeChunkQueue {
+  uint8_t values[kRealtimeChunkBufferCount] = {};
+  uint8_t count = 0;
+
+  bool empty() const { return count == 0; }
+  size_t size() const { return count; }
+  uint8_t front() const { return values[0]; }
+  void clear() { count = 0; }
+  bool contains(uint8_t value) const {
+    for (uint8_t i = 0; i < count; ++i) {
+      if (values[i] == value) {
+        return true;
+      }
+    }
+    return false;
+  }
+  bool push(uint8_t value) {
+    if (count >= kRealtimeChunkBufferCount) {
+      return false;
+    }
+    values[count++] = value;
+    return true;
+  }
+  void pop() {
+    if (count == 0) {
+      return;
+    }
+    for (uint8_t i = 1; i < count; ++i) {
+      values[i - 1] = values[i];
+    }
+    --count;
+  }
+};
+constexpr uint32_t kRecordDrainTimeoutMs = 900;
+constexpr size_t kPlaybackChunkSamples = 2048;
+constexpr size_t kPlaybackChunkBytes = kPlaybackChunkSamples * sizeof(int16_t);
+constexpr size_t kPlaybackBufferCount = 2;
+constexpr uint8_t kPlaybackSpectrumBands = 16;
+constexpr uint8_t kPlaybackSpectrumMaxBar = 18;
+constexpr size_t kOtaIoBufferBytes = 4096;
+constexpr size_t kEmojiCacheCap = 10;
+constexpr size_t kEmojiMaxPngBytes = 64 * 1024;
+constexpr const char* kBangkokTz = "ICT-7";
+
+constexpr uint16_t rgb565_local(uint8_t r, uint8_t g, uint8_t b) {
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+#ifndef DEFAULT_WIFI_SSID
+#define DEFAULT_WIFI_SSID ""
+#endif
+
+#ifndef DEFAULT_WIFI_PASSWORD
+#define DEFAULT_WIFI_PASSWORD ""
+#endif
+
+#ifndef TEMP_MIDA_CAPTIVE_AUTOCONNECT
+#define TEMP_MIDA_CAPTIVE_AUTOCONNECT 0
+#endif
+
+#ifndef TEMP_MIDA_WIFI_SSID
+#define TEMP_MIDA_WIFI_SSID ""
+#endif
+
+#ifndef TEMP_MIDA_CAPTIVE_LOGIN_URL
+#define TEMP_MIDA_CAPTIVE_LOGIN_URL ""
+#endif
+
+#ifndef TEMP_MIDA_CAPTIVE_PROBE_URL
+#define TEMP_MIDA_CAPTIVE_PROBE_URL "http://connectivitycheck.gstatic.com/generate_204"
+#endif
+
+#ifndef DEFAULT_HUB_HOST
+#define DEFAULT_HUB_HOST ""
+#endif
+
+#ifndef DEFAULT_HUB_PORT_STR
+#define DEFAULT_HUB_PORT_STR ""
+#endif
+
+#ifndef DEFAULT_DEVICE_ID
+#define DEFAULT_DEVICE_ID ""
+#endif

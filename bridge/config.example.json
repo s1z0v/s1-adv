@@ -1,0 +1,132 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 31889
+  },
+  "stateDir": "./data",
+  "playbackFormat": "wav_pcm16_16k_mono",
+  "historyBootstrapLimit": 80,
+  "maxUploadBytes": 4194304,
+  "maxVoiceDurationMs": 120000,
+  "reconnectRequiredCode": "HISTORY_RESET",
+  "security": {
+    "retainPersistedDeviceTopics": false,
+    "allowedOrigins": [],
+    "trustedProxyAddresses": [],
+    "maxJsonBytes": 131072,
+    "maxLogBytes": 262144,
+    "maxWsPayloadBytes": 65536,
+    "wsAuthTimeoutMs": 5000,
+    "authFailureLimit": 20,
+    "authFailureWindowMs": 60000,
+    "authBlockMs": 300000,
+    "inboxInjectEnabled": false,
+    "multipartMaxFields": 16,
+    "multipartFieldBytes": 8192
+  },
+  "deviceTurnContext": {
+    "enabled": true,
+    "shortReplyWords": 15,
+    "voiceReplyMaxSeconds": 120,
+    "topicCatalogLimit": 50,
+    "topicPreviewLimit": 8,
+    "topicPreviewEntryLimit": 2,
+    "topicPreviewTextChars": 120,
+    "topicPreviewChars": 1800,
+    "recentHistoryLimit": 6,
+    "recentTextChars": 180,
+    "recentHistoryChars": 1600
+  },
+  "upstream": {
+    "url": "ws://127.0.0.1:18789",
+    "token": "replace-me",
+    "clientId": "gateway-client",
+    "clientVersion": "0.1.0",
+    "platform": "node",
+    "mode": "backend",
+    "scopes": [
+      "operator.read",
+      "operator.write"
+    ]
+  },
+  "telegram": {
+    "enabled": false,
+    "apiBase": "https://api.telegram.org",
+    "botToken": "",
+    "relayOutgoingText": false,
+    "relayOutgoingVoice": true
+  },
+  "media": {
+    "inboundDir": "./data/inbound",
+    "canonicalDir": "./data/media/canonical",
+    "playbackDir": "./data/media/playback",
+    "tmpDir": "./data/media/tmp"
+  },
+  "assets": {
+    "rootDir": "./data/assets",
+    "logsDir": "./data/logs",
+    "deviceClass": "cardputer_adv",
+    "audioPrefix": "/pomodoro/audio",
+    "replyCategory": "ai_answers",
+    "replySampleRate": 8000,
+    "maxFileBytes": 10485760,
+    "maxManifestFiles": 512,
+    "maxManifestBytes": 2097152
+  },
+  "firmware": {
+    "rootDir": "./data/firmware",
+    "deviceClass": "cardputer_adv",
+    "channel": "dev",
+    "manifestFilename": "manifest.json",
+    "minBattery": 40,
+    "confirmRequired": true,
+    "maxFileBytes": 10485760
+  },
+  "omnibotShim": {
+    "sttProvider": "local-whisper",
+    "sttLocalBin": "/usr/local/bin/whisper-cli",
+    "sttLocalModel": "/var/lib/openclaw-cardputer-bridge/models/ggml-base.bin",
+    "sttLocalLanguage": "auto",
+    "sttLocalThreads": 4,
+    "ttsFallbackProvider": "espeak"
+  },
+  "fastLane": {
+    "enabled": false
+  },
+  "realtimeVoice": {
+    "enabled": false,
+    "model": "gpt-realtime-2.1",
+    "vadMode": "semantic_vad",
+    "vadEagerness": "low",
+    "maxSessionMs": 3300000,
+    "deviceAudioPacingMs": 20,
+    "deviceAudioPacingChunkMs": 30,
+    "maxPacedAudioBytes": 8388608,
+    "maxActivePerDevice": 2,
+    "maxActiveGlobal": 8,
+    "startLimitPerDevice": 30,
+    "startWindowMs": 60000,
+    "s1ToolsEnabled": false,
+    "s1ToolTimeoutMs": 60000,
+    "authMode": "auto",
+    "wifAllowApiKeyFallback": true
+  },
+  "devices": [
+    {
+      "device_id": "cardputer-adv-01",
+      "device_token": "REPLACE_WITH_RANDOM_DEVICE_TOKEN",
+      "default_topic_key": "cardputer:main",
+      "topics": [
+        "cardputer:main"
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "topic_key": "cardputer:main",
+      "session_key": "agent:main:cardputer",
+      "title": "Cardputer",
+      "contour_id": "main"
+    }
+  ]
+}

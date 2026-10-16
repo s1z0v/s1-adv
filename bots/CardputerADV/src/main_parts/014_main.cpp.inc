@@ -1,0 +1,242 @@
+String makeVoiceNoteTitle(bool assistant, size_t audioLen, uint32_t sampleRate) {
+  String who = assistant ? "Claw" : "Me";
+  String stamp = String(millis() / 1000);
+  if (hasValidSystemTime()) {
+    time_t now = time(nullptr);
+    struct tm localNow;
+    localtime_r(&now, &localNow);
+    char buf[5];
+    strftime(buf, sizeof(buf), "%H%M", &localNow);
+    stamp = buf;
+  }
+  uint32_t durationSec = sampleRate ? static_cast<uint32_t>((audioLen / 2U) / sampleRate) : 0;
+  durationSec = max<uint32_t>(1, durationSec);
+  return who + "-" + stamp + "-" + String(durationSec) + "s";
+}
+
+void sortVoiceNotesNewestFirst() {
+  std::sort(gVoiceNotes.begin(), gVoiceNotes.end(), [](const VoiceNote& a, const VoiceNote& b) {
+    return a.id > b.id;
+  });
+}
+
+void clampVoiceSelection() {
+  if (gVoiceNotes.empty()) {
+    gSelectedVoiceNote = 0;
+    return;
+  }
+  if (gSelectedVoiceNote < 0) {
+    gSelectedVoiceNote = 0;
+  }
+  if (gSelectedVoiceNote >= static_cast<int>(gVoiceNotes.size())) {
+    gSelectedVoiceNote = static_cast<int>(gVoiceNotes.size()) - 1;
+  }
+}
+
+void pruneVoiceNotes() {
+  sortVoiceNotesNewestFirst();
+  fs::FS* fs = activeVoiceFs();
+  size_t limit = voiceNoteLimit();
+  while (gVoiceNotes.size() > limit) {
+    const auto& note = gVoiceNotes.back();
+    if (fs && !gSdReady) {
+      fsRemove(*fs, note.audioPath);
+      fsRemove(*fs, note.metaPath);
+    }
+    gVoiceNotes.pop_back();
+  }
+  clampVoiceSelection();
+}
+
+void loadVoiceNotes() {
+  startVoiceNotesScan();
+  while (!serviceVoiceNotesScan(18)) {
+    pumpBlockingNetworkUi();
+  }
+}
+
+void startVoiceNotesScan() {
+  if (gVoiceNotesScanActive) {
+    gVoiceNotesScanDir.close();
+    gVoiceNotesScanActive = false;
+  }
+  gVoiceNotes.clear();
+  gVoiceNotesScanCount = 0;
+  fs::FS* fs = activeVoiceFs();
+  if (!gStorageReady || !ensureVoiceStorage()) {
+    return;
+  }
+  gVoiceNotesScanDir = fs->open(kVoiceDir);
+  if (!gVoiceNotesScanDir || !gVoiceNotesScanDir.isDirectory()) {
+    gVoiceNotesScanDir.close();
+    return;
+  }
+  gVoiceNotesScanActive = true;
+}
+
+bool serviceVoiceNotesScan(uint32_t budgetMs) {
+  if (!gVoiceNotesScanActive) {
+    return true;
+  }
+  fs::FS* fs = activeVoiceFs();
+  if (!fs) {
+    gVoiceNotesScanDir.close();
+    gVoiceNotesScanActive = false;
+    return true;
+  }
+
+  uint32_t startMs = millis();
+  while (millis() - startMs <= budgetMs) {
+    File file = gVoiceNotesScanDir.openNextFile();
+    if (!file) {
+      gVoiceNotesScanDir.close();
+      gVoiceNotesScanActive = false;
+      sortVoiceNotesNewestFirst();
+      pruneVoiceNotes();
+      appendRuntimeLog("VOICE", "notes loaded count=" + String(gVoiceNotes.size()), false);
+      logf("[VOICE] notes loaded count=%u", static_cast<unsigned>(gVoiceNotes.size()));
+      return true;
+    }
+    String path = file.path();
+    file.close();
+    if (!path.endsWith(kVoiceMetaExt)) {
+      continue;
+    }
+
+    File meta = fs->open(path, "r");
+    if (!meta) {
+      continue;
+    }
+    DynamicJsonDocument doc(512);
+    auto err = deserializeJson(doc, meta);
+    meta.close();
+    if (err) {
+      continue;
+    }
+
+    VoiceNote note;
+    note.id = doc["id"] | "";
+    note.audioPath = doc["audio_path"] | "";
+    note.metaPath = path;
+    note.title = trimPreview(doc["title"] | "Voice note", 40);
+    note.preview = trimPreview(doc["preview"] | "", 56);
+    note.sampleRate = doc["sample_rate"] | 16000;
+    note.durationMs = doc["duration_ms"] | 0;
+    note.assistant = doc["assistant"] | false;
+    if (!note.id.isEmpty() && !note.audioPath.isEmpty() && fsExists(*fs, note.audioPath)) {
+      gVoiceNotes.push_back(note);
+      ++gVoiceNotesScanCount;
+      if (gVoiceNotes.size() > voiceNoteLimit() + 8) {
+        sortVoiceNotesNewestFirst();
+        while (gVoiceNotes.size() > voiceNoteLimit()) {
+          gVoiceNotes.pop_back();
+        }
+      }
+    }
+    yield();
+  }
+  return false;
+}
+
+String filenameFromPath(const String& path) {
+  int slash = path.lastIndexOf('/');
+  return slash >= 0 ? path.substring(slash + 1) : path;
+}
+
+String audioCategoryFromPath(const String& path) {
+  String tail;
+  String pomodoroPrefix = String(kPomodoroAudioDir) + "/";
+  String userPrefix = String(kSdAudioDir) + "/";
+  if (path.startsWith(userPrefix)) {
+    tail = path.substring(userPrefix.length());
+  } else if (path.startsWith(pomodoroPrefix)) {
+    tail = path.substring(pomodoroPrefix.length());
+  } else {
+    return "voice";
+  }
+  int slash = tail.indexOf('/');
+  if (slash > 0) {
+    return tail.substring(0, slash);
+  }
+  return "root";
+}
+
+String audioFolderLabel(const String& category) {
+  if (category.isEmpty()) {
+    return "All audio";
+  }
+  if (category == "root") {
+    return "Root";
+  }
+  return category;
+}
+
+bool audioAssetMatchesFolder(const AudioAsset& asset) {
+  return gAudioFolderFilter.isEmpty() || asset.category == gAudioFolderFilter;
+}
+
+int audioAssetCountForCurrentFolder() {
+  if (gAudioFolderFilter.isEmpty()) {
+    return static_cast<int>(gAudioAssets.size());
+  }
+  int count = 0;
+  for (const auto& asset : gAudioAssets) {
+    if (audioAssetMatchesFolder(asset)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+int firstAudioAssetInCurrentFolder() {
+  for (int i = 0; i < static_cast<int>(gAudioAssets.size()); ++i) {
+    if (audioAssetMatchesFolder(gAudioAssets[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int audioAssetRankInCurrentFolder(int assetIndex) {
+  int rank = 0;
+  for (int i = 0; i < static_cast<int>(gAudioAssets.size()); ++i) {
+    if (!audioAssetMatchesFolder(gAudioAssets[i])) {
+      continue;
+    }
+    if (i == assetIndex) {
+      return rank;
+    }
+    rank++;
+  }
+  return -1;
+}
+
+void clampSelectedAudioAssetToFolder() {
+  if (gAudioAssets.empty()) {
+    gSelectedAudioAsset = 0;
+    return;
+  }
+  gSelectedAudioAsset = clampValue<int>(gSelectedAudioAsset, 0, static_cast<int>(gAudioAssets.size()) - 1);
+  if (!audioAssetMatchesFolder(gAudioAssets[gSelectedAudioAsset])) {
+    int first = firstAudioAssetInCurrentFolder();
+    if (first >= 0) {
+      gSelectedAudioAsset = first;
+    }
+  }
+}
+
+void moveSelectedAudioAssetInFolder(int delta) {
+  if (gAudioAssets.empty() || audioAssetCountForCurrentFolder() == 0) {
+    return;
+  }
+  clampSelectedAudioAssetToFolder();
+  int index = gSelectedAudioAsset;
+  int total = static_cast<int>(gAudioAssets.size());
+  for (int step = 0; step < total; ++step) {
+    index = (index + delta + total) % total;
+    if (audioAssetMatchesFolder(gAudioAssets[index])) {
+      gSelectedAudioAsset = index;
+      return;
+    }
+  }
+}

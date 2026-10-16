@@ -1,0 +1,90 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 31989
+  },
+  "stateDir": "./tmp-smoke/state",
+  "playbackFormat": "wav_pcm16_16k_mono",
+  "historyBootstrapLimit": 40,
+  "maxUploadBytes": 4194304,
+  "maxVoiceDurationMs": 120000,
+  "reconnectRequiredCode": "HISTORY_RESET",
+  "security": {
+    "authFailureLimit": 5,
+    "authFailureWindowMs": 60000,
+    "authBlockMs": 30000
+  },
+  "upstream": {
+    "url": "ws://127.0.0.1:31990",
+    "token": "upstream-secret",
+    "clientId": "gateway-client",
+    "clientVersion": "0.1.0",
+    "platform": "node",
+    "mode": "backend",
+    "scopes": [
+      "operator.read",
+      "operator.write"
+    ]
+  },
+  "telegram": {
+    "enabled": false,
+    "apiBase": "https://api.telegram.org",
+    "botToken": "",
+    "relayOutgoingText": false,
+    "relayOutgoingVoice": false
+  },
+  "media": {
+    "inboundDir": "./fixtures",
+    "canonicalDir": "./tmp-smoke/media/canonical",
+    "playbackDir": "./tmp-smoke/media/playback",
+    "tmpDir": "./tmp-smoke/media/tmp"
+  },
+  "assets": {
+    "rootDir": "./tmp-smoke/state/assets",
+    "logsDir": "./tmp-smoke/state/logs",
+    "deviceClass": "cardputer_adv",
+    "audioPrefix": "/pomodoro/audio",
+    "replyCategory": "ai_answers",
+    "replySampleRate": 8000,
+    "maxFileBytes": 10485760,
+    "maxManifestFiles": 512,
+    "maxManifestBytes": 2097152
+  },
+  "firmware": {
+    "rootDir": "./tmp-smoke/state/firmware",
+    "deviceClass": "cardputer_adv",
+    "channel": "dev",
+    "manifestFilename": "manifest.json",
+    "minBattery": 40,
+    "confirmRequired": true,
+    "maxFileBytes": 10485760
+  },
+  "devices": [
+    {
+      "device_id": "cpadv-dev",
+      "device_token": "dtk_demo_cardputer",
+      "topics": [
+        "tg:root-main:default:-1001234567890:323",
+        "tg:root-main:default:-1001234567890:1984"
+      ]
+    }
+  ],
+  "topics": [
+    {
+      "topic_key": "tg:root-main:default:-1001234567890:323",
+      "session_key": "agent:main:telegram:group:-1001234567890:topic:323",
+      "title": "Topic 323",
+      "chat_id": "-1001234567890",
+      "thread_id": 323,
+      "contour_id": "root/main"
+    },
+    {
+      "topic_key": "tg:root-main:default:-1001234567890:1984",
+      "session_key": "agent:main:telegram:group:-1001234567890:topic:1984",
+      "title": "Topic 1984",
+      "chat_id": "-1001234567890",
+      "thread_id": 1984,
+      "contour_id": "root/main"
+    }
+  ]
+}

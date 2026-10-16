@@ -1,0 +1,25 @@
+{
+  "name": "pulseos-cardputer-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "mock-upstream": "node src/mock-upstream.mjs",
+    "smoke": "node src/smoke.mjs",
+    "smoke:realtime-contract": "node scripts/smoke-realtime-contract.mjs",
+    "smoke:mininerva": "node src/mininerva-compat-smoke.mjs",
+    "test:security": "node src/security-policy.test.mjs",
+    "gate:security": "node src/security-model-gate.mjs",
+    "publish:firmware": "node scripts/publish-firmware.mjs",
+    "enqueue:ota-install": "node scripts/enqueue-ota-install.mjs",
+    "test:upstream": "node --test src/upstream-client.test.mjs"
+  },
+  "dependencies": {
+    "busboy": "^1.6.0",
+    "ws": "^8.21.3"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
