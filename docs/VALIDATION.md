@@ -1,5 +1,23 @@
 # Public source validation
 
+## Source recovery, 2026-10-17
+
+Source `0.2.147-security.1` restores the released procedural eye changes on
+top of the public security fixes. The portable generic firmware build passed
+with PlatformIO Core 6.1.19: app flash 1,910,309 / 3,145,728 bytes (60.7%), static
+RAM 111,176 / 327,680 bytes (33.9%).
+
+On Linux, the recovered UI and release wiring checks, firmware transport policy
+host test, and actual eye renderer check passed. The renderer covers 15,360
+geometry cases, all six skins, blink/wrap and bounded drawing operations.
+PNG conversion is optional on macOS; Linux retains native PPM previews.
+These checks also run in the firmware CI job.
+
+Source provenance and the source-before-OTA workflow are recorded in
+[source continuity](SOURCE-SYNC.md). No device installation is claimed.
+
+## Earlier publication checks
+
 Checked on **2026-10-16**. This record describes the publication candidate;
 it does not certify a fresh physical installation.
 

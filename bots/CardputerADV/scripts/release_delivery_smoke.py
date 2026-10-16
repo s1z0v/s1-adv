@@ -18,5 +18,6 @@ assert 'return true;' in pending and 'requestAndPlayTts(' not in pending
 assert 'replySeq > gInboxLastSeq' in part(39)
 assert 'gOtaManifest.version != gOtaNotifiedVersion' in part(15)
 assert 'focusTone(1320, 120)' not in part(15)
-assert 'reinterpret_cast<const lgfx::rgb565_t*>(gUncannyStrip)' in part(50)
+assert 'drawSmoothUncannyEye' in part(50) and 'pushImage' not in part(50)
+assert not (p / 'uncanny_default_eye.h').exists()  # no RGB565 bitmap upload path remains
 print('PASS release wiring (17 fences: G0, OTA, inbox, eyes; Realtime PCM unchanged)')

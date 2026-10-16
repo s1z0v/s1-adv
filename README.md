@@ -74,8 +74,9 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-The public source starts from the 0.2.146-dev firmware line with portable
-configuration. It is not a new hardware-certified release. Public builds have
+The public source includes the 0.2.147-dev eye skins and the public security
+fixes, versioned as `0.2.147-security.1`, with portable configuration. See the
+[source recovery record](docs/SOURCE-SYNC.md). It is not a new hardware-certified release. Public builds have
 not yet been tested on a freshly provisioned physical device.
 
 Personal provisioned binaries are deliberately excluded: Wi-Fi credentials and
