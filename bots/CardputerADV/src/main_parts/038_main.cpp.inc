@@ -1,4 +1,5 @@
   if (taskOk != pdPASS) {
+    delete rawPayload;
     gActiveTextTurn = "";
     gTextTurnTaskHandle = nullptr;
     gSubmitting = false;
@@ -17,6 +18,11 @@ void processCompletedTextTurn() {
   gCompletedTextTurn = nullptr;
   portEXIT_CRITICAL(&gTextTurnMux);
   if (!result) {
+    if (gTextTurnAllocationFailed) {
+      gTextTurnAllocationFailed=false; gTextTurnTaskHandle=nullptr; gActiveTextTurn="";
+      gSubmitting=false; gThinking=false; gAssistantPendingVisible=false;
+      pushError("Send: not enough memory");
+    }
     return;
   }
 

@@ -344,12 +344,14 @@ void submitInput() {
   if (handleLocalCommand(text)) {
     return;
   }
+  if (gUiMode == UiMode::Home || gUiMode == UiMode::Face || gUiMode == UiMode::Hero) setUiMode(UiMode::ChatFull);
   pushUser(text);
   gPendingTextTurns.push_back(text);
   gAssistantPendingVisible = true;
   if (gSubmitting || gTextTurnTaskHandle != nullptr || !gActiveTextTurn.isEmpty()) {
     setStatus("Queued +" + String(gPendingTextTurns.size()), 1000);
   }
+  if (gInboxHttpBusy) setStatus("Sending...", 0);
   maybeStartNextTextTurn();
 }
 

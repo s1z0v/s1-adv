@@ -1,3 +1,26 @@
+// Network workers publish immutable results; only loopTask owns UI/history.
+struct InboxHttpPayload { String url, token, eventId; };
+struct InboxHttpResult { int code=0; String body, eventId; };
+portMUX_TYPE gInboxHttpMux = portMUX_INITIALIZER_UNLOCKED;
+InboxHttpResult* gInboxHttpResult = nullptr;
+bool gInboxHttpBusy = false;
+volatile bool gInboxAllocationFailed = false;
+volatile bool gTextTurnAllocationFailed = false;
+uint32_t gInboxRetryAfterMs = 0;
+std::deque<String> gInboxAckQueue;
+bool gPendingRealtimeStart = false;
+bool gPendingRealtimeAutoStart = false;
+bool gChatCommandsVisible = false;
+uint8_t gChatCommandSelection = 0;
+void serviceInboxNetworkCompletion();
+void servicePendingRealtimeStart();
+bool isAssistantUi();
+void runChatCommand(uint8_t index);
+void renderChatCommandsOverlay();
+bool enterNesApp();
+void leaveNesApp();
+void serviceNesApp();
+
 FaceMode gFaceMode = FaceMode::Idle;
 KeyboardLayout gKeyboardLayout = KeyboardLayout::En;
 UiMode gUiMode = UiMode::Home;

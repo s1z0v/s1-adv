@@ -531,6 +531,13 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 void startRealtimeSession(bool startAfterReady) {
+  setUiMode(UiMode::Face);
+  if (gInboxHttpBusy || gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr) {
+    gPendingRealtimeStart = true;
+    gPendingRealtimeAutoStart = startAfterReady;
+    setStatus("Waiting for network...", 900);
+    return;
+  }
   if (gRealtimeActive) {
     if (gRealtimeConnected && startAfterReady) {
       startRealtimeRecording();

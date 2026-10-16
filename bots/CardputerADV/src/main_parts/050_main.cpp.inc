@@ -52,15 +52,33 @@ EyeSkinPalette eyeSkinPalette(uint8_t skin) {
   }
 }
 
+// Transform the same procedural skin into a compact region without a second framebuffer.
+struct EyeSkinViewport {
+  int16_t x=0,y=0,w=240,h=135;
+  int16_t px(int16_t v) const { return x+(static_cast<int32_t>(v)*w)/240; }
+  int16_t py(int16_t v) const { return y+(static_cast<int32_t>(v)*h)/135; }
+  void fillScreen(uint16_t c) { gCanvas.fillRect(x,y,w,h,c); }
+  void drawLine(int16_t a,int16_t b,int16_t c,int16_t d,uint16_t color) {
+    gCanvas.drawLine(px(a),py(b),px(c),py(d),color);
+  }
+  void fillEllipse(int16_t a,int16_t b,int16_t rx,int16_t ry,uint16_t c) {
+    gCanvas.fillEllipse(px(a),py(b),max<int16_t>(1,rx*w/240),max<int16_t>(1,ry*h/135),c);
+  }
+  void fillCircle(int16_t a,int16_t b,int16_t r,uint16_t c) { fillEllipse(a,b,r,r,c); }
+  void fillTriangle(int16_t a,int16_t b,int16_t c,int16_t d,int16_t e,int16_t f,uint16_t color) {
+    gCanvas.fillTriangle(px(a),py(b),px(c),py(d),px(e),py(f),color);
+  }
+} gEyeSkinViewport;
+
 void drawEyeSkinLine(int16_t x1, int16_t y1, int16_t x2, int16_t y2,
                      uint16_t color, uint8_t width) {
   for (int8_t offset = -static_cast<int8_t>(width / 2); offset <= static_cast<int8_t>(width / 2); ++offset) {
-    gCanvas.drawLine(x1 + offset, y1, x2 + offset, y2, color);
+    gEyeSkinViewport.drawLine(x1 + offset, y1, x2 + offset, y2, color);
   }
 }
 
 void drawEyeSkinBackdrop(uint8_t skin, const EyeSkinPalette& palette) {
-  auto& d = gCanvas;
+  auto& d = gEyeSkinViewport;
   skin %= kEyeSkinCount;
   d.fillScreen(palette.background);
   if (skin == 0) {
@@ -126,7 +144,7 @@ void drawEyeSkinBackdrop(uint8_t skin, const EyeSkinPalette& palette) {
 }
 
 void drawSmoothUncannyEye(int16_t cx, int16_t cy, uint32_t now, uint8_t blink) {
-  auto& d = gCanvas;
+  auto& d = gEyeSkinViewport;
   EyeEmotion emotion = currentEyeEmotion();
   int16_t baseHalfH = 37;
   if (gFaceMode == FaceMode::Thinking || emotion == EyeEmotion::Thinking) {
@@ -177,6 +195,19 @@ void drawSmoothUncannyEye(int16_t cx, int16_t cy, uint32_t now, uint8_t blink) {
     d.fillCircle(cx + lookX - 5, cy + lookY - min<int16_t>(7, halfH / 4), 3, TFT_WHITE);
     d.fillCircle(cx + lookX + 10, cy + lookY + min<int16_t>(13, halfH / 3), 3, glint);
   }
+}
+
+void renderEyeSkinRegion(int16_t x,int16_t y,int16_t w,int16_t h) {
+  gEyeSkinViewport={x,y,w,h};
+  gCanvas.setClipRect(x,y,w,h);
+  EyeSkinPalette palette=eyeSkinPalette(gDeviceSettings.eyeSkin);
+  drawEyeSkinBackdrop(gDeviceSettings.eyeSkin,palette);
+  uint32_t now=millis(); uint8_t blink=uncannyBlinkAmount(now);
+  drawSmoothUncannyEye(62,67,now,blink); drawSmoothUncannyEye(178,67,now,blink);
+  gEyeSkinViewport.drawLine(18,24,106,24,palette.accent);
+  gEyeSkinViewport.drawLine(134,24,222,24,palette.accent);
+  gCanvas.clearClipRect();
+  gEyeSkinViewport={0,0,240,135};
 }
 
 void renderUncannyEyesUi() {

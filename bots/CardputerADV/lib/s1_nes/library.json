@@ -1,0 +1,20 @@
+{
+  "name": "s1_nes",
+  "version": "0.1.0",
+  "license": "LGPL-2.0-only",
+  "build": {
+    "srcFilter": [
+      "-<*>",
+      "+<bitmap.c>",
+      "+<cpu/nes6502.c>",
+      "+<nes/nes.c>",
+      "+<nes/nes_ppu.c>",
+      "+<nes/nes_mmc.c>",
+      "+<nes/nesinput.c>",
+      "+<nes/nes_pal.c>",
+      "+<sndhrdw/nes_apu.c>",
+      "+<mappers/map000.c>",
+      "+<s1_nes.c>"
+    ]
+  }
+}

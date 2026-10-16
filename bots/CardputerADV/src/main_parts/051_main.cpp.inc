@@ -182,28 +182,16 @@ void renderLauncherLivingPreview(int16_t x, int16_t y, int16_t w, int16_t h) {
 }
 
 void renderFacePanel(bool fullscreen = false) {
-  auto& d = gCanvas;
-  int16_t panelX = (fullscreen ? 2 : 4) + static_cast<int16_t>(gEyePanelShiftX);
-  int16_t panelY = (fullscreen ? 2 : 4) + static_cast<int16_t>(gEyePanelShiftY);
-  int16_t panelW = fullscreen ? 236 : 232;
-  int16_t panelH = fullscreen ? 126 : 72;
-  d.fillRoundRect(panelX, panelY, panelW, panelH, 18, 0x10A2);
-  d.drawRoundRect(panelX, panelY, panelW, panelH, 18, 0x4208);
-  d.fillRoundRect(panelX + 3, panelY + 3, panelW - 6, panelH - 6, 16, 0x0861);
-  int16_t eyeCenterY = fullscreen ? panelY + 63 : panelY + 35;
-  int16_t leftEyeX = fullscreen ? panelX + 64 : panelX + 60;
-  int16_t rightEyeX = fullscreen ? panelX + 172 : panelX + 172;
-  int16_t eyeHalfW = fullscreen ? 52 : 41;
-  int16_t eyeHalfH = fullscreen ? 36 : 25;
-  renderOmniEyePair(leftEyeX, rightEyeX, eyeCenterY, eyeHalfW, eyeHalfH, 0x0861);
-
-  if (gSubmitting || gThinking) {
-    int16_t arrowY = fullscreen ? panelY + 12 : panelY + 10;
-    int16_t centerX = panelX + panelW / 2;
-    uint16_t thinkingAccent = currentEyeEmotion() == EyeEmotion::Thinking ? TFT_GOLD : rgb565_local(120, 255, 170);
-    d.fillTriangle(centerX - 16, arrowY + 10, centerX - 10, arrowY, centerX - 4, arrowY + 10, thinkingAccent);
-    d.fillTriangle(centerX + 4, arrowY + 10, centerX + 10, arrowY, centerX + 16, arrowY + 10, thinkingAccent);
-  }
+  if (fullscreen) { renderUncannyEyesUi(); return; }
+  renderEyeSkinRegion(48,13,144,73);
+  auto& d=gCanvas;
+  const uint16_t bg=rgb565_local(3,7,13);
+  d.setFont(&fonts::Font0); d.setTextSize(1);
+  d.setTextColor(rgb565_local(47,227,255),bg);
+  d.setCursor(8,3); d.print("CHAT EYES");
+  d.setTextColor(rgb565_local(255,194,74),bg);
+  d.setCursor(132,3);
+  d.print(fitCurrentFontToWidth((gThinking||gSubmitting)?gStatusText:String(eyeSkinName(gDeviceSettings.eyeSkin)),100));
 }
 
 void drawScrollIndicators(bool canScrollUp, bool canScrollDown) {

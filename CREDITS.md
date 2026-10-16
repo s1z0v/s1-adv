@@ -32,6 +32,19 @@ Arduino ESP32 2.0.14 WebServer, LGPL-2.1-or-later. Its source headers, license
 and [security backport notes](bots/CardputerADV/lib/WebServer/S1-ADV-PATCHES.md)
 are retained.
 
+## NES and bundled homebrew
+
+- Nofrendo, copyright Matthew Conte and contributors, **GNU Library GPL v2**.
+  Integrated via [arduino-nofrendo](https://github.com/moononournation/arduino-nofrendo)
+  and [geo-tp's Cardputer Game Station](https://github.com/geo-tp/Cardputer-Game-Station-Emulators).
+  The engine's license differs from its container repository's MIT license.
+  [Complete source, license and local patches](bots/CardputerADV/lib/s1_nes/README.md)
+  are included, with the firmware build scripts for modification and relinking.
+- [HonkeyPong](https://github.com/HonkeyKong/HonkeyPong), copyright 2015 Ryan
+  Souders, **MIT**, provides the bundled, freely redistributable NES game.
+  [Game source, assets, notices and rebuild instructions](third_party/honkeypong/S1-ADV.md)
+  are included. BoxyBold/FamiTone retain the upstream public-domain notices.
+
 ## Cover image
 
 The S1-ADV cover was composed with the built-in image generation tool, using

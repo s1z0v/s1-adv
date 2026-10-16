@@ -188,32 +188,27 @@ void updateBatterySnapshot(bool force) {
   recordBatteryHistorySample(now, force);
 }
 
-void textTurnTask(void* arg) {
+TextTurnTaskResult* performTextTurnRequest(void* arg) {
   std::unique_ptr<TextTurnTaskPayload> payload(static_cast<TextTurnTaskPayload*>(arg));
   std::unique_ptr<TextTurnTaskResult> result(new TextTurnTaskResult());
   if (!result) {
-    gTextTurnTaskHandle = nullptr;
-    vTaskDelete(nullptr);
-    return;
+    return nullptr;
   }
 
   result->response.reserve(2048);
-  bool releasedCanvasForText = false;
 
   if (payload->url.isEmpty()) {
     result->error = "Hub is not configured.";
-  } else if (!ensureWifiForHttp("text-turn", 3000)) {
+  } else if (WiFi.status() != WL_CONNECTED) {
     result->error = "Wi-Fi unavailable.";
   } else {
-    prepareNetworkMemory("text", false);
-    releasedCanvasForText = releaseUiCanvasForNetwork("text");
 
     HTTPClient http;
     std::unique_ptr<WiFiClientSecure> secureClient;
     http.setTimeout(kTurnHttpTimeoutMs);
     http.setReuse(false);
     bool beginOk = false;
-    logf("[TEXT] preconnect free=%u largest=%u url=%s",
+    Serial.printf("[TEXT] preconnect free=%u largest=%u url=%s",
          static_cast<unsigned>(ESP.getFreeHeap()),
          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
          payload->url.c_str());
@@ -227,7 +222,7 @@ void textTurnTask(void* arg) {
     if (!beginOk) {
       result->error = "Failed to open HTTP connection. largest=" +
                       String(static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-      logf("[TEXT] begin failed free=%u largest=%u",
+      Serial.printf("[TEXT] begin failed free=%u largest=%u",
            static_cast<unsigned>(ESP.getFreeHeap()),
            static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     } else {
@@ -256,7 +251,7 @@ void textTurnTask(void* arg) {
       result->response = http.getString();
       http.end();
       if (code <= 0) {
-        logf("[TEXT] post transport code=%d err=%s free=%u largest=%u",
+        Serial.printf("[TEXT] post transport code=%d err=%s free=%u largest=%u",
              code,
              HTTPClient::errorToString(code).c_str(),
              static_cast<unsigned>(ESP.getFreeHeap()),
@@ -310,22 +305,22 @@ void textTurnTask(void* arg) {
     }
   }
 
-  if (releasedCanvasForText) {
-    restoreUiCanvasAfterNetwork();
-  }
+  return result.release();
+}
 
+void textTurnTask(void* arg) {
+  TextTurnTaskResult* completed = performTextTurnRequest(arg);
+  // The helper has returned, so HTTP/TLS clients and request Strings are freed
+  // before vTaskDelete (FreeRTOS does not unwind C++ stack objects).
   portENTER_CRITICAL(&gTextTurnMux);
-  if (gCompletedTextTurn == nullptr) {
-    gCompletedTextTurn = result.release();
-  } else {
-    delete gCompletedTextTurn;
-    gCompletedTextTurn = result.release();
-  }
+  gCompletedTextTurn = completed;
+  gTextTurnAllocationFailed = completed == nullptr;
   portEXIT_CRITICAL(&gTextTurnMux);
   vTaskDelete(nullptr);
 }
 
 void maybeStartNextTextTurn() {
+  if (gInboxHttpBusy || gRealtimeExclusiveMode || gUiMode == UiMode::Nes) return;
   if (gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr || !gActiveTextTurn.isEmpty()) {
     return;
   }
@@ -369,10 +364,13 @@ void maybeStartNextTextTurn() {
   setFaceMode(FaceMode::Thinking);
   setStatus(gPendingTextTurns.empty() ? "Sending..." : ("Sending... +" + String(gPendingTextTurns.size())));
 
+  prepareNetworkMemory("text", false);
+  render(); // Paint the pending message before TLS allocation or waiting.
+  TextTurnTaskPayload* rawPayload = payload.release();
   BaseType_t taskOk = xTaskCreate(
       textTurnTask,
       "text-turn",
       kTextTurnTaskStackSize,
-      payload.release(),
+      rawPayload,
       1,
       &gTextTurnTaskHandle);

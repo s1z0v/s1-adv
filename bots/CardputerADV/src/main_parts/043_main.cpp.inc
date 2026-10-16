@@ -27,6 +27,7 @@ void stopRealtimeRecordingAndCommit() {
 }
 
 void toggleRealtimeVoice() {
+  if (gPendingRealtimeStart) { gPendingRealtimeStart=false; setStatus("Realtime cancelled",900); return; }
   if (gRealtimeRecording) {
     stopRealtimeRecordingAndCommit();
     return;
@@ -920,7 +921,7 @@ void maintainConnectivity() {
     if (now - gLastWifiReconnectMs >= kWifiReconnectIntervalMs && !gSubmitting && !gRecording) {
       gLastWifiReconnectMs = now;
       logf("[WIFI] background reconnect attempt");
-      ensureWifiForHttp("background-reconnect", 3000);
+      WiFi.reconnect(); // Driver schedules reconnect; keyboard/render never wait here.
     }
     return;
   }
@@ -1119,6 +1120,7 @@ bool handleLocalCommand(const String& input) {
     return true;
   }
 
+  if (cmd == "/nes") { setUiMode(UiMode::Nes); return true; }
   if (cmd == "/tetris" || cmd == "/game") {
     setUiMode(UiMode::Tetris);
     return true;

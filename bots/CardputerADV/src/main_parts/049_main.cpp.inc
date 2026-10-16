@@ -2,6 +2,16 @@
     if (!routeBrainFlowEscape()) {
       handleGlobalEscape();
     }
+  } else if (gChatCommandsVisible) {
+    if (tabDown) gChatCommandsVisible=false;
+    else if (upDown || leftDown) gChatCommandSelection=(gChatCommandSelection+5)%6;
+    else if (downDown || rightDown) gChatCommandSelection=(gChatCommandSelection+1)%6;
+    else if (enterDown) runChatCommand(gChatCommandSelection);
+    else if (charDown) handleTypingKey(curWordChar,keys);
+  } else if (isAssistantUi() && !gLauncherVisible && keys.ctrl && (leftDown || rightDown)) {
+    runChatCommand(leftDown?4:5);
+  } else if (isAssistantUi() && !gLauncherVisible && tabDown) {
+    gChatCommandsVisible=true;
   } else if (topicPrevCombo) {
     bool ok = switchTopicRelative(-1, true);
     if (ok && gUiMode != UiMode::Contexts) {

@@ -67,8 +67,8 @@ def main() -> None:
             "device-event polling must drain a bounded batch")
     require("seq <= gInboxLastSeq" in inbox and "ackDeviceEvent(candidateEventId)" in inbox,
             "stale device events must be acknowledged instead of poisoning the queue")
-    require("[INBOX] auto blocked" in inbox,
-            "hidden auto-poll busy gates must be observable on serial")
+    require("xTaskCreate(inboxHttpTask" in inbox and "serviceInboxNetworkCompletion" in inbox,
+            "automatic inbox HTTP must run outside the UI loop")
 
     removed_asset_bytes = 200 * 200 * 2 + 256 * 64 * 2 + 128 * 128 * 2 + 80 * 80 * 2
     require(removed_asset_bytes == 158_336, "unexpected removed eye asset footprint")

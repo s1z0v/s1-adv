@@ -31,7 +31,11 @@ struct Canvas {
   std::vector<Ellipse> ellipses;
   bool raster=false;
   int calls=0;
-  void pixel(int x,int y,uint16_t c) { if (raster && x>=0 && x<240 && y>=0 && y<135) pixels[y*240+x]=c; }
+  int clipX=0,clipY=0,clipW=240,clipH=135;
+  void setClipRect(int x,int y,int w,int h) {clipX=x;clipY=y;clipW=w;clipH=h;}
+  void clearClipRect() {setClipRect(0,0,240,135);}
+  void fillRect(int x,int y,int w,int h,uint16_t c) { ++calls; ellipses.clear(); for(int py=y;py<y+h;++py) for(int px=x;px<x+w;++px) pixel(px,py,c); }
+  void pixel(int x,int y,uint16_t c) { if (raster && x>=0 && x<240 && y>=0 && y<135 && x>=clipX && x<clipX+clipW && y>=clipY && y<clipY+clipH) pixels[y*240+x]=c; }
   void fillScreen(uint16_t c) { ++calls; ellipses.clear(); if(raster) std::fill(pixels,pixels+240*135,c); }
   void fillEllipse(int x,int y,int rx,int ry,uint16_t c) {
     assert(rx>0 && ry>0 && rx<=240 && ry<=135); ++calls;
@@ -97,6 +101,15 @@ int main(int argc,char**argv) {
   for(int skin=0;skin<6;++skin) {
     gCanvas.raster=true;gDeviceSettings.eyeSkin=skin;renderUncannyEyesUi();
     gCanvas.save(std::string(argv[1])+"/skin-"+std::to_string(skin)+".ppm");gCanvas.raster=false;
+  }
+  for(int skin=0;skin<6;++skin) {
+    gCanvas.raster=true;gDeviceSettings.eyeSkin=skin;
+    gCanvas.fillScreen(rgb565_local(3,7,13));
+    renderEyeSkinRegion(48,13,144,73);
+    assert(gCanvas.pixels[0]==rgb565_local(3,7,13));
+    assert(gCanvas.pixels[90*240+120]==rgb565_local(3,7,13));
+    gCanvas.save(std::string(argv[1])+"/compact-"+std::to_string(skin)+".ppm");
+    gCanvas.raster=false;
   }
   int cases=0;
   for(int e=0;e<6;++e)for(int f=0;f<5;++f)for(int blink=0;blink<256;++blink)for(int gaze=-1;gaze<=1;gaze+=2) {

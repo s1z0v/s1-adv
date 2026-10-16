@@ -271,6 +271,9 @@ bool uiModeInterruptsRealtime(UiMode mode) {
 }
 
 void setUiMode(UiMode mode) {
+  if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
+  if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
+  if (mode != gUiMode) gChatCommandsVisible = false;
   if (gUiMode==UiMode::BrainFlow && mode!=UiMode::BrainFlow) pauseBrainFlow();
   bool modeChanged = mode != gUiMode;
   if (modeChanged && gUiMode == UiMode::KeyRush && mode != UiMode::KeyRush && gKeyRush.running) {

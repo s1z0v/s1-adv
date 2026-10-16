@@ -88,6 +88,7 @@
         renderChatUi();
         break;
   }
+  renderChatCommandsOverlay();
   gCanvas.pushSprite(0, 0);
   uint32_t renderCostMs = millis() - renderStartMs;
   if (renderCostMs >= 45U && millis() - gLastUiSlowLogMs >= 2000U) {
@@ -307,6 +308,9 @@ void loop() {
     serviceRealtimeExclusiveLoop(loopStartMs);
     return;
   }
+  serviceInboxNetworkCompletion();
+  servicePendingRealtimeStart();
+  if (gUiMode == UiMode::Nes) { serviceNesApp(); delay(1); return; }
   serviceSetupPortal();
   updateImuMotion();
   updateStatusLed();
@@ -342,6 +346,7 @@ void loop() {
   servicePet();
   processCompletedTopicTask();
   processCompletedTextTurn();
+  if (!gPendingTextTurns.empty()) maybeStartNextTextTurn();
   serviceMemoryGuard();
   updateG0VoiceTrigger();
   updateVoiceTrigger();

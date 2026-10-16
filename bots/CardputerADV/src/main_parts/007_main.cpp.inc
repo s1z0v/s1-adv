@@ -1,5 +1,6 @@
 const char* uiModeName(UiMode mode) {
   switch (mode) {
+    case UiMode::Nes: return "NES";
     case UiMode::Home:
       return "Pulse";
     case UiMode::Face:

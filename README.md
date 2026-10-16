@@ -30,6 +30,7 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | Spoken replies and an SD audio library | Server-side STT/TTS and device audio playback |
 | Firmware updates over Wi-Fi | Your bridge's authenticated OTA manifest |
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
+| NES + bundled HonkeyPong | Nofrendo; offline, no SD required |
 
 Realtime voice is an optional experimental mode with separate provider setup.
 Start with text, then add ordinary push-to-talk voice.
@@ -74,10 +75,10 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-The public source includes the 0.2.147-dev eye skins and the public security
-fixes, versioned as `0.2.147-security.1`, with portable configuration. See the
-[source recovery record](docs/SOURCE-SYNC.md). It is not a new hardware-certified release. Public builds have
-not yet been tested on a freshly provisioned physical device.
+Current source is `0.2.148-dev`: responsive chat, shared Chat Eyes/Big Eyes
+skins and NES with bundled HonkeyPong. See [controls and release notes](docs/RELEASE-0.2.148.md).
+The public security fixes are retained. Public builds have not yet been tested
+on a freshly provisioned physical device.
 
 Personal provisioned binaries are deliberately excluded: Wi-Fi credentials and
 device tokens may be embedded in them. Build locally with your own settings.

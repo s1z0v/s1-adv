@@ -13,7 +13,7 @@ if (!prefix.includes('drawSmoothUncannyEye')) throw Error('Missing actual render
 const harness = readFileSync(path.join(root, 'tests/eye_skin_canvas.h'), 'utf8');
 const cpp = harness.replace('// ACTUAL_FIRMWARE_RENDERER', prefix);
 writeFileSync(path.join(out, 'render.cpp'), cpp);
-execFileSync('c++', ['-std=c++11', '-O2', '-Wall', '-Wextra', path.join(out, 'render.cpp'), '-o', path.join(out, 'render')], {stdio:'inherit'});
+execFileSync('c++', ['-std=c++17', '-O2', '-Wall', '-Wextra', path.join(out, 'render.cpp'), '-o', path.join(out, 'render')], {stdio:'inherit'});
 execFileSync(path.join(out, 'render'), [out], {stdio:'inherit'});
 if (process.platform === 'darwin') {
   for (let i = 0; i < 6; i++) {

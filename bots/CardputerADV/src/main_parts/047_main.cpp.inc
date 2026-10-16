@@ -2011,6 +2011,8 @@ bool handleKeyRushKey(char key, const Keyboard_Class::KeysState& keys) {
 }
 
 bool handleGlobalEscape() {
+  if (gChatCommandsVisible) { gChatCommandsVisible=false; return true; }
+  gPendingRealtimeStart=false;
   bool changed = false;
 
   if (gAlarmRinging) {

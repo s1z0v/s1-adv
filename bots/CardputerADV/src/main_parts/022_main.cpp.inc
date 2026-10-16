@@ -255,6 +255,8 @@ bool mapActionUiMode(String mode, UiMode& out) {
   } else if (mode == "rfid" || mode == "rfid_lab" || mode == "rc522" || mode == "mfrc522" ||
              mode == "nfc") {
     out = UiMode::RfidLab;
+  } else if (mode == "nes" || mode == "honkeypong") {
+    out = UiMode::Nes;
   } else if (mode == "tetris" || mode == "game" || mode == "blocks") {
     out = UiMode::Tetris;
   } else if (mode == "c_matrix" || mode == "cmatrix" || mode == "cimatrix" || mode == "c-matrix" ||

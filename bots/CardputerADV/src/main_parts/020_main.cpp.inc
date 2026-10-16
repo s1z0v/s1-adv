@@ -159,71 +159,13 @@ bool ackDeviceEvent(const String& eventId) {
   if (eventId.isEmpty() || gHubHost.isEmpty()) {
     return false;
   }
-  String url = hubBaseUrl() + "/api/cardputer/device-events/ack";
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secureClient;
-  if (!configureHttpClient(http, secureClient, url, 8000)) {
-    logf("[INBOX] event ack connect failed id=%s", eventId.c_str());
-    return false;
-  }
-  if (!gDeviceToken.isEmpty()) {
-    http.addHeader("Authorization", "Bearer " + gDeviceToken);
-  }
-  DynamicJsonDocument doc(256);
-  doc["event_id"] = eventId;
-  String body;
-  serializeJson(doc, body);
-  http.addHeader("Content-Type", "application/json");
-  int code = http.POST(body);
-  String response = code > 0 ? http.getString() : "";
-  http.end();
-  bool ok = code >= 200 && code < 300;
-  logf("[INBOX] event ack id=%s code=%d ok=%d", eventId.c_str(), code, static_cast<int>(ok));
-  return ok;
+  for (const auto& pending : gInboxAckQueue) if (pending == eventId) return true;
+  if (gInboxAckQueue.size() >= 16) return false; // Unacked events remain durable at bridge.
+  gInboxAckQueue.push_back(eventId);
+  return true;
 }
 
-bool fetchLatestInboxMessage(bool forcePlay, bool speak, bool quiet, bool assistantOnly) {
-  if ((!gWifiReady && !ensureWifiForHttp("inbox", 3000)) || gHubHost.isEmpty()) {
-    if (!quiet) {
-      setStatus("Inbox offline", 1200);
-    }
-    logf("[INBOX] offline");
-    return false;
-  }
-  String topicKey = currentConversationKey();
-  if (topicKey != gInboxLastTopicKey) {
-    gInboxLastTopicKey = topicKey;
-    logf("[INBOX] topic key=%s", topicKey.c_str());
-  }
-  // Drain a bounded batch so an already-seen or malformed event cannot remain
-  // at the head of the queue forever and hide a later OTA/device action.
-  String url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=10&text_chars=1024";
-  if (assistantOnly) {
-    url += "&sender_kind=assistant";
-  }
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secureClient;
-  uint32_t inboxTimeoutMs = quiet ? 4000 : 15000;
-  if (!configureHttpClient(http, secureClient, url, inboxTimeoutMs)) {
-    if (!quiet) {
-      setStatus("Inbox connect failed", 1200);
-    }
-    logf("[INBOX] connect failed");
-    return false;
-  }
-  if (!gDeviceToken.isEmpty()) {
-    http.addHeader("Authorization", "Bearer " + gDeviceToken);
-  }
-  int code = http.GET();
-  String body = code > 0 ? http.getString() : "";
-  http.end();
-  if (code < 200 || code >= 300) {
-    if (!quiet) {
-      setStatus("Inbox HTTP " + String(code), 1400);
-    }
-    logf("[INBOX] http=%d body=%s", code, body.c_str());
-    return false;
-  }
+bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bool assistantOnly) {
   DynamicJsonDocument doc(8192);
   auto err = deserializeJson(doc, body);
   if (err) {
@@ -290,6 +232,50 @@ bool fetchLatestInboxMessage(bool forcePlay, bool speak, bool quiet, bool assist
   logf("[INBOX] no new message last_seq=%u", static_cast<unsigned>(gInboxLastSeq));
   return false;
 }
+bool fetchLatestInboxMessage(bool forcePlay, bool speak, bool quiet, bool assistantOnly) {
+  if ((!gWifiReady && !ensureWifiForHttp("inbox", 3000)) || gHubHost.isEmpty()) {
+    if (!quiet) {
+      setStatus("Inbox offline", 1200);
+    }
+    logf("[INBOX] offline");
+    return false;
+  }
+  String topicKey = currentConversationKey();
+  if (topicKey != gInboxLastTopicKey) {
+    gInboxLastTopicKey = topicKey;
+    logf("[INBOX] topic key=%s", topicKey.c_str());
+  }
+  // Drain a bounded batch so an already-seen or malformed event cannot remain
+  // at the head of the queue forever and hide a later OTA/device action.
+  String url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=10&text_chars=1024";
+  if (assistantOnly) {
+    url += "&sender_kind=assistant";
+  }
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secureClient;
+  uint32_t inboxTimeoutMs = quiet ? 4000 : 15000;
+  if (!configureHttpClient(http, secureClient, url, inboxTimeoutMs)) {
+    if (!quiet) {
+      setStatus("Inbox connect failed", 1200);
+    }
+    logf("[INBOX] connect failed");
+    return false;
+  }
+  if (!gDeviceToken.isEmpty()) {
+    http.addHeader("Authorization", "Bearer " + gDeviceToken);
+  }
+  int code = http.GET();
+  String body = code > 0 ? http.getString() : "";
+  http.end();
+  if (code < 200 || code >= 300) {
+    if (!quiet) {
+      setStatus("Inbox HTTP " + String(code), 1400);
+    }
+    logf("[INBOX] http=%d body=%s", code, body.c_str());
+    return false;
+  }
+  return applyInboxResponse(body, forcePlay, speak, quiet, assistantOnly);
+}
 
 bool autoInboxPollAllowed() {
   bool passiveUi = gUiMode == UiMode::Home || gUiMode == UiMode::ChatFace ||
@@ -304,49 +290,99 @@ bool autoInboxPollAllowed() {
          gInputBuffer.isEmpty();
 }
 
-void serviceAutoInboxPoll() {
-  static uint32_t lastBlockedLogMs = 0;
-  uint32_t now = millis();
-  // Boot must stay immediately usable. In particular, do not let a pending
-  // inbox TTS/download seize the main loop while the user is entering
-  // Realtime. Background sync is delayed and remains silent; messages are
-  // still rendered and acknowledged.
-  if (now < 30000U) {
-    return;
+InboxHttpResult* performInboxHttpRequest(void* arg) {
+  std::unique_ptr<InboxHttpPayload> request(static_cast<InboxHttpPayload*>(arg));
+  std::unique_ptr<InboxHttpResult> result(new InboxHttpResult());
+  if (!result) return nullptr;
+  result->eventId = request->eventId;
+  HTTPClient http;
+  std::unique_ptr<WiFiClientSecure> secure;
+  http.setConnectTimeout(2500);
+  http.setTimeout(2500);
+  http.setReuse(false);
+  bool opened = false;
+  if (WiFi.status() == WL_CONNECTED) {
+    if (request->url.startsWith("https://")) {
+      secure.reset(new WiFiClientSecure());
+      configureSecureClient(*secure);
+      secure->setHandshakeTimeout(4);
+      opened = http.begin(*secure, request->url);
+    } else opened = http.begin(request->url);
   }
-  if (gVoiceReplyPending && now - gVoiceReplyPendingMs > 300000U) gVoiceReplyPending = false;
-  const uint32_t interval = gVoiceReplyPending ? 4000U : kInboxAutoPollIntervalMs;
-  if (gLastInboxAutoPollMs != 0 && now - gLastInboxAutoPollMs < interval) {
-    return;
-  }
-  if (!autoInboxPollAllowed()) {
-    if (lastBlockedLogMs == 0 || now - lastBlockedLogMs >= 15000U) {
-      lastBlockedLogMs = now;
-      logf("[INBOX] auto blocked ui=%d wifi=%d launcher=%d boot=%d transfer=%d "
-           "rec=%d submit=%d think=%d play=%d rt=%d task=%d pending=%u input=%u",
-           static_cast<int>(gUiMode), static_cast<int>(gWifiReady),
-           static_cast<int>(gLauncherVisible), static_cast<int>(gBootBackgroundActive),
-           static_cast<int>(gTransferUiActive), static_cast<int>(gRecording),
-           static_cast<int>(gSubmitting), static_cast<int>(gThinking),
-           static_cast<int>(gPlaybackActive),
-           static_cast<int>(gRealtimeActive || gRealtimeConnected || gRealtimeRecording ||
-                            gRealtimeAwaiting || gRealtimeSmokeActive ||
-                            gRealtimeSmokeAudioStreaming),
-           static_cast<int>(gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr ||
-                            !gActiveTextTurn.isEmpty()),
-           static_cast<unsigned>(gPendingTextTurns.size()),
-           static_cast<unsigned>(gInputBuffer.length()));
+  if (opened) {
+    if (!request->token.isEmpty()) http.addHeader("Authorization", "Bearer " + request->token);
+    if (request->eventId.isEmpty()) {
+      result->code = http.GET();
+      if (result->code >= 200 && result->code < 300) result->body = http.getString();
+    } else {
+      DynamicJsonDocument doc(256);
+      doc["event_id"] = request->eventId;
+      String body; serializeJson(doc, body);
+      http.addHeader("Content-Type", "application/json");
+      result->code = http.POST(body);
     }
+    http.end();
+  }
+  return result.release();
+}
+
+void inboxHttpTask(void* arg) {
+  InboxHttpResult* completed=performInboxHttpRequest(arg);
+  portENTER_CRITICAL(&gInboxHttpMux);
+  gInboxHttpResult = completed;
+  gInboxAllocationFailed = completed == nullptr;
+  portEXIT_CRITICAL(&gInboxHttpMux);
+  vTaskDelete(nullptr);
+}
+
+void serviceInboxNetworkCompletion() {
+  InboxHttpResult* completed = nullptr;
+  portENTER_CRITICAL(&gInboxHttpMux);
+  completed = gInboxHttpResult;
+  gInboxHttpResult = nullptr;
+  portEXIT_CRITICAL(&gInboxHttpMux);
+  if (!completed) {
+    if(gInboxAllocationFailed) { gInboxAllocationFailed=false; gInboxHttpBusy=false; gInboxRetryAfterMs=millis()+10000; }
     return;
   }
-  lastBlockedLogMs = 0;
+  std::unique_ptr<InboxHttpResult> result(completed);
+  gInboxHttpBusy = false;
+  if (result->code < 200 || result->code >= 300) {
+    gInboxRetryAfterMs=millis()+4000;
+    logf("[INBOX] background HTTP %d",result->code);
+  }
+  if (!result->eventId.isEmpty()) {
+    if (result->code >= 200 && result->code < 300 && !gInboxAckQueue.empty() &&
+        gInboxAckQueue.front() == result->eventId) gInboxAckQueue.pop_front();
+    else gLastInboxAutoPollMs = millis(); // Retry later, never spin on a failed ACK.
+  } else if (result->code >= 200 && result->code < 300) {
+    applyInboxResponse(result->body, false, false, true, true);
+  }
+}
+
+void serviceAutoInboxPoll() {
+  uint32_t now = millis();
+  if (gInboxHttpBusy || now < 30000U || now - gLastUserActivityMs < 1000U || !autoInboxPollAllowed()) return;
+  if (gVoiceReplyPending && now - gVoiceReplyPendingMs > 300000U) gVoiceReplyPending = false;
+  const uint32_t interval = !gInboxAckQueue.empty() ? 250U : (gVoiceReplyPending ? 4000U : kInboxAutoPollIntervalMs);
+  if (gInboxRetryAfterMs && static_cast<int32_t>(now-gInboxRetryAfterMs)<0) return;
+  if (gLastInboxAutoPollMs && now - gLastInboxAutoPollMs < interval) return;
+  std::unique_ptr<InboxHttpPayload> payload(new InboxHttpPayload());
+  payload->token = gDeviceToken;
+  if (!gInboxAckQueue.empty()) {
+    payload->eventId = gInboxAckQueue.front();
+    payload->url = hubBaseUrl() + "/api/cardputer/device-events/ack";
+  } else {
+    payload->url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=2&text_chars=1024&sender_kind=assistant&firmware_version=" + String(kAppVersion) + "&firmware_git=" + String(kBuildGitSha);
+  }
+  // Memory housekeeping belongs to loopTask and must retain the visible canvas.
+  prepareNetworkMemory("inbox", false);
   gLastInboxAutoPollMs = now;
-  // Background delivery updates the screen/history but never starts the
-  // synchronous TTS path. Audio remains available through explicit inbox
-  // playback, while keyboard and Realtime no longer disappear for ~20 s.
-  bool ok = fetchLatestInboxMessage(false, false, true, true);
-  if (ok) {
-    appendRuntimeLog("INBOX", "auto poll synced seq=" + String(gInboxLastSeq), true);
+  gInboxHttpBusy = true;
+  InboxHttpPayload* raw = payload.release();
+  if (xTaskCreate(inboxHttpTask, "inbox-http", 8192, raw, 1, nullptr) != pdPASS) {
+    delete raw;
+    gInboxHttpBusy = false;
   }
 }
 

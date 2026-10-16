@@ -89,6 +89,14 @@ void renderModeFooter(const String& left, const String& right = "") {
 
 void renderFaceOnlyUi() {
   renderUncannyEyesUi();
+  if (!gScreensaverActive) {
+    uint16_t bg=rgb565_local(3,7,13);
+    gCanvas.fillRect(0,125,240,10,bg);
+    gCanvas.setFont(&fonts::Font0);
+    gCanvas.setTextColor(gRealtimeActive?rgb565_local(100,255,170):rgb565_local(126,143,157),bg);
+    gCanvas.setCursor(8,128);
+    gCanvas.print(gRealtimeActive?"LIVE   Tab commands  Esc end":"Tab commands   Ctrl+R live");
+  }
   renderLauncherOverlay();
   renderDebugOverlay();
 }

@@ -74,6 +74,7 @@ void serviceMemoryGuard() {
   static uint32_t lastCheckMs = 0;
   static uint32_t criticalSinceMs = 0;
   uint32_t now = millis();
+  if (gInboxHttpBusy) return;
   if (now - lastCheckMs < 1000) {
     return;
   }

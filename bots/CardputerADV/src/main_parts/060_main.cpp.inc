@@ -86,17 +86,17 @@ void renderChatUi() {
     renderFacePanel(false);
   }
 
-  bool showStatus = !gStatusText.isEmpty() && gStatusText != "Ready";
+  bool showStatus = !showFace && !gStatusText.isEmpty() && gStatusText != "Ready";
   int inputLines = 1;
-  if (gInputBuffer.length() > 36) {
+  if (!showFace && gInputBuffer.length() > 36) {
     inputLines = 2;
   }
-  if (gInputBuffer.length() > 78) {
+  if (!showFace && gInputBuffer.length() > 78) {
     inputLines = 3;
   }
   int composerH = 17 + (inputLines - 1) * 11;
-  int composerY = 135 - composerH - 3;
-  int transcriptTop = showFace ? 78 : 8;
+  int composerY = 135 - composerH - 13;
+  int transcriptTop = showFace ? 88 : 8;
   int transcriptBottom = composerY - (showStatus ? 14 : 4);
 
   d.setFont(&fonts::efontCN_12);
@@ -138,8 +138,6 @@ void renderChatUi() {
     int knobY = transcriptTop + 4 + ((railH - knobH) * (maxOffset - gChatScrollOffset)) / max<int>(1, maxOffset);
     d.fillRoundRect(railX, transcriptTop + 4, 3, railH, 2, rgb565_local(24, 35, 48));
     d.fillRoundRect(railX, knobY, 3, knobH, 2, accent);
-  } else if (showFace) {
-    drawScrollIndicators(gChatScrollOffset < maxOffset, gChatScrollOffset > 0);
   }
 
   if (showStatus) {
@@ -164,6 +162,9 @@ void renderChatUi() {
   d.setTextColor(accent, rgb565_local(2, 17, 29));
   d.setCursor(204, composerY + composerH - 9);
   d.print("ENT");
+  d.setFont(&fonts::Font0);
+  d.setTextColor(muted,bg); d.setCursor(8,128);
+  d.print("Tab commands  Ctrl+R live");
   renderTopicOverlayIfVisible();
   renderLauncherOverlay();
   renderDebugOverlay();

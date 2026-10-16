@@ -10,6 +10,26 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
+  if (gChatCommandsVisible && !(keys.ctrl && lowerKey=='l')) {
+    if (keys.enter || key=='\r' || key=='\n') runChatCommand(gChatCommandSelection);
+    else if (lowerKey=='r') runChatCommand(0);
+    else if (lowerKey=='c') runChatCommand(1);
+    else if (lowerKey=='e') runChatCommand(2);
+    else if (lowerKey=='f') runChatCommand(3);
+    else if (key=='[') runChatCommand(4);
+    else if (key==']') runChatCommand(5);
+    return;
+  }
+  if (isAssistantUi() && keys.ctrl) {
+    if (lowerKey=='c') { runChatCommand(1); return; }
+    if (lowerKey=='e') { runChatCommand(2); return; }
+    if (lowerKey=='f') { runChatCommand(3); return; }
+    if (key==',' || key=='[') { runChatCommand(4); return; }
+    if (key=='.' || key==']') { runChatCommand(5); return; }
+  }
+  if (keys.tab && isAssistantUi() && !gLauncherVisible) {
+    gChatCommandsVisible=true; return;
+  }
   if (gBlockingInputPumpActive) {
     const bool networkAction =
         (keys.ctrl && (lowerKey == 'r' || lowerKey == 'v')) ||
@@ -59,6 +79,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     return;
   }
   if (keys.ctrl && lowerKey == 'l') {
+    gChatCommandsVisible=false;
     if (gUiMode == UiMode::Tetris && gTetrisRightHandPortrait) {
       gLauncherVisible = false;
       gTetrisHelpVisible = !gTetrisHelpVisible;

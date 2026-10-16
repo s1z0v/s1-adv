@@ -12,6 +12,7 @@ void drainRecordingToFile() {
 }
 
 void startRecording() {
+  if (gInboxHttpBusy) { setStatus("Network finishing; try voice again",900); return; }
   if (gRealtimeExclusiveMode || gRealtimeActive) {
     logf("[VOICE] start blocked by realtime exclusive mode");
     setStatus("Exit Realtime first", 900);
