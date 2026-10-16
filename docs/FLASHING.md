@@ -35,6 +35,9 @@ Wi-Fi SSID/password and token may be left blank to provision through the
 device setup portal. With the supplied wrapper, the default device ID is
 `cardputer-adv-01` and topic is `cardputer:main`. The setup portal does not change
 that topic, so set a custom topic before building if you need one.
+Connect to the setup access point using the random password shown on the
+Cardputer screen, then open `http://192.168.4.1/`. The portal accepts requests
+only on that access point. The bridge URL entered there must use HTTPS.
 
 Credentials embedded by a build are recoverable from its binary. Keep `.env`,
 build logs and provisioned `.bin` files private. The wrapper does not enable

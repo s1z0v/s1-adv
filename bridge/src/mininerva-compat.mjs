@@ -1,5 +1,6 @@
 import { WebSocketServer } from "ws";
 import { makeId, nowIso, stripMarkdownForDevice } from "./utils.mjs";
+import { isRecord, parseRequestUrl } from "./security-policy.mjs";
 
 const CRC16_TABLE = [
   0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
@@ -88,6 +89,7 @@ export function decodeMininervaFrame(raw) {
   } catch {
     payload = { raw: payloadBytes.toString("base64") };
   }
+  if (!isRecord(payload)) return null;
   return {
     type: CODE_TO_MESSAGE_TYPE[typeCode] || "unknown",
     payload,
@@ -351,14 +353,14 @@ function forwardCompatEvent(ws, payload) {
   }
 }
 
-export function createMininervaCompatServer({ runtime, config }) {
+export function createMininervaCompatServer({ runtime, config, recordAuthFailure = () => {}, clearAuthFailures = () => {} }) {
   const path = config.mininervaCompat?.path || "/compat/mininerva/ws";
   const wss = new WebSocketServer({
     noServer: true,
     maxPayload: Number(config.security?.maxWsPayloadBytes) || 64 * 1024
   });
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
     runtime.clients.add(ws);
     ws.compatMode = "mininerva";
     ws.compatClientMsgIds = new Set();
@@ -369,10 +371,12 @@ export function createMininervaCompatServer({ runtime, config }) {
       ws.send(encodeMininervaFrame("auth_response", { success: false, error: "Auth timeout" }));
       ws.close();
     }, Number(config.security?.wsAuthTimeoutMs) || 5000);
-    ws.on("message", async (raw) => {
+    ws.on("message", (raw) => { void (async () => {
       const frame = decodeMininervaFrame(raw);
       if (!frame) {
+        recordAuthFailure(req, config);
         sendCompatError(ws, "invalid frame");
+        ws.close(1008);
         return;
       }
 
@@ -387,6 +391,7 @@ export function createMininervaCompatServer({ runtime, config }) {
         const requestedTopicKey = String(frame.payload.topic_key || "").trim();
         const topic = device ? resolveCompatTopic(runtime, device, requestedTopicKey) : null;
         if (!device || !topic) {
+          recordAuthFailure(req, config);
           ws.send(encodeMininervaFrame("auth_response", { success: false, error: "Invalid API key" }));
           ws.close();
           return;
@@ -396,6 +401,7 @@ export function createMininervaCompatServer({ runtime, config }) {
           device,
           topicKey: topic.topic_key
         };
+        clearAuthFailures(req, config);
         clearTimeout(authTimer);
         ws.topicKey = topic.topic_key;
         ws.send(
@@ -495,7 +501,9 @@ export function createMininervaCompatServer({ runtime, config }) {
           at: nowIso()
         });
       }
-    });
+    })().catch(() => {
+      if (ws.readyState === 1) { sendCompatError(ws, "invalid request"); ws.close(1008); }
+    }); });
 
     ws.on("error", () => {
       clearTimeout(authTimer);
@@ -509,7 +517,7 @@ export function createMininervaCompatServer({ runtime, config }) {
   return {
     path,
     handleUpgrade(req, socket, head) {
-      const url = new URL(req.url || "/", `http://${req.headers.host}`);
+      const url = parseRequestUrl(req);
       if (url.pathname !== path) {
         return false;
       }

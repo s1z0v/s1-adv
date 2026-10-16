@@ -91,7 +91,7 @@ try {
       device_id: "mininerva-dev",
       device_name: "Mininerva Test",
       version: "1.0.0",
-      api_key: "dtk_demo_cardputer"
+      api_key: "dtk_demo_cardputer_test_only_00000000000000000001"
     })
   );
 

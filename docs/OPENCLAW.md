@@ -40,6 +40,13 @@ Edit the local `config.json`:
 | `topics[0].topic_key` | `cardputer:main`, matching firmware `DEFAULT_TOPIC_KEY` |
 | `topics[0].session_key` | Your selected agent session, default `agent:main:cardputer` |
 
+Treat possession of a device token as permission to speak to that agent. A
+topic allowlist does not restrict the agent's tools. For a shared device or a
+gateway with powerful host tools, create a dedicated restricted `cardputer`
+agent and set the session key to `agent:cardputer:main`. Configure its tool
+policy/sandbox in your installed OpenClaw version; check with
+`openclaw security audit`. Session creation preserves that configured agent.
+
 Generate a device token locally, for example with `openssl rand -hex 32`.
 Paste it into `config.json` and your private firmware `.env`, never into a chat
 or issue. Use a different token for each device.
@@ -73,9 +80,18 @@ set `security.trustedProxyAddresses` to the actual proxy addresses if needed.
 Do not expose the raw OpenClaw gateway publicly. The template uses Let's
 Encrypt, compatible with the firmware's ISRG Root X1 CA.
 
-For an isolated trusted LAN experiment, binding the bridge to its LAN address
-and using its HTTP port is supported. Device tokens travel unencrypted there;
-use HTTPS for a shared or remote network.
+Firmware bridge connections require verified HTTPS/WSS, including on a LAN.
+Custom HTTPS ports are supported. The gateway connection may use WS only on
+loopback; a remote gateway requires WSS. Browser WebSocket origins are denied
+unless explicitly listed in `security.allowedOrigins`.
+
+The `/internal/` namespace is blocked by the Nginx template. Local automatic
+OTA enqueue is disabled by default. If deliberately needed, set
+`security.internalOtaEnabled: true` and supply a separate random admin token
+through `CARDPUTER_INTERNAL_OTA_TOKEN` in the service environment (or private
+`security.internalOtaToken`). The enqueue script needs this admin token as well
+as the device token. Forwarded requests are rejected. Never put the admin token
+on the Cardputer.
 
 ## 4. Verify before flashing
 

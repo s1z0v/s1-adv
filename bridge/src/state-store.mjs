@@ -172,12 +172,30 @@ export class StateStore {
 
     for (const [topicKey, defaultTopic] of Object.entries(defaults.topics)) {
       const existing = this.state.topics[topicKey] || {};
+      if (existing.session_key && existing.session_key !== defaultTopic.session_key) {
+        // A config remap revokes the old session and its cached conversation.
+        this.state.messages[topicKey] = [];
+        for (const [key, media] of Object.entries(this.state.media)) {
+          if (media.topic_key === topicKey) delete this.state.media[key];
+        }
+        for (const key of Object.keys(this.state.idempotency)) {
+          if (key.startsWith(`${topicKey}::`)) delete this.state.idempotency[key];
+        }
+        for (const [id, events] of Object.entries(this.state.device_events)) {
+          this.state.device_events[id] = events.filter(event => event.topic_key !== topicKey);
+        }
+        existing.head_seq = 0;
+        existing.inbound_scan_cursor_ms = 0;
+      }
       const preferDefaultTitle =
         defaultTopic.title &&
         (!existing.title || isGenericTopicTitle(existing.title) || !isGenericTopicTitle(defaultTopic.title));
       this.state.topics[topicKey] = {
         ...defaultTopic,
         ...existing,
+        session_key: defaultTopic.session_key,
+        chat_id: defaultTopic.chat_id,
+        thread_id: defaultTopic.thread_id,
         title: preferDefaultTitle ? defaultTopic.title : existing.title,
         emoji: existing.emoji || defaultTopic.emoji || defaultTopic.icon || null,
         icon: existing.icon || defaultTopic.icon || defaultTopic.emoji || null

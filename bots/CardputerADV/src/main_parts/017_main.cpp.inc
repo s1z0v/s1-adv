@@ -175,6 +175,7 @@ bool applyOtaFromManifest() {
   if (!gOtaManifest.parsed || gOtaManifest.url.isEmpty() || gOtaManifest.sha256.isEmpty()) {
     return fail("manifest incomplete");
   }
+  if (!isTrustedBridgeUrl(gOtaManifest.url)) return fail("untrusted OTA URL");
   uint32_t stackWords = uxTaskGetStackHighWaterMark(nullptr);
   otaLog("apply start version=" + gOtaManifest.version +
          " size=" + String(gOtaManifest.size) +

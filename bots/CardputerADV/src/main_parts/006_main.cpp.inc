@@ -168,7 +168,7 @@ void migrateBridgeEndpoint() {
 }
 
 bool hubUsesTls() {
-  return gHubHost == kProdBridgeHost || gHubPort == 443;
+  return true;
 }
 
 String hubBaseUrl() {
@@ -176,12 +176,13 @@ String hubBaseUrl() {
 }
 
 void configureSecureClient(WiFiClientSecure& client) {
-#if OPENCLAW_TLS_VERIFY
   client.setCACert(kTlsRootCaPem);
-#else
-  client.setInsecure();
-#endif
   client.setHandshakeTimeout(12);
+}
+
+bool isTrustedBridgeUrl(const String& url) {
+  String origin = hubBaseUrl();
+  return transport_security::sameBridgeOrigin(url.c_str(), origin.c_str());
 }
 
 const char* tlsVerifyMode() {

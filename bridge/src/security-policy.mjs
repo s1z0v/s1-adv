@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 function normalizedAddress(value = "") {
   const address = String(value || "").trim().toLowerCase();
   if (address.startsWith("::ffff:")) {
@@ -104,5 +106,56 @@ export class RealtimeAdmissionController {
         [...this.startsByDevice].map(([deviceId, starts]) => [deviceId, starts.length])
       )
     };
+  }
+}
+
+export function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parseRequestUrl(req) {
+  const target = req.url || "/";
+  if (!target.startsWith("/") || target.startsWith("//")) throw new Error("invalid_request_target");
+  // Routing must not parse the untrusted Host header as a URL authority.
+  return new URL(target, "http://bridge.invalid");
+}
+
+export function websocketOriginAllowed(req, config) {
+  const origin = String(req.headers?.origin || "");
+  const allowed = config.security?.allowedOrigins || [];
+  return !origin || allowed.includes(origin) || allowed.includes("*");
+}
+
+export function hasInternalOtaAccess(req, config) {
+  if (config.security?.internalOtaEnabled !== true || !isLoopbackAddress(req.socket?.remoteAddress)) return false;
+  if (Object.keys(req.headers || {}).some(key => key === "forwarded" || key.startsWith("x-forwarded-"))) return false;
+  const expected = Buffer.from(String(config.security?.internalOtaToken || ""));
+  const supplied = Buffer.from(String(req.headers?.["x-admin-token"] || ""));
+  return expected.length >= 32 && expected.length === supplied.length && timingSafeEqual(expected, supplied);
+}
+
+export function validateDeviceTokens(config) {
+  const seen = new Set();
+  for (const device of config.devices || []) {
+    const token = device.device_token;
+    if (typeof token !== "string" || token.length < 32 || /replace|example|changeme/i.test(token)) {
+      throw new Error("each device requires a unique random token of at least 32 characters");
+    }
+    if (token === config.upstream?.token || seen.has(token)) throw new Error("device tokens must be distinct from gateway and other device tokens");
+    seen.add(token);
+  }
+}
+
+export function agentIdForSession(sessionKey) {
+  const match = String(sessionKey || "").match(/^agent:([A-Za-z0-9_-]+):/);
+  if (!match) throw new Error("topic session_key must identify an explicit agent");
+  return match[1];
+}
+
+export function validateUpstreamTransport(config) {
+  const url = new URL(config.upstream?.url);
+  if (url.username || url.password || !["ws:", "wss:"].includes(url.protocol) ||
+      (url.protocol === "ws:" && !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))) {
+    throw new Error("remote OpenClaw gateways require WSS; WS is allowed only on loopback");
   }
 }

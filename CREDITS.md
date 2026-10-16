@@ -27,6 +27,10 @@ The original `Copyright (c) 2026 Omnibot contributors` notice remains in
 - The firmware's `third_party/` directory retains applicable protocol notices.
 
 Dependencies keep their own licenses. The PulseOS license does not replace them.
+The project-local `bots/CardputerADV/lib/WebServer` is derived from Espressif
+Arduino ESP32 2.0.14 WebServer, LGPL-2.1-or-later. Its source headers, license
+and [security backport notes](bots/CardputerADV/lib/WebServer/PULSEOS-PATCHES.md)
+are retained.
 
 ## Cover image
 

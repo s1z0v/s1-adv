@@ -15,6 +15,8 @@ competing refresh writers. Configure only the agent actions you intend a
 handheld client to invoke.
 
 PulseOS is experimental and has not had a complete independent security audit.
+The maintainer's bounded [2026-10-16 review](docs/SECURITY-REVIEW.md) records
+confirmed findings, fixes, verification and remaining trust boundaries.
 See [architecture](docs/ARCHITECTURE.md) and [setup](docs/OPENCLAW.md).
 For a vulnerability, use GitHub private reporting if available or contact the
 maintainer privately. Do not post credentials or exploit details in public.

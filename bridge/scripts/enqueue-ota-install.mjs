@@ -44,6 +44,10 @@ if (!String(device.device_token || "").trim()) {
 }
 
 const minimumBattery = Math.max(25, Math.min(100, Number(args["min-battery"]) || 25));
+const adminToken = config.security?.internalOtaToken || process.env.CARDPUTER_INTERNAL_OTA_TOKEN || "";
+if (config.security?.internalOtaEnabled !== true || adminToken.length < 32) {
+  throw new Error("Local OTA administration requires internalOtaEnabled and a separate random internalOtaToken.");
+}
 const port = Math.max(1, Math.min(65535, Number(config.server?.port) || 31889));
 const endpoint = `http://127.0.0.1:${port}/internal/cardputer/ota-install`;
 let response;
@@ -52,6 +56,7 @@ try {
     method: "POST",
     headers: {
       Authorization: `Bearer ${device.device_token}`,
+      "X-Admin-Token": adminToken,
       "content-type": "application/json"
     },
     body: JSON.stringify({

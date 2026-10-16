@@ -79,7 +79,7 @@ bool syncAssetsFromManifest(bool pomodoroOnly) {
     if (pomodoroOnly && !isPomodoroMeditationAssetPath(path)) {
       continue;
     }
-    if (path.isEmpty() || url.isEmpty()) {
+    if (!transport_security::safeAssetPath(path.c_str()) || !isTrustedBridgeUrl(url)) {
       continue;
     }
     bool alreadyOk = false;

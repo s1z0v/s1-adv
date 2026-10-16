@@ -39,6 +39,7 @@
 #include "release_delivery.h"
 #include "smartlamp_gl2_protocol.h"
 #include "tcl112ac_encoder.h"
+#include "transport_security.h"
 
 extern "C" {
 #include "libb64/cdecode.h"
@@ -61,7 +62,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.146-dev"
+#define APP_VERSION "0.2.146-security.1"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -71,6 +72,9 @@ constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #endif
 #ifndef OPENCLAW_TLS_VERIFY
 #define OPENCLAW_TLS_VERIFY 1
+#endif
+#if !OPENCLAW_TLS_VERIFY
+#error "PulseOS requires verified TLS for bridge credentials and OTA"
 #endif
 constexpr const char* kAppVersion = APP_VERSION;
 constexpr const char* kBuildGitSha = BUILD_GIT_SHA;
@@ -151,7 +155,6 @@ constexpr uint16_t kDefaultHubPort = 8000;
 constexpr uint32_t kWifiConnectTimeoutMs = 20000;
 constexpr uint32_t kWifiReconnectIntervalMs = 5000;
 constexpr uint32_t kSetupPortalReconnectIntervalMs = 15000;
-constexpr const char* kSetupPortalPassword = "12345678";
 constexpr byte kSetupPortalDnsPort = 53;
 constexpr uint32_t kWsReconnectIntervalMs = 3000;
 constexpr uint32_t kRenderIntervalMs = 20;

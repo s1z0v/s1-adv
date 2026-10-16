@@ -286,7 +286,7 @@ void renderSetupPortalUi() {
   d.setCursor(18, 72);
   d.print("pass: ");
   d.setTextColor(ok, panel);
-  d.print(kSetupPortalPassword);
+  d.print(gSetupPortalPassword);
   d.setTextColor(TFT_WHITE, panel);
   d.setCursor(18, 92);
   d.print("open: ");

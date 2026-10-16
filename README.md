@@ -9,6 +9,8 @@
 
 # PulseOS for Cardputer ADV
 
+Security update: [2026-10-16 review and fixes](docs/SECURITY-REVIEW.md).
+
 **PulseOS** turns a M5Stack Cardputer ADV into a pocket workspace for your
 **OpenClaw** agent: keyboard, voice, local tools and firmware you can extend.
 Type a question, hold the talk button, check a reply, or use the offline apps.

@@ -6,6 +6,18 @@ String setupPortalHtmlEscape(String value) {
   return value;
 }
 
+String setupRandomSecret() {
+  char value[33];
+  snprintf(value, sizeof(value), "%08x%08x%08x%08x", esp_random(), esp_random(), esp_random(), esp_random());
+  return String(value);
+}
+
+bool setupPortalApClient() {
+  if (gSetupServer.client().localIP() == WiFi.softAPIP()) return true;
+  gSetupServer.send(403, "text/plain", "Connect to the setup access point.");
+  return false;
+}
+
 void parseSetupPortalBridgeUrl(String raw, String& host, uint16_t& port) {
   raw.trim();
   bool https = raw.startsWith("https://");
@@ -107,7 +119,9 @@ String setupPortalPage(const String& message = String()) {
     page += setupPortalHtmlEscape(message);
     page += "</div>";
   }
-  page += F("<form method=\"post\" action=\"/save\"><section class=\"panel\"><h2>Wi-Fi</h2>"
+  page += F("<form method=\"post\" action=\"/save\"><input type=\"hidden\" name=\"csrf\" value=\"");
+  page += gSetupPortalCsrf;
+  page += F("\"><section class=\"panel\"><h2>Wi-Fi</h2>"
             "<div class=\"row\"><label for=\"scan\">Available networks</label><select id=\"scan\" onchange=\"ssid.value=this.value\">");
   page += setupPortalNetworkOptions();
   page += F("</select><div class=\"hint\">Refresh this page to scan again.</div></div>"
@@ -129,16 +143,23 @@ String setupPortalPage(const String& message = String()) {
 }
 
 void setupPortalSendPage(const String& message = String()) {
+  if (!setupPortalApClient()) return;
   gSetupServer.sendHeader("Cache-Control", "no-store");
   gSetupServer.send(200, "text/html; charset=utf-8", setupPortalPage(message));
 }
 
 void setupPortalRedirect() {
+  if (!setupPortalApClient()) return;
   gSetupServer.sendHeader("Location", "http://192.168.4.1/", true);
   gSetupServer.send(302, "text/plain", "");
 }
 
 void handleSetupPortalSave() {
+  if (!setupPortalApClient()) return;
+  if (gSetupServer.arg("csrf") != gSetupPortalCsrf || gSetupPortalCsrf.isEmpty()) {
+    gSetupServer.send(403, "text/plain", "Reload the setup page.");
+    return;
+  }
   String ssid = gSetupServer.arg("ssid");
   String password = gSetupServer.arg("password");
   String bridgeUrl = gSetupServer.arg("bridge_url");
@@ -146,9 +167,18 @@ void handleSetupPortalSave() {
   ssid.trim();
   bridgeUrl.trim();
   token.trim();
+  if (!bridgeUrl.startsWith("https://") || bridgeUrl.length() > 256 || ssid.length() > 32 ||
+      password.length() > 64 || token.length() > 256 || (!token.isEmpty() && token.length() < 32)) {
+    setupPortalSendPage("Use an HTTPS bridge URL and a random token of at least 32 characters.");
+    return;
+  }
   String host = gHubHost.isEmpty() ? String(kProdBridgeHost) : gHubHost;
   uint16_t port = gHubPort == 0 ? kProdBridgePort : gHubPort;
   parseSetupPortalBridgeUrl(bridgeUrl, host, port);
+  if (!transport_security::httpsOrigin(bridgeUrl.c_str()).valid) {
+    setupPortalSendPage("Invalid HTTPS bridge URL.");
+    return;
+  }
   if (ssid.isEmpty()) {
     setupPortalSendPage("Wi-Fi network name is required.");
     return;
@@ -184,10 +214,12 @@ void startSetupPortal(const char* reason) {
   IPAddress gateway(192, 168, 4, 1);
   IPAddress subnet(255, 255, 255, 0);
   gSetupPortalSsid = "OpenClaw-" + chipIdSuffix();
+  gSetupPortalPassword = setupRandomSecret().substring(0, 16);
+  gSetupPortalCsrf = setupRandomSecret();
   WiFi.mode(WIFI_AP_STA);
   WiFi.setSleep(false);
   WiFi.softAPConfig(apIp, gateway, subnet);
-  bool apOk = WiFi.softAP(gSetupPortalSsid.c_str(), kSetupPortalPassword);
+  bool apOk = WiFi.softAP(gSetupPortalSsid.c_str(), gSetupPortalPassword.c_str());
   gSetupDns.start(kSetupPortalDnsPort, "*", apIp);
   gSetupServer.on("/", HTTP_GET, []() { setupPortalSendPage(gSetupPortalMessage); });
   gSetupServer.on("/save", HTTP_POST, handleSetupPortalSave);
@@ -201,7 +233,7 @@ void startSetupPortal(const char* reason) {
   gSetupPortalMessage = String("Setup AP started");
   setStatus("Setup AP: " + gSetupPortalSsid, 0);
   pushSystem("Setup Wi-Fi at http://192.168.4.1");
-  pushSystem(String("AP: ") + gSetupPortalSsid + " / " + kSetupPortalPassword);
+  pushSystem("Setup password is shown on the device screen.");
   logf("[SETUP] portal start ok=%d ssid=%s reason=%s",
        static_cast<int>(apOk), gSetupPortalSsid.c_str(), reason ? reason : "-");
 }

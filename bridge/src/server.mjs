@@ -12,9 +12,15 @@ import { StateStore } from "./state-store.mjs";
 import { UpstreamGatewayClient } from "./upstream-client.mjs";
 import { createMininervaCompatServer } from "./mininerva-compat.mjs";
 import {
-  isLoopbackAddress,
+  agentIdForSession,
+  hasInternalOtaAccess,
+  isRecord,
+  parseRequestUrl,
   RealtimeAdmissionController,
-  requestClientIp
+  requestClientIp,
+  validateDeviceTokens,
+  validateUpstreamTransport,
+  websocketOriginAllowed
 } from "./security-policy.mjs";
 import {
   ensureDir,
@@ -204,6 +210,13 @@ async function loadConfig() {
     authFailureWindowMs: 60000,
     authBlockMs: 300000,
     inboxInjectEnabled: false,
+    internalOtaEnabled: false,
+    internalOtaToken: process.env.CARDPUTER_INTERNAL_OTA_TOKEN || "",
+    maxWsConnectionsPerIp: 32,
+    maxWsConnectionsGlobal: 128,
+    maxActiveRequestsPerDevice: 2,
+    maxActiveRequestsGlobal: 8,
+    requestStartLimitPerDevice: 30,
     multipartMaxFields: 16,
     multipartFieldBytes: 8192,
     ...(config.security || {})
@@ -242,6 +255,8 @@ async function loadConfig() {
     ...DEFAULT_REALTIME_VOICE,
     ...(config.realtimeVoice || {})
   };
+  validateDeviceTokens(config);
+  validateUpstreamTransport(config);
   return config;
 }
 
@@ -2594,7 +2609,7 @@ async function transcribeDeviceAudio(config, { audioBytes, filename = "cardputer
 }
 
 async function synthesizeOpenAiTtsPcm({ text, model, voice, timeoutMs = 0 }) {
-  const cleaned = String(text || "").trim();
+  const cleaned = String(text || "").trim().slice(0, 2000);
   if (!cleaned) {
     return Buffer.alloc(0);
   }
@@ -2633,22 +2648,27 @@ function containsCyrillic(text) {
 }
 
 async function synthesizeEspeakTtsWav({ text, bin = "espeak-ng", voice = "en-us", timeoutMs = 12000 }) {
-  const cleaned = String(text || "").trim();
+  const cleaned = String(text || "").trim().slice(0, 2000);
   if (!cleaned) {
     return Buffer.alloc(0);
   }
   return await new Promise((resolve, reject) => {
     const chunks = [];
     const errChunks = [];
-    const child = spawn(bin, ["-v", voice, "-s", "165", "--stdout", cleaned], {
+    const child = spawn(bin, ["-v", voice, "-s", "165", "--stdout", "--", cleaned], {
       stdio: ["ignore", "pipe", "pipe"]
     });
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error(`espeak_timeout_${timeoutMs}ms`));
     }, Math.max(1000, Number(timeoutMs) || 12000));
-    child.stdout.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-    child.stderr.on("data", (chunk) => errChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    let outputBytes = 0;
+    child.stdout.on("data", chunk => {
+      outputBytes += chunk.length;
+      if (outputBytes > 12 * 1024 * 1024) { child.kill("SIGKILL"); return; }
+      chunks.push(Buffer.from(chunk));
+    });
+    child.stderr.on("data", chunk => { if (errChunks.length < 16) errChunks.push(Buffer.from(chunk)); });
     child.on("error", (error) => {
       clearTimeout(timeout);
       reject(error);
@@ -3258,17 +3278,21 @@ function compactHistoryItemVisible(item) {
 async function transcode({ inputPath, outputPath, args }) {
   await ensureDir(path.dirname(outputPath));
   await new Promise((resolve, reject) => {
-    const ffmpeg = spawn("ffmpeg", ["-y", "-i", inputPath, ...args, outputPath], {
+    const ffmpeg = spawn("ffmpeg", ["-nostdin", "-y", "-protocol_whitelist", "file,pipe",
+      "-format_whitelist", "wav,mp3,ogg,flac,aac,mov,matroska,webm", "-i", inputPath,
+      "-t", "120", ...args, outputPath], {
       stdio: "ignore"
     });
+    const timeout = setTimeout(() => { ffmpeg.kill("SIGKILL"); }, 30_000);
     ffmpeg.on("exit", (code) => {
+      clearTimeout(timeout);
       if (code === 0) {
         resolve();
         return;
       }
       reject(new Error(`ffmpeg exited with ${code}`));
     });
-    ffmpeg.on("error", reject);
+    ffmpeg.on("error", error => { clearTimeout(timeout); reject(error); });
   });
 }
 
@@ -3552,7 +3576,7 @@ class BridgeRuntime {
     console.info(`[topics] creating upstream session key=${topic.session_key}`);
     await this.upstream.rpc("sessions.create", {
       key: topic.session_key,
-      agentId: "main",
+      agentId: agentIdForSession(topic.session_key),
       label: topic.display_title || topic.title || `Topic ${topic.thread_id || ""}`.trim()
     });
   }
@@ -3805,7 +3829,7 @@ class BridgeRuntime {
     const title = `${CARDPUTER_FIRMWARE_JOB_TOPIC_PREFIX} ${stamp} ${suffix}`;
     const topic = this.store.upsertTopic({
       topic_key: `local:cardputer-firmware-job:${stampSlug}:${suffix}`,
-      session_key: `agent:main:cardputer-firmware-job-${stampSlug}-${suffix}`,
+      session_key: `agent:${agentIdForSession(sourceTopic?.session_key)}:cardputer-firmware-job-${stampSlug}-${suffix}`,
       title,
       display_title: title,
       short_title: "FW JOB",
@@ -5682,15 +5706,22 @@ class BridgeRuntime {
 }
 
 async function main() {
+  process.umask(0o077);
   const config = await loadConfig();
   const runtime = new BridgeRuntime(config);
   const realtimeAdmission = new RealtimeAdmissionController(config);
+  const requestAdmission = new RealtimeAdmissionController({ realtimeVoice: {
+    maxActivePerDevice: config.security.maxActiveRequestsPerDevice,
+    maxActiveGlobal: config.security.maxActiveRequestsGlobal,
+    startLimitPerDevice: config.security.requestStartLimitPerDevice
+  } });
   await runtime.start();
-  runtime.compatBridge = createMininervaCompatServer({ runtime, config });
+  runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures });
 
   const server = createServer((req, res) => {
+    let releaseRequest = () => {};
     void (async () => {
-      const url = new URL(req.url || "/", `http://${req.headers.host}`);
+      const url = parseRequestUrl(req);
       const token = parseOmnibotAuthToken(req);
       const device = runtime.store.findDeviceByToken(token);
 
@@ -5703,7 +5734,7 @@ async function main() {
       }
 
       if (url.pathname.startsWith("/internal/")) {
-        if (!isLoopbackAddress(req.socket?.remoteAddress) ||
+        if (!hasInternalOtaAccess(req, config) ||
             req.method !== "POST" ||
             url.pathname !== "/internal/cardputer/ota-install") {
           json(res, 404, { error: "not_found" });
@@ -5774,6 +5805,16 @@ async function main() {
       }
       json(res, 401, authErrorPayload("device token missing or invalid"));
       return;
+    }
+
+    if (device && req.method === "POST" &&
+        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname))) {
+      const lease = requestAdmission.acquire(device.device_id);
+      if (!lease.ok) {
+        json(res, 429, { error: "device_request_limit", retryable: true, retry_after_ms: lease.retryAfterMs });
+        return;
+      }
+      releaseRequest = lease.release;
     }
 
     if (req.method === "GET" && url.pathname === "/api/cardputer/device-actions") {
@@ -6013,6 +6054,7 @@ async function main() {
       }
       console.info(`[voice-raw] uploaded device=${device.device_id} turn=${turnId || "-"} bytes=${uploadedBytes} sample=${sampleRate} type=${contentType || "-"} reply_audio=${wantsReplyAudio ? "1" : "0"}`);
       const audioBytesRaw = await readFile(rawUploadPath);
+      await rm(rawUploadPath, { force: true });
       const audioBytes =
         contentType === "application/octet-stream" || contentType === "audio/pcm" || contentType === "audio/l16"
           ? Buffer.concat([createWavHeader(audioBytesRaw.length, sampleRate), audioBytesRaw])
@@ -6651,13 +6693,13 @@ async function main() {
       }
       console.error("bridge request failed", error);
       if (!res.headersSent) {
-        requestError(res, 500, "internal_error", { detail: message });
+        requestError(res, 500, "internal_error");
         return;
       }
       try {
         res.end();
       } catch {}
-    });
+    }).finally(() => releaseRequest());
   });
 
   const wss = new WebSocketServer({
@@ -6686,7 +6728,7 @@ async function main() {
         ws.send(JSON.stringify({ type: "protocol_error", message: "invalid json" }));
         return;
       }
-      if (payload.type !== "connect") {
+      if (!isRecord(payload) || payload.type !== "connect") {
         ws.send(JSON.stringify({ type: "protocol_error", message: "connect required" }));
         return;
       }
@@ -6947,11 +6989,33 @@ async function main() {
     });
   });
 
+  const wsConnections = new Map();
+  let wsConnectionCount = 0;
   server.on("upgrade", (req, socket, head) => {
+    let url;
+    try { url = parseRequestUrl(req); } catch { socket.destroy(); return; }
+    if (!websocketOriginAllowed(req, config)) {
+      socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
+      return;
+    }
+    if (isAuthRateLimited(req, config)) { rejectRateLimitedUpgrade(socket); return; }
+    const ip = requestClientIp(req, config);
+    const perIp = wsConnections.get(ip) || 0;
+    if (perIp >= (Number(config.security.maxWsConnectionsPerIp) || 32) ||
+        wsConnectionCount >= (Number(config.security.maxWsConnectionsGlobal) || 128)) {
+      rejectRateLimitedUpgrade(socket);
+      return;
+    }
+    wsConnections.set(ip, perIp + 1);
+    wsConnectionCount += 1;
+    socket.once("close", () => {
+      const count = (wsConnections.get(ip) || 1) - 1;
+      if (count) wsConnections.set(ip, count); else wsConnections.delete(ip);
+      wsConnectionCount -= 1;
+    });
     if (runtime.compatBridge?.handleUpgrade(req, socket, head)) {
       return;
     }
-    const url = new URL(req.url || "/", `http://${req.headers.host}`);
     if ((url.pathname === "/api/cardputer/v1/realtime" ||
          url.pathname === "/api/cardputer/v1/stream") && isAuthRateLimited(req, config)) {
       rejectRateLimitedUpgrade(socket);
@@ -6992,5 +7056,5 @@ async function main() {
   });
 }
 
-export { BridgeRuntime, wireRealtimeBridge, openRealtimeModelSocket, buildDeviceTurnEnvelope, loadConfig };
+export { BridgeRuntime, wireRealtimeBridge, openRealtimeModelSocket, buildDeviceTurnEnvelope, loadConfig, transcode };
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) void main();

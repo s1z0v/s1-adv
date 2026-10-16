@@ -21,6 +21,12 @@
     "authFailureWindowMs": 60000,
     "authBlockMs": 300000,
     "inboxInjectEnabled": false,
+    "internalOtaEnabled": false,
+    "maxWsConnectionsPerIp": 32,
+    "maxWsConnectionsGlobal": 128,
+    "maxActiveRequestsPerDevice": 2,
+    "maxActiveRequestsGlobal": 8,
+    "requestStartLimitPerDevice": 30,
     "multipartMaxFields": 16,
     "multipartFieldBytes": 8192
   },

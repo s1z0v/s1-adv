@@ -164,6 +164,8 @@ WebSocketsClient gWs;
 WebSocketsClient gRealtimeWs;
 DNSServer gSetupDns;
 WebServer gSetupServer(80);
+String gSetupPortalPassword;
+String gSetupPortalCsrf;
 WiFiUDP gSmartLampUdp;
 M5Canvas gCanvas(&M5Cardputer.Display);
 SPIClass gSdSpi(FSPI);

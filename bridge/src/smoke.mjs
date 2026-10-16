@@ -12,12 +12,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const HTTP_BASE = "http://127.0.0.1:31989";
 const WS_URL = "ws://127.0.0.1:31989/api/cardputer/v1/stream";
-const AUTH = "Bearer dtk_demo_cardputer";
+const AUTH = "Bearer dtk_demo_cardputer_test_only_00000000000000000001";
 const TOPIC_A = "tg:root-main:default:-1001234567890:323";
 const TOPIC_B = "tg:root-main:default:-1001234567890:1984";
 
 function authHeaders() {
-  return { Authorization: AUTH };
+  return { Authorization: AUTH, "X-Admin-Token": "test-only-admin-token-00000000000000000000000001" };
 }
 
 async function waitForHealth() {
@@ -53,7 +53,7 @@ function waitForEvent(events, predicate, timeoutMs = 5000) {
   });
 }
 
-function openSocket(topicKey, fromSeq = 1, token = "dtk_demo_cardputer") {
+function openSocket(topicKey, fromSeq = 1, token = "dtk_demo_cardputer_test_only_00000000000000000001") {
   const events = [];
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(WS_URL);
@@ -176,7 +176,7 @@ try {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ version: "0.2.1-dev", min_battery: 25 })
   });
-  assert.equal(otaUnauthorizedRes.status, 401);
+  assert.equal(otaUnauthorizedRes.status, 404);
   const otaWrongVersionRes = await fetch(`${HTTP_BASE}/internal/cardputer/ota-install`, {
     method: "POST",
     headers: { ...authHeaders(), "content-type": "application/json" },

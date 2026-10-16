@@ -451,6 +451,7 @@ bool runLiveVoiceSmokeFromDevice() {
 }
 
 void runRealtimeSmokeFromDevice(bool verifyTls = true) {
+  if (!verifyTls) { pushError("Unverified TLS is disabled."); return; }
   if (gRealtimeActive || gRealtimeRecording) {
     closeRealtimeSession("smoke restart");
     delay(50);
@@ -467,6 +468,7 @@ void runRealtimeSmokeFromDevice(bool verifyTls = true) {
 }
 
 void runRealtimeAudioSmokeFromDevice(bool verifyTls = true) {
+  if (!verifyTls) { pushError("Unverified TLS is disabled."); return; }
   if (gRealtimeActive || gRealtimeRecording) {
     closeRealtimeSession("audio smoke restart");
     delay(50);
@@ -509,6 +511,7 @@ bool readProbeLine(WiFiClient& client, String& line, uint32_t timeoutMs) {
 }
 
 void runRealtimeUpgradeProbe(bool verifyTls = true) {
+  if (!verifyTls) { pushError("Unverified TLS is disabled."); return; }
   if (!ensureWifiForHttp("realtime-probe", 5000) || gHubHost.isEmpty()) {
     logf("[PROBE] rt no wifi/hub");
     return;
@@ -517,11 +520,7 @@ void runRealtimeUpgradeProbe(bool verifyTls = true) {
   WiFiClientSecure secureClient;
   WiFiClient* client = nullptr;
   if (hubUsesTls()) {
-    if (verifyTls) {
-      configureSecureClient(secureClient);
-    } else {
-      secureClient.setInsecure();
-    }
+    configureSecureClient(secureClient);
     secureClient.setTimeout(8);
     client = &secureClient;
   } else {
@@ -817,8 +816,7 @@ bool handleHostSerialCommand(String line) {
     return true;
   }
   if (cmd == "rt.listen.insecure" || cmd == "/rt.listen.insecure") {
-    gRealtimeTlsVerify = false;
-    toggleRealtimeVoice();
+    pushError("Unverified TLS is disabled.");
     logf("[HOST] realtime listen toggle verify=insecure active=%d connected=%d recording=%d",
          static_cast<int>(gRealtimeActive),
          static_cast<int>(gRealtimeConnected),

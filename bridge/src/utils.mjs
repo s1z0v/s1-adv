@@ -26,7 +26,7 @@ export function json(res, code, payload) {
 }
 
 export async function ensureDir(dir) {
-  await mkdir(dir, { recursive: true });
+  await mkdir(dir, { recursive: true, mode: 0o700 });
 }
 
 export async function readJsonFile(filePath, fallback) {
@@ -41,7 +41,7 @@ export async function readJsonFile(filePath, fallback) {
 export async function writeJsonAtomic(filePath, value) {
   const tmpPath = `${filePath}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
   await ensureDir(path.dirname(filePath));
-  await writeFile(tmpPath, JSON.stringify(value, null, 2));
+  await writeFile(tmpPath, JSON.stringify(value, null, 2), { mode: 0o600 });
   await rename(tmpPath, filePath);
 }
 

@@ -7,17 +7,19 @@ it does not certify a fresh physical installation.
 | --- | --- |
 | Generic firmware build, without private provisioning | PASS, ESP32-S3 / 8 MB / dual OTA |
 | Build with pinned libraries and PlatformIO Core 6.1.19 | PASS |
-| App flash usage | 2,064,009 / 3,145,728 bytes, 65.6% of one OTA app slot |
-| Static RAM usage | 113,072 / 327,680 bytes, 34.5% |
+| App flash usage | 2,067,161 / 3,145,728 bytes, 65.7% of one OTA app slot |
+| Static RAM usage | 113,104 / 327,680 bytes, 34.5% |
 | Bridge dependency audit | No reported vulnerabilities in the installed dependency set |
 | Bridge security policy tests | PASS |
+| Security boundary regressions | PASS, 14 tests; see [security review](SECURITY-REVIEW.md) |
+| Firmware URL/path policy host test | PASS |
 | Gateway interruption regression tests | PASS, 3 tests: early close, silent handshake, HTTP while gateway unavailable |
 | Bridge mock smoke | PASS: topics, history, text, voice media, stream/replay, idempotency, auth and OTA endpoints |
 | Realtime protocol contract smoke | PASS, synthetic |
 | Turn delivery integration | PASS, 25 synthetic cases |
 | New setup guide local links | PASS |
 
-The firmware toolchain reported an existing Arduino ESP32 UART warning, but
+The firmware toolchain reported existing Arduino UART and IRremote pragma warnings, but
 completed the build successfully. Runtime and audio quality are not established
 by compilation or mock tests.
 

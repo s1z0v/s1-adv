@@ -54,7 +54,7 @@ test('HTTP liveness starts with an unavailable gateway', {timeout: 10000}, async
   cfg.server.port = 0;
   cfg.stateDir = path.join(dir, 'data');
   cfg.upstream.url = 'ws://127.0.0.1:1';
-  cfg.devices[0].device_token = 'test-device-token';
+  cfg.devices[0].device_token = 'test-device-token-0000000000000000000000000001';
   for (const key of ['inboundDir', 'canonicalDir', 'playbackDir', 'tmpDir']) cfg.media[key] = path.join(dir, key);
   cfg.assets.rootDir = path.join(dir, 'assets');
   cfg.assets.logsDir = path.join(dir, 'logs');
@@ -75,7 +75,7 @@ test('HTTP liveness starts with an unavailable gateway', {timeout: 10000}, async
     for (let attempt = 0; attempt < 40; attempt++) {
       try {
         const response = await fetch(`http://127.0.0.1:${cfg.server.port}/healthz`,
-          {headers: {Authorization: 'Bearer test-device-token'}});
+          {headers: {Authorization: `Bearer ${cfg.devices[0].device_token}`}});
         health = await response.json();
         break;
       } catch { await new Promise(resolve => setTimeout(resolve, 50)); }
@@ -83,9 +83,11 @@ test('HTTP liveness starts with an unavailable gateway', {timeout: 10000}, async
     assert.equal(health?.ok, true);
     assert.equal(health?.upstream_connected, false);
   } finally {
-    const ended = once(child, 'exit');
-    child.kill();
-    await ended;
+    if (child.exitCode === null) {
+      const ended = once(child, 'exit');
+      child.kill();
+      await ended;
+    }
     await rm(dir, {recursive: true, force: true});
   }
 });

@@ -6,6 +6,9 @@ server {
     ssl_certificate /etc/letsencrypt/live/bridge.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/bridge.example.com/privkey.pem;
     client_max_body_size 12m;
+    location ^~ /internal/ {
+        return 404;
+    }
     location / {
         proxy_pass http://127.0.0.1:31889;
         proxy_http_version 1.1;

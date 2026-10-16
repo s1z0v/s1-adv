@@ -562,13 +562,8 @@ void startRealtimeSession(bool startAfterReady) {
   gRealtimeAuthDueMs = 0;
   gRealtimeSessionStartedMs = millis();
   configureRealtimeAuthHeaders();
-  if (hubUsesTls() && gRealtimeTlsVerify) {
-    gRealtimeWs.beginSslWithCA(gHubHost.c_str(), gHubPort, kRealtimeWsPath, kTlsRootCaPem, "");
-  } else if (hubUsesTls()) {
-    gRealtimeWs.beginSSL(gHubHost.c_str(), gHubPort, kRealtimeWsPath, "", "");
-  } else {
-    gRealtimeWs.begin(gHubHost.c_str(), gHubPort, kRealtimeWsPath, "");
-  }
+  gRealtimeTlsVerify = true;
+  gRealtimeWs.beginSslWithCA(gHubHost.c_str(), gHubPort, kRealtimeWsPath, kTlsRootCaPem, "");
   gRealtimeWs.onEvent(realtimeWsEvent);
   gRealtimeWs.setReconnectInterval(750);
   gRealtimeWs.enableHeartbeat(15000, 3000, 2);

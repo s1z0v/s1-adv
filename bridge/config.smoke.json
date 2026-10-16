@@ -12,7 +12,9 @@
   "security": {
     "authFailureLimit": 5,
     "authFailureWindowMs": 60000,
-    "authBlockMs": 30000
+    "authBlockMs": 30000,
+    "internalOtaEnabled": true,
+    "internalOtaToken": "test-only-admin-token-00000000000000000000000001"
   },
   "upstream": {
     "url": "ws://127.0.0.1:31990",
@@ -62,7 +64,7 @@
   "devices": [
     {
       "device_id": "cpadv-dev",
-      "device_token": "dtk_demo_cardputer",
+      "device_token": "dtk_demo_cardputer_test_only_00000000000000000001",
       "topics": [
         "tg:root-main:default:-1001234567890:323",
         "tg:root-main:default:-1001234567890:1984"
