@@ -37,8 +37,8 @@ RealtimeDialResult* performRealtimeDial(void* arg) {
     result->error="Wi-Fi unavailable";
   } else {
     socket->setCACert(kTlsRootCaPem);
-    socket->setHandshakeTimeout(5);
-    if (!socket->connect(request->host.c_str(),request->port,2500)) {
+    socket->setHandshakeTimeout(12);
+    if (!socket->connect(request->host.c_str(),request->port,5000)) {
       char detail[96]={};
       const int code=socket->lastError(detail,sizeof(detail));
       result->error="TLS connect failed "+String(code);

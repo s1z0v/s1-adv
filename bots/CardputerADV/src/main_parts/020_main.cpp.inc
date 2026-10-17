@@ -222,7 +222,7 @@ InboxHttpResult* performInboxHttpRequest(void* arg) {
     if (request->url.startsWith("https://")) {
       secure.reset(new WiFiClientSecure());
       configureSecureClient(*secure);
-      secure->setHandshakeTimeout(4);
+      secure->setHandshakeTimeout(12);
       opened = http.begin(*secure, request->url);
     } else opened = http.begin(request->url);
   }
