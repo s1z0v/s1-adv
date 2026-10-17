@@ -97,6 +97,7 @@ bool gRealtimeAudioComplete = false;
 bool gRealtimeResponseComplete = false;
 bool gRealtimeSmokeActive = false;
 bool gRealtimeSmokeTextPending = false;
+const char* gRealtimeSmokePrompt = "Say one short word: ready.";
 bool gRealtimeSmokeAudioPending = false;
 bool gRealtimeSmokeAudioStreaming = false;
 bool gRealtimeAuthPending = false;

@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
+import { RealtimePacingBudget } from './realtime-pacing-budget.mjs';
+
+test('voice upload can return a pending receipt without waiting for the full agent turn',()=>{
+ assert.equal(voiceReplyWaitMs('1000',65000),1000);
+ assert.equal(voiceReplyWaitMs(undefined,65000),10000);
+ assert.equal(voiceReplyWaitMs('0',65000),250);
+ assert.equal(voiceReplyWaitMs('99999999',65000),10000);
+ assert.equal(voiceReplyWaitMs('-1',65000),10000);
+ assert.equal(voiceReplyWaitMs('bad',800),800);
+});
+
+test('actual Realtime callback and pacer finish the device turn while history storage is blocked',async()=>{
+ const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
+ const marker='modelWs.on("message", async (raw) => {';
+ const callback=source.slice(source.indexOf(marker)+marker.length,source.indexOf('\n  modelWs.on("error"')).replace(/\n  \}\);\s*$/u,'');
+ const pumpMarker='const pumpPacedAudio = () => {';
+ const pump=source.slice(source.indexOf(pumpMarker)+pumpMarker.length,source.indexOf('\n  if (pacedBinaryAudio) {')).replace(/\n  \};\s*$/u,'');
+ let releaseStore;const stored=[];const events=[];let now=0;
+ const e={console:{info(){},warn(){}},realtimeFunctionCalls:()=>[],pendingToolResponseDone:0,s1ToolCallsInFlight:0,
+  turnOpen:true,turnSequence:1,turnAudioBytes:96000,turnAudioTerminalSent:false,s1ToolUsedForTurn:false,
+  responseText:'ready',inputTranscript:'hello',speechStoppedAt:0,firstAudioAt:0,sessionId:'test',
+  extractDeviceActionsFromText:t=>({visibleText:t,actions:[]}),alignFocusActionMinutes:()=>[],stripMarkdownForDevice:t=>t,
+  runtime:{appendDeviceText:()=>new Promise(r=>{releaseStore=r;}),appendAssistantReply:async v=>stored.push(v)},
+  device:{device_id:'test'},topic:{topic_key:'test'},pacedBinaryAudio:true,pacedAudioDonePending:false,
+  pacedResponseDonePending:null,pacedAudioBuffer:Buffer.alloc(48000),outputPacingBytes:1440,outputAudioSequence:0,
+  audioTerminalReady,pacingBudget:new RealtimePacingBudget(24000),performance:{now:()=>now},closed:false,
+  clientWs:{readyState:1},WebSocket:{OPEN:1},REALTIME_BINARY_OUTPUT_PCM:2,
+  makeRealtimeBinaryFrame:(_type,_seq,chunk)=>chunk,safeWsSendBinary:()=>true,
+  safeWsSend:(_ws,event)=>{events.push(event.type);return true;},stopAudioPacer:()=>{throw Error('unexpected stop');}}
+ const receive=new Function('e',`with(e){return async(raw)=>{${callback}}}`)(e);
+ const tick=new Function('e',`with(e){return ()=>{${pump}}}`)(e);
+ const saving=receive(JSON.stringify({type:'response.done',response:{status:'completed'}}));
+ assert.equal(typeof releaseStore,'function');
+ assert.equal(e.pacedResponseDonePending.type,'response.done');
+ assert.equal(e.pacedAudioDonePending,true);
+ for(let i=0;i<200;++i){now+=20;tick();}
+ assert.equal(e.pacedAudioBuffer.length,0);
+ assert.deepEqual(events,['audio.done','response.done']);
+ e.inputTranscript='next';e.responseText='next';e.turnSequence=2;releaseStore();await saving;
+ assert.equal(stored[0].clientMsgId,'test:turn:1:assistant');
+ assert.equal(stored[0].text,'ready');
+});

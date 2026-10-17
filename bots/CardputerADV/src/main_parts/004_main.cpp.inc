@@ -138,9 +138,9 @@ struct KeyRushRuntime {
 };
 
 constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
-    {"OpenClaw", "AI", "Assistant and chat", rgb565_local(47, 227, 255), 6,
-     {{"Realtime", UiMode::Home, true}, {"Pulse", UiMode::Home}, {"Full Chat", UiMode::ChatFull},
-      {"Chat Eyes", UiMode::ChatFace}, {"Big Eyes", UiMode::Face}, {"OpenClaw Pet", UiMode::Hero}}},
+    {"AI Agent", "AI", "Assistant and chat", rgb565_local(47, 227, 255), 6,
+     {{"Realtime", UiMode::Home, true}, {"Pulse", UiMode::Home}, {"AI Chat", UiMode::ChatFull},
+      {"Chat Eyes", UiMode::ChatFace}, {"Big Eyes", UiMode::Face}, {"AI Pet", UiMode::Hero}}},
     {"Media", "WAV", "Listen and capture", rgb565_local(88, 240, 141), 5,
      {{"Library", UiMode::Library}, {"Folders", UiMode::AudioFolders}, {"Voice Notes", UiMode::Voice},
       {"Notes", UiMode::Notes}, {"Assets", UiMode::Assets}}},

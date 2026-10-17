@@ -179,6 +179,23 @@ void serviceRealtimePlayback() {
     appendRuntimeLog("RT", "playback underrun; rebuffer", true);
   }
 
+  // A rebuffered stream may have stopped feeding before its terminal event.
+  // Complete the drained turn before the prebuffer early return below.
+  if (gRealtimeAudioComplete && gRealtimePlaybackBufferedBytes == 0 && speakerIdle) {
+    const bool wasPlaying = gRealtimePlaybackActive;
+    gRealtimePlaybackActive = false;
+    gRealtimePlaybackFeeding = false;
+    gPlaybackActive = false;
+    if (wasPlaying) {
+      logf("[RT] playback drained audio_done=%d response_done=%d",
+           static_cast<int>(gRealtimeAudioComplete),static_cast<int>(gRealtimeResponseComplete));
+      setFaceMode(FaceMode::Idle);
+      setStatus("Realtime reply finished", 700);
+    }
+    scheduleRealtimeListenAfterPlayback();
+    return;
+  }
+
   if (!gRealtimePlaybackFeeding) {
     const bool enoughPrebuffer = gRealtimePlaybackBufferedBytes >= kRealtimePlaybackPrebufferBytes;
     const bool finalShortBuffer = gRealtimeAudioComplete &&

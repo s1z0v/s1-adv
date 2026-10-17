@@ -3,7 +3,7 @@
 - Type a question and press Enter in chat.
 - Use the device talk control for push-to-talk: hold, speak, release.
 - **Tab** opens the app menu from Home and the chat/eyes screens; arrows select, Enter opens.
-- **Ctrl+K** opens assistant commands. R selects Realtime, C Full Chat, E Chat Eyes, F Big Eyes.
+- **Ctrl+K** opens assistant commands. R selects Realtime, C AI Chat, E Chat Eyes, F Big Eyes.
 - **Ctrl+R** starts Realtime or commits the current speech turn. While awaiting a reply, it stops Realtime.
 - **Esc** closes an overlay, or ends Realtime and returns Home.
 - **Ctrl+Left / Ctrl+Right** or **Ctrl+, / Ctrl+.** selects the previous/next animal.
@@ -23,3 +23,7 @@ Realtime shows CONNECT, LISTEN, THINK, SPEAK, READY or ERROR above the large eye
 MIC ON and the input meter appear only during recording. Connection errors remain
 visible until retry or exit. The firmware uses one configured conversation;
 there is no topic browser or topic creation/switching.
+
+Device Settings → Clock format switches between 12h AM/PM (default) and 24h.
+Voice upload shows its percentage, then transcription and an accepted receipt.
+A pending agent request remains visible in AI Chat; its later reply opens the chat with a notification.

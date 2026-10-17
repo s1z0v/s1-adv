@@ -124,6 +124,9 @@ void adjustCurrentSetting(int delta) {
     case 5:
       gDeviceSettings.clockFace = static_cast<uint8_t>((gDeviceSettings.clockFace + kClockFaceCount + (delta >= 0 ? 1 : -1)) % kClockFaceCount);
       break;
+    case 7:
+      gDeviceSettings.clockTwelveHour = !gDeviceSettings.clockTwelveHour;
+      break;
     default:
       break;
   }
@@ -190,6 +193,9 @@ void toggleCurrentSetting() {
       break;
     case 6:
       gDeviceSettings.beepOnUpdate = !gDeviceSettings.beepOnUpdate;
+      break;
+    case 7:
+      gDeviceSettings.clockTwelveHour = !gDeviceSettings.clockTwelveHour;
       break;
     default:
       break;

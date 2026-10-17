@@ -41,6 +41,7 @@
 #include "tcl112ac_encoder.h"
 #include "transport_security.h"
 #include "realtime_socket.h"
+#include "clock_display.h"
 
 extern "C" {
 #include "libb64/cdecode.h"
@@ -63,7 +64,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.149-dev"
+#define APP_VERSION "0.2.150-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -179,7 +180,7 @@ constexpr size_t kMaxHeapRecordFallbackBytes = 160 * 1024;
 constexpr size_t kMaxHeapTtsFallbackBytes = 160 * 1024;
 constexpr size_t kHeapReserveBytes = 48 * 1024;
 constexpr size_t kHttpWriteChunkBytes = 512;
-constexpr size_t kHttpStageChunkBytes = 1024;
+constexpr size_t kHttpStageChunkBytes = 4096;
 constexpr uint32_t kVoiceSocketSettleMs = 300;
 constexpr uint32_t kCtrlDoubleTapWindowMs = 420;
 constexpr uint32_t kLauncherToggleDebounceMs = 140;
@@ -193,7 +194,7 @@ constexpr uint32_t kSmartLampOnlineTimeoutMs = 3500;
 constexpr uint32_t kSmartLampPresetSendDelayMs = 250;
 constexpr uint32_t kSmartLampMinCommandGapMs = 520;
 constexpr const char* kSmartLampPrefsNs = "smartlamp";
-constexpr uint8_t kDeviceSettingsItemCount = 7;
+constexpr uint8_t kDeviceSettingsItemCount = 8;
 constexpr uint8_t kFocusSettingsItemCount = 7;
 constexpr uint8_t kScreenSettingsItemCount = 10;
 constexpr uint8_t kSettingsItemCount = kScreenSettingsItemCount;

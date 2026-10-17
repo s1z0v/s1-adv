@@ -103,7 +103,7 @@ String setupPortalPage(const String& message = String()) {
   page.reserve(7200);
   page += F("<!doctype html><html><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-            "<title>OpenClaw Setup</title><style>"
+            "<title>AI Agent Setup</title><style>"
             ":root{color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#071018;color:#e9f7ff;"
             "font:15px/1.45 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.wrap{max-width:560px;margin:0 auto;padding:22px}"
             "h1{font-size:24px;margin:0 0 6px}p{color:#9fb7c8;margin:0 0 18px}.panel{border:1px solid #1d4155;background:#0c1a24;"
@@ -112,7 +112,7 @@ String setupPortalPage(const String& message = String()) {
             "button{width:100%;border:0;background:#21c7df;color:#021116;border-radius:6px;padding:12px 14px;font-weight:800;font:inherit}"
             ".hint{font-size:12px;color:#7fa1b4}.msg{padding:10px;border-radius:6px;background:#153626;color:#9ef7bc;margin:10px 0}"
             ".grid{display:grid;grid-template-columns:1fr 100px;gap:10px}@media(max-width:480px){.grid{grid-template-columns:1fr}}"
-            "</style></head><body><main class=\"wrap\"><h1>OpenClaw Cardputer Setup</h1>"
+            "</style></head><body><main class=\"wrap\"><h1>S1-ADV AI Agent Setup</h1>"
             "<p>Connect Wi-Fi and bridge credentials. Saved values are stored only on this device.</p>");
   if (!message.isEmpty()) {
     page += "<div class=\"msg\">";
@@ -213,7 +213,7 @@ void startSetupPortal(const char* reason) {
   IPAddress apIp(192, 168, 4, 1);
   IPAddress gateway(192, 168, 4, 1);
   IPAddress subnet(255, 255, 255, 0);
-  gSetupPortalSsid = "OpenClaw-" + chipIdSuffix();
+  gSetupPortalSsid = "S1-ADV-" + chipIdSuffix();
   gSetupPortalPassword = setupRandomSecret().substring(0, 16);
   gSetupPortalCsrf = setupRandomSecret();
   WiFi.mode(WIFI_AP_STA);

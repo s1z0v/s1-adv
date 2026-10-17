@@ -468,6 +468,7 @@ void runRealtimeSmokeFromDevice(bool verifyTls = true) {
   }
   gRealtimeSmokeActive = true;
   gRealtimeSmokeTextPending = true;
+  gRealtimeSmokePrompt = "Say one short word: ready.";
   gRealtimeTlsVerify = verifyTls;
   logf("[SMOKE] realtime start verify=%s", verifyTls ? "ca" : "insecure");
   startRealtimeSession(false);
@@ -559,7 +560,7 @@ void runRealtimeUpgradeProbe(bool verifyTls = true) {
   request += hostHeader;
   request += "\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n";
   request += "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n";
-  request += "User-Agent: OpenClaw-Cardputer-Probe/";
+  request += "User-Agent: S1-ADV-Probe/";
   request += kAppVersion;
   request += "\r\n\r\n";
   if (!writeClientAll(*client, request, "rt_probe_headers")) {
@@ -727,6 +728,25 @@ bool handleHostSerialCommand(String line) {
   if (cmd=="ui.escape" || cmd=="esc") {
     handleGlobalEscape();
     logf("[HOST] ui.escape done");
+    return true;
+  }
+  if (cmd == "clock.status" || cmd == "clock.format 12" || cmd == "clock.format 24") {
+    if (cmd != "clock.status") {
+      gDeviceSettings.clockTwelveHour = cmd.endsWith("12");
+      saveDeviceSettings();
+    }
+    const time_t stamp = time(nullptr);
+    struct tm localNow;
+    localtime_r(&stamp, &localNow);
+    char clockText[12];
+    clock_display::format(clockText,sizeof(clockText),localNow.tm_hour,localNow.tm_min,
+                          gDeviceSettings.clockTwelveHour,true);
+    logf("[HOST] clock.status format=%s local=%s",gDeviceSettings.clockTwelveHour ? "12h" : "24h",clockText);
+    return true;
+  }
+  if (cmd == "rt.smoke.long") {
+    runRealtimeSmokeFromDevice(true);
+    gRealtimeSmokePrompt = "Count slowly from one to twenty, saying every number.";
     return true;
   }
   if (cmd == "diag" || cmd == "/diag" || cmd == "dbg" || cmd == "/dbg") {

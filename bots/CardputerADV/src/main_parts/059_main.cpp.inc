@@ -131,12 +131,14 @@
   }
 
   String hhmm = "--:--";
+  String periodLabel;
   time_t now = time(nullptr);
   if (!realtime && now > 100000) {
     struct tm timeinfo;
     localtime_r(&now, &timeinfo);
     char buf[6];
-    strftime(buf, sizeof(buf), "%H:%M", &timeinfo);
+    clock_display::format(buf, sizeof(buf), timeinfo.tm_hour, timeinfo.tm_min, gDeviceSettings.clockTwelveHour);
+    if (gDeviceSettings.clockTwelveHour) periodLabel = clock_display::period(timeinfo.tm_hour);
     hhmm = buf;
   }
 	  if (state == AssistantPulseState::Recording) {
@@ -174,6 +176,12 @@
 	  int tw = d.textWidth(hhmm);
 	  d.setCursor(171 - tw / 2, realtime ? 35 : state == AssistantPulseState::Recording ? 18 : 20);
 	  d.print(hhmm);
+  if (!realtime && state != AssistantPulseState::Recording && !periodLabel.isEmpty()) {
+    d.setFont(&fonts::Font0);
+    d.setTextColor(c1, bg);
+    d.setCursor(171 - d.textWidth(periodLabel) / 2, 4);
+    d.print(periodLabel);
+  }
 
   int16_t waveX = state == AssistantPulseState::Ready ? 121 : 117;
   int16_t waveY = state == AssistantPulseState::Ready ? 88 : 86;

@@ -99,6 +99,8 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   }
 
   String hostHeader = gHubHost;
+  client->setNoDelay(true); // The connected socket must exist before TCP_NODELAY is set.
+  const uint32_t uploadStartedMs = millis();
   if ((!hubUsesTls() && gHubPort != 80) || (hubUsesTls() && gHubPort != 443)) {
     hostHeader += ":" + String(gHubPort);
   }
@@ -108,7 +110,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   headers += kDeviceAudioTurnRawPath;
   headers += " HTTP/1.1\r\nHost: ";
   headers += hostHeader;
-  headers += "\r\nUser-Agent: OpenClaw-Cardputer/";
+  headers += "\r\nUser-Agent: S1-ADV/";
   headers += kAppVersion;
   headers += "\r\nConnection: close\r\nContent-Type: application/octet-stream\r\nContent-Length: ";
   headers += String(static_cast<unsigned>(dataSize));
@@ -124,7 +126,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   headers += turnId;
   headers += "\r\nX-Turn-Id: ";
   headers += turnId;
-  headers += "\r\nX-Reply-Audio: true\r\nX-Save-Reply-Audio: true\r\n";
+  headers += "\r\nX-Reply-Audio: true\r\nX-Save-Reply-Audio: true\r\nX-Voice-Wait-Ms: 1000\r\n";
   if (!gDeviceToken.isEmpty()) {
     headers += "Authorization: Bearer ";
     headers += gDeviceToken;
@@ -158,6 +160,10 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     return false;
   }
 
+  logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(dataSize),
+       static_cast<unsigned>(millis()-uploadStartedMs));
+  setStatus("Transcribing / AI Agent...");
+  render();
   setHttpDiag("voice_post: wait reply");
   int contentLength = -1;
   uint32_t ignoredSampleRate = kTtsDefaultSampleRate;

@@ -319,6 +319,8 @@ String settingLabel(uint8_t index) {
       return "Home face";
     case 6:
       return "OTA beep";
+    case 7:
+      return "Clock format";
     default:
       return "-";
   }

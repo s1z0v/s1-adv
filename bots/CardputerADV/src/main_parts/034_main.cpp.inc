@@ -43,6 +43,8 @@ bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length
     written += sent;
     lastProgress = millis();
     if ((written % (8 * 1024)) == 0 || written == length) {
+      if (strcmp(label,"voice_body")==0)
+        setStatus("Uploading voice " + String(static_cast<unsigned>(written * 100ULL / length)) + "%");
       setHttpDiag(String(label) + ": " + String(static_cast<unsigned>(written / 1024)) + "k/" +
                   String(static_cast<unsigned>(length / 1024)) + "k");
     }
@@ -108,6 +110,8 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
       written += sent;
       lastProgress = millis();
       if ((written % (8 * 1024)) == 0 || written == length) {
+        if (strcmp(label,"voice_body")==0)
+          setStatus("Uploading voice " + String(static_cast<unsigned>(written * 100ULL / length)) + "%");
         setHttpDiag(String(label) + ": " + String(static_cast<unsigned>(written / 1024)) + "k/" +
                     String(static_cast<unsigned>(length / 1024)) + "k");
       }

@@ -113,12 +113,15 @@
   }
   if (resp["pending"] | false) {
     gVoiceReplyPending = true;
+    gAssistantPendingVisible = true;
     gVoiceReplyAfterSeq = resp["after_seq"] | 0;
     gVoiceReplyPendingMs = millis();
     gLastInboxAutoPollMs = 0;
-    pushSystem("S1 working; reply will arrive in Inbox.");
-    setFaceMode(FaceMode::Idle);
-    setStatus("S1 working - Inbox", 3000);
+    pushSystem("AI Agent accepted the voice request. Waiting for reply...");
+    setFaceMode(FaceMode::Thinking);
+    setStatus("AI Agent working...", 0);
+    M5Cardputer.Speaker.tone(1047,90);
+    if (isAssistantUi()) setUiMode(UiMode::ChatFull);
     // A transport acknowledgement is not an assistant answer and never TTS.
     return true;
   }

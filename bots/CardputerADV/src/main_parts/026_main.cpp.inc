@@ -181,6 +181,7 @@ void loadDeviceSettings() {
   gDeviceSettings.beepOnUpdate = gPrefs.getBool("fw_beep", true);
   gDeviceSettings.minBatteryForUpdate = static_cast<uint8_t>(gPrefs.getUChar("fw_bat", 40));
   gDeviceSettings.clockFace = static_cast<uint8_t>(gPrefs.getUChar("clk_face", 0));
+  gDeviceSettings.clockTwelveHour = gPrefs.getBool("clk_12h", true);
   gDeviceSettings.displayBrightnessPct = static_cast<uint8_t>(gPrefs.getUChar("lcd_pct", kDefaultDisplayBrightnessPct));
   gDeviceSettings.screensaverEnabled = gPrefs.getBool("scr_on", true);
   gDeviceSettings.screensaverStyle = static_cast<uint8_t>(gPrefs.getUChar("scr_style", kDefaultScreensaverStyle));
@@ -220,6 +221,7 @@ void saveDeviceSettings() {
   gPrefs.putBool("fw_beep", gDeviceSettings.beepOnUpdate);
   gPrefs.putUChar("fw_bat", gDeviceSettings.minBatteryForUpdate);
   gPrefs.putUChar("clk_face", gDeviceSettings.clockFace % kClockFaceCount);
+  gPrefs.putBool("clk_12h", gDeviceSettings.clockTwelveHour);
   gPrefs.putUChar("lcd_pct", gDeviceSettings.displayBrightnessPct);
   gPrefs.putBool("scr_on", gDeviceSettings.screensaverEnabled);
   gPrefs.putUChar("scr_style", gDeviceSettings.screensaverStyle % kScreensaverStyleCount);

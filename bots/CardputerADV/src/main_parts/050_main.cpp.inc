@@ -228,8 +228,8 @@ void renderUncannyEyesUi() {
     if (ts > 100000) {
       struct tm timeinfo;
       localtime_r(&ts, &timeinfo);
-      char buf[6];
-      strftime(buf, sizeof(buf), "%H:%M", &timeinfo);
+      char buf[12];
+      clock_display::format(buf, sizeof(buf), timeinfo.tm_hour, timeinfo.tm_min, gDeviceSettings.clockTwelveHour, true);
       hhmm = buf;
     }
     const uint16_t clockBg = rgb565_local(3, 7, 8);
@@ -238,7 +238,7 @@ void renderUncannyEyesUi() {
     gCanvas.drawRoundRect(176, 6, 56, 18, 6, clockLine);
     gCanvas.setFont(&fonts::Font0);
     gCanvas.setTextColor(TFT_WHITE, clockBg);
-    gCanvas.setCursor(189, 11);
+    gCanvas.setCursor(176 + (56 - gCanvas.textWidth(hhmm)) / 2, 11);
     gCanvas.print(hhmm);
     gCanvas.setFont(&fonts::Font2);
   }

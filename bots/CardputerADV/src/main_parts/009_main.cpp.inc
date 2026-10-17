@@ -23,7 +23,7 @@ AssistantPulseState assistantPulseState() {
   if (gRecording) {
     return AssistantPulseState::Recording;
   }
-  if (gSubmitting || gThinking) {
+  if (gSubmitting || gThinking || (gVoiceReplyPending && gAssistantPendingVisible)) {
     return AssistantPulseState::Thinking;
   }
   if (gPlaybackActive) {

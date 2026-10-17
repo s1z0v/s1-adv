@@ -30,6 +30,7 @@ bool handleInboxHistoryItem(JsonObject item, bool forcePlay, bool assistantOnly 
   if (assistantOnly && senderKind != "assistant") {
     return false;
   }
+  if (kind == "text" && text.isEmpty()) return false;
   if (!forcePlay && seq != 0 && seq <= gInboxLastSeq) {
     return false;
   }
@@ -37,7 +38,10 @@ bool handleInboxHistoryItem(JsonObject item, bool forcePlay, bool assistantOnly 
   gInboxLastSeq = seq;
   if (senderKind == "assistant") {
     gInboxUnread = true;
-    if (gVoiceReplyPending && seq > gVoiceReplyAfterSeq) gVoiceReplyPending = false;
+    if (gVoiceReplyPending && seq > gVoiceReplyAfterSeq) {
+      gVoiceReplyPending = false;
+      if (!gSubmitting && !gThinking) gAssistantPendingVisible = false;
+    }
   }
   gInboxLastText = text;
   gInboxLastKind = kind;
@@ -88,6 +92,7 @@ bool ackDeviceEvent(const String& eventId) {
 }
 
 bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bool assistantOnly) {
+  const bool voiceReplyWasPending = gVoiceReplyPending;
   DynamicJsonDocument doc(8192);
   auto err = deserializeJson(doc, body);
   if (err) {
@@ -135,6 +140,11 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
   doc.clear();
   body = "";
   if (found) {
+    if (voiceReplyWasPending && !gVoiceReplyPending) {
+      if (isAssistantUi()) setUiMode(UiMode::ChatFull);
+      M5Cardputer.Speaker.tone(1319,90);
+      setStatus("AI Agent replied",4000);
+    }
     if (speak) {
       bool played = playLastInboxMessage();
       logf("[INBOX] playback ok=%d seq=%u", static_cast<int>(played), static_cast<unsigned>(gInboxLastSeq));

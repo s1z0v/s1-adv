@@ -60,7 +60,7 @@ void renderHeroUi() {
   d.setFont(&fonts::Font2);
   d.setTextColor(accent, panel);
   d.setCursor(16, 14);
-  d.print("OPENCLAW PET");
+  d.print("AI PET");
   String stage = petStageName(gPet.stage);
   d.setTextColor(TFT_WHITE, panel);
   d.setCursor(222 - d.textWidth(stage), 14);
@@ -187,7 +187,7 @@ void renderAssistantThinkingLite() {
   d.setFont(&fonts::Font2);
   d.setTextColor(amber, panel);
   d.setCursor(17, 16);
-  d.print("OPENCLAW");
+  d.print("AI AGENT");
   d.setTextColor(muted, panel);
   d.setCursor(224 - d.textWidth(kAppVersion), 16);
   d.print(kAppVersion);

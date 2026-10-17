@@ -60,6 +60,8 @@ String settingValue(uint8_t index) {
       return clockFaceName(gDeviceSettings.clockFace);
     case 6:
       return gDeviceSettings.beepOnUpdate ? "on" : "off";
+    case 7:
+      return gDeviceSettings.clockTwelveHour ? "12h AM/PM" : "24h";
     default:
       return "-";
   }
@@ -302,14 +304,14 @@ void renderCMatrixUi() {
     if (ts > 100000) {
       struct tm timeinfo;
       localtime_r(&ts, &timeinfo);
-      char buf[6];
-      strftime(buf, sizeof(buf), "%H:%M", &timeinfo);
+      char buf[12];
+      clock_display::format(buf, sizeof(buf), timeinfo.tm_hour, timeinfo.tm_min, gDeviceSettings.clockTwelveHour, true);
       hhmm = buf;
     }
     d.fillRoundRect(176, 6, 56, 18, 6, rgb565_local(0, 12, 4));
     d.drawRoundRect(176, 6, 56, 18, 6, dim);
     d.setTextColor(bright, rgb565_local(0, 12, 4));
-    d.setCursor(189, 11);
+    d.setCursor(176 + (56 - d.textWidth(hhmm)) / 2, 11);
     d.print(hhmm);
   }
   if (!gScreensaverActive) {

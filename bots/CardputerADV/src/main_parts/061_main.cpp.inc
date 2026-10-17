@@ -267,7 +267,7 @@ void setup() {
   pushSystem("Ctrl+Space = EN/RU");
   pushSystem("Voice: Ctrl x2 / Ctrl+V / hold G0");
   pushSystem("Tab menu, Ctrl+K commands, Ctrl+R Realtime");
-  pushSystem("/pet = OpenClaw pet, /petreset resets");
+  pushSystem("/pet = AI pet, /petreset resets");
   pushSystem(String("FW ") + kAppVersion + " " + String(kBuildGitSha).substring(0, 10));
   logf("[BOOT] device_id=%s", gDeviceId.c_str());
   logf("[BOOT] version=%s git=%s build=%s", kAppVersion, kBuildGitSha, kBuildTime);

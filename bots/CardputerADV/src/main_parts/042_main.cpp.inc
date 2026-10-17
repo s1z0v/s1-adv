@@ -274,7 +274,7 @@ void handleRealtimeJson(const JsonDocument& doc) {
       gRealtimeSmokeTextPending = false;
       DynamicJsonDocument smoke(256);
       smoke["type"] = "text.send";
-      smoke["text"] = "Say one short word: ready.";
+      smoke["text"] = gRealtimeSmokePrompt;
       String out;
       serializeJson(smoke, out);
       bool sent = sendRealtimeTextFrame(out);

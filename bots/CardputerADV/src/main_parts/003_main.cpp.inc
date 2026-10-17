@@ -54,7 +54,7 @@ constexpr DeviceActionCatalogEntry kDeviceActionCatalog[] = {
     {"settings.set_ota_min_battery", "OTA battery", "update above 50 percent"},
     {"ota.check", "OTA check", "check for firmware update"},
     {"ota.apply", "OTA apply", "install firmware update"},
-    {"pet.feed", "pet food", "feed the OpenClaw pet"},
+    {"pet.feed", "pet food", "feed the AI pet"},
     {"pet.play", "pet play", "play with the pet"},
     {"pet.clean", "pet clean", "clean the pet"},
     {"pet.sleep", "pet sleep", "put the pet to sleep"},
@@ -243,6 +243,7 @@ struct DeviceSettings {
   bool beepOnUpdate = true;
   uint8_t minBatteryForUpdate = 40;
   uint8_t clockFace = 0;
+  bool clockTwelveHour = true;
   uint8_t displayBrightnessPct = kDefaultDisplayBrightnessPct;
   bool screensaverEnabled = true;
   uint8_t screensaverStyle = kDefaultScreensaverStyle;

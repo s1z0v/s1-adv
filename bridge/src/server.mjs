@@ -37,7 +37,7 @@ import {
   stripMarkdownForDevice,
   stripTelegramEnvelope
 } from "./utils.mjs";
-import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady } from "./turn-delivery-policy.mjs";
+import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs } from "./turn-delivery-policy.mjs";
 import { RealtimePacingBudget, REALTIME_MAX_AUDIO_LEAD_MS } from "./realtime-pacing-budget.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1649,6 +1649,8 @@ async function wireRealtimeBridge({
   let pendingToolResponseDone = 0;
   let turnSequence = 0;
   let turnOpen = false;
+  let turnAudioBytes = 0;
+  let turnAudioTerminalSent = false;
   const handledToolCallIds = new Set();
   const outputSampleRate = Number(config.realtimeVoice?.sampleRate) || DEFAULT_REALTIME_VOICE.sampleRate;
   const outputPacingMs = Math.max(
@@ -1694,6 +1696,8 @@ async function wireRealtimeBridge({
     inputTranscript = String(text || "").trim();
     speechStoppedAt = 0;
     firstAudioAt = 0;
+    turnAudioBytes = 0;
+    turnAudioTerminalSent = false;
     s1ToolUsedForTurn = false;
   };
 
@@ -1743,6 +1747,8 @@ async function wireRealtimeBridge({
     if (pacedAudioDonePending && pacedAudioBuffer.length === 0) {
       pacedAudioDonePending = false;
       safeWsSend(clientWs, { type: "audio.done", session_id: sessionId });
+      turnAudioTerminalSent = true;
+      console.info(`[realtime] audio_terminal session=${sessionId} bytes=${turnAudioBytes}`);
       // Firmware <=0.2.129 inferred that audio.done ended S1 thinking. Reassert
       // the explicit phase after a tool-call preamble drains for compatibility.
       if (s1ToolCallsInFlight > 0) {
@@ -1751,6 +1757,7 @@ async function wireRealtimeBridge({
     }
     if (pacedResponseDonePending && audioTerminalReady(pacedAudioBuffer.length, pacedAudioDonePending)) {
       safeWsSend(clientWs, pacedResponseDonePending);
+      console.info(`[realtime] response_terminal session=${sessionId}`);
       pacedResponseDonePending = null;
     }
   };
@@ -1901,6 +1908,7 @@ async function wireRealtimeBridge({
       const audio = String(event.delta || "");
       if (binaryAudio) {
         const pcm = Buffer.from(audio, "base64");
+        turnAudioBytes += pcm.length;
         if (pacedBinaryAudio && pcm.length > 0) {
           if (pacedAudioBuffer.length + pcm.length > maxPacedAudioBytes) {
             console.warn(
@@ -1966,6 +1974,7 @@ async function wireRealtimeBridge({
         return;
       }
       safeWsSend(clientWs, { type: "audio.done", session_id: sessionId });
+      turnAudioTerminalSent = true;
       if (s1ToolCallsInFlight > 0) {
         safeWsSend(clientWs, { type: "realtime.thinking", session_id: sessionId, phase: "s1" });
       }
@@ -2033,22 +2042,37 @@ async function wireRealtimeBridge({
           actions
         });
       }
+      // Complete the device turn independently of history persistence. A slow
+      // store must not strand a drained speaker behind its stream watchdog.
+      const responseTerminal = { type: "response.done", session_id: sessionId, text: stripMarkdownForDevice(extracted.visibleText || responseText) };
+      if (pacedBinaryAudio && turnAudioBytes > 0 && !turnAudioTerminalSent) pacedAudioDonePending = true;
+      if (pacedBinaryAudio && !audioTerminalReady(pacedAudioBuffer.length, pacedAudioDonePending)) {
+        pacedResponseDonePending = responseTerminal;
+      } else {
+        safeWsSend(clientWs, responseTerminal);
+        console.info(`[realtime] response_terminal session=${sessionId}`);
+      }
+      const storedInput = inputTranscript;
+      const storedResponse = responseText;
+      const storedTurnSequence = turnSequence;
+      const storedWithS1 = s1ToolUsedForTurn;
+      turnOpen = false;
       try {
-        if (inputTranscript && !s1ToolUsedForTurn) {
+        if (storedInput && !storedWithS1) {
           await runtime.appendDeviceText({
             device,
             topicKey: topic.topic_key,
-            clientMsgId: `${sessionId}:turn:${turnSequence}:user`,
-            text: inputTranscript,
+            clientMsgId: `${sessionId}:turn:${storedTurnSequence}:user`,
+            text: storedInput,
             source: "cardputer_realtime"
           });
         }
-        const visible = stripMarkdownForDevice(extracted.visibleText || responseText).trim();
-        if (visible && !s1ToolUsedForTurn) {
+        const visible = stripMarkdownForDevice(extracted.visibleText || storedResponse).trim();
+        if (visible && !storedWithS1) {
           await runtime.appendAssistantReply({
             topicKey: topic.topic_key,
             text: visible,
-            clientMsgId: `${sessionId}:turn:${turnSequence}:assistant`,
+            clientMsgId: `${sessionId}:turn:${storedTurnSequence}:assistant`,
             source: "cardputer_realtime",
             queueDeviceEvent: false
           });
@@ -2056,13 +2080,6 @@ async function wireRealtimeBridge({
       } catch (error) {
         console.warn(`[realtime] store_failed session=${sessionId} err=${String(error.message || error).slice(0, 240)}`);
       }
-      const responseTerminal = { type: "response.done", session_id: sessionId, text: stripMarkdownForDevice(extracted.visibleText || responseText) };
-      if (pacedBinaryAudio && !audioTerminalReady(pacedAudioBuffer.length, pacedAudioDonePending)) {
-        pacedResponseDonePending = responseTerminal;
-      } else {
-        safeWsSend(clientWs, responseTerminal);
-      }
-      turnOpen = false;
       return;
     }
     if (type === "error") {
@@ -6119,7 +6136,7 @@ async function main() {
           }),
           waitForUpstream: true
         });
-        const voiceWaitMs = Math.min(10000, config.omnibotShim.voiceTurnWaitMs || config.omnibotShim.turnWaitMs);
+        const voiceWaitMs = voiceReplyWaitMs(req.headers["x-voice-wait-ms"], config.omnibotShim.voiceTurnWaitMs || config.omnibotShim.turnWaitMs);
         const reply = await runtime.waitForAssistantReply(
           topic.topic_key,
           ack.seq,

@@ -20,3 +20,9 @@ export function unwrapCardputerEnvelope(text) {
 export function audioTerminalReady(bufferedBytes, audioDonePending) {
   return bufferedBytes === 0 && !audioDonePending;
 }
+
+export function voiceReplyWaitMs(requested, configured) {
+  const fallback = Math.min(10000, Number(configured) || 10000);
+  if (typeof requested !== "string" || !/^\d+$/u.test(requested)) return fallback;
+  return Math.min(fallback, Math.max(250, Number(requested)));
+}

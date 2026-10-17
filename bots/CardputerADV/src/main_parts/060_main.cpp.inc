@@ -273,7 +273,7 @@ void renderSetupPortalUi() {
   d.setFont(&fonts::Font2);
   d.setTextColor(TFT_WHITE, panel);
   d.setCursor(18, 16);
-  d.print("OpenClaw setup");
+  d.print("AI Agent setup");
   d.setFont(&fonts::Font0);
   d.setTextColor(rgb565_local(180, 222, 236), panel);
   d.setCursor(18, 36);
