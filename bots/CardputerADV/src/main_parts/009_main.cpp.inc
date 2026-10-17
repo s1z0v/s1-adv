@@ -36,15 +36,7 @@ void pulseButtonPress(uint32_t durationMs = 120) {
   gAssistantPulsePressUntilMs = millis() + durationMs;
 }
 
-void showTopicOverlay(int8_t direction, uint32_t ttlMs) {
-  uint32_t now = millis();
-  gTopicOverlayActionMs = now;
-  gTopicOverlayUntilMs = now + ttlMs;
-  if (direction != 0) {
-    gContextAnimDir = direction;
-    gContextAnimStartMs = now;
-  }
-}
+
 
 void updateVoiceLevelFromSamples(const int16_t* samples, size_t sampleCount) {
   if (!samples || sampleCount == 0) {

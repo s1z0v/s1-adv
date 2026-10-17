@@ -1,76 +1,4 @@
-  uint32_t now = millis();
-  if (gTopicCreateArmed && now > gTopicCreateArmedUntilMs) {
-    gTopicCreateArmed = false;
-  }
-  if (gTopicCreateArmed) {
-    float hold = 1.0f - min<float>(1.0f, static_cast<float>(gTopicCreateArmedUntilMs - now) / 3200.0f);
-    d.fillRoundRect(6, 5, 228, 39, 10, rgb565_local(5, 12, 18));
-    d.drawRoundRect(6, 5, 228, 39, 10, amber);
-    d.fillRoundRect(10, 10, 42, 24, 8, rgb565_local(34, 22, 8));
-    d.setFont(&fonts::Font2);
-    d.setTextColor(amber, rgb565_local(34, 22, 8));
-    d.setCursor(18, 17);
-    d.print("NEW");
-    d.setFont(&fonts::efontCN_12);
-    d.setTextColor(TFT_WHITE, rgb565_local(5, 12, 18));
-    d.setCursor(60, 9);
-    d.print(fitCurrentFontToWidth(defaultNewTopicTitle(), 144));
-    d.setFont(&fonts::Font0);
-    d.setTextColor(muted, rgb565_local(5, 12, 18));
-    d.setCursor(61, 27);
-    d.print("Alt+Left again creates");
-    d.fillRoundRect(10, 39, 216, 2, 1, rgb565_local(52, 38, 16));
-    d.fillRoundRect(10, 39, max<int16_t>(4, static_cast<int16_t>(216 * hold)), 2, 1, amber);
-    d.setFont(&fonts::Font2);
-    return;
-  }
 
-  if (gContexts.empty()) {
-    return;
-  }
-  gSelectedContext = clampValue<int>(gSelectedContext, 0, static_cast<int>(gContexts.size()) - 1);
-  const ConversationContext& ctx = gContexts[gSelectedContext];
-
-  float animT = min<float>(1.0f, (now - gContextAnimStartMs) / 220.0f);
-  float ease = 1.0f - (1.0f - animT) * (1.0f - animT);
-  int16_t dx = (gContextAnimDir == 0 || animT >= 1.0f)
-                   ? 0
-                   : static_cast<int16_t>(gContextAnimDir * (1.0f - ease) * 28.0f);
-
-  d.fillRoundRect(6, 5, 228, 35, 8, bg);
-  d.drawRoundRect(6, 5, 228, 35, 8, cyan);
-  d.fillRoundRect(10, 9, 42, 23, 7, panel);
-  d.drawRoundRect(10, 9, 42, 23, 7, violet);
-
-  d.setFont(&fonts::Font2);
-  d.setTextColor(TFT_WHITE, panel);
-  d.setCursor(16, 16);
-  d.print(fitCurrentFontToWidth(topicDisplayIcon(ctx), 30));
-
-  d.setFont(&fonts::efontCN_12);
-  d.setTextColor(cyan, bg);
-  d.setCursor(60 + dx, 9);
-  d.print(fitCurrentFontToWidth(topicDisplayTitle(ctx), 132));
-
-  d.setFont(&fonts::Font0);
-  d.setTextColor(muted, bg);
-  d.setCursor(61 + dx, 25);
-  String sub;
-  if (ctx.unread > 0) {
-    sub += "  +" + String(ctx.unread);
-  } else if (gTopicTaskHandle != nullptr) {
-    sub = "syncing...";
-  } else {
-    sub = "active chat topic";
-  }
-  d.print(fitCurrentFontToWidth(sub, 132));
-
-  d.setTextColor(gTopicTaskHandle != nullptr ? amber : cyan, bg);
-  d.setCursor(204, 14);
-  d.print("<>");
-  d.fillRect(12, 38, 216, 2, gTopicTaskHandle != nullptr ? amber : cyan);
-  d.setFont(&fonts::Font2);
-}
 
 void renderModeFooter(const String& left, const String& right = "") {
   auto& d = gCanvas;
@@ -88,14 +16,15 @@ void renderModeFooter(const String& left, const String& right = "") {
 }
 
 void renderFaceOnlyUi() {
-  renderUncannyEyesUi();
-  if (!gScreensaverActive) {
+  if (gRealtimeScreenVisible) renderRealtimeEyesUi();
+  else renderUncannyEyesUi();
+  if (!gScreensaverActive && !gRealtimeScreenVisible) {
     uint16_t bg=rgb565_local(3,7,13);
     gCanvas.fillRect(0,125,240,10,bg);
     gCanvas.setFont(&fonts::Font0);
     gCanvas.setTextColor(gRealtimeActive?rgb565_local(100,255,170):rgb565_local(126,143,157),bg);
     gCanvas.setCursor(8,128);
-    gCanvas.print(gRealtimeActive?"LIVE   Tab commands  Esc end":"Tab commands   Ctrl+R live");
+    gCanvas.print(gRealtimeActive?"LIVE   Tab menu  Esc end":"Tab menu  Ctrl+K commands");
   }
   renderLauncherOverlay();
   renderDebugOverlay();
@@ -298,7 +227,6 @@ void renderAssistantThinkingLite() {
   }
   drawAssistantPulseButton(154, 105, 62, 21, "THINK", amber, millis() < gAssistantPulsePressUntilMs);
   renderAssistantPulseChatHint();
-  renderTopicOverlayIfVisible();
   renderLauncherOverlay();
   renderDebugOverlay();
 }

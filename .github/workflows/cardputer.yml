@@ -43,5 +43,7 @@ jobs:
       - run: python bots/CardputerADV/scripts/release_delivery_smoke.py
       - run: node bots/CardputerADV/tests/render_eye_skins.mjs /tmp/cardputer-eye-skins
       - run: python scripts/test_assistant_ui.py
+      - run: python bots/CardputerADV/scripts/realtime_ui_smoke.py
+      - run: python bots/CardputerADV/scripts/realtime_state_smoke.py
       - run: python scripts/test_nes.py
       - run: python scripts/cardputer.py build

@@ -3,25 +3,14 @@
       handleGlobalEscape();
     }
   } else if (gChatCommandsVisible) {
-    if (tabDown) gChatCommandsVisible=false;
+    if (tabDown) handleTypingKey('\t',keys);
     else if (upDown || leftDown) gChatCommandSelection=(gChatCommandSelection+5)%6;
     else if (downDown || rightDown) gChatCommandSelection=(gChatCommandSelection+1)%6;
     else if (enterDown) runChatCommand(gChatCommandSelection);
     else if (charDown) handleTypingKey(curWordChar,keys);
   } else if (isAssistantUi() && !gLauncherVisible && keys.ctrl && (leftDown || rightDown)) {
     runChatCommand(leftDown?4:5);
-  } else if (isAssistantUi() && !gLauncherVisible && tabDown) {
-    gChatCommandsVisible=true;
-  } else if (topicPrevCombo) {
-    bool ok = switchTopicRelative(-1, true);
-    if (ok && gUiMode != UiMode::Contexts) {
-      setStatus("Topic " + gContexts[gSelectedContext].shortName, 900);
-    }
-	  } else if (topicNextCombo) {
-	    bool ok = switchTopicRelative(1, true);
-	    if (ok && gUiMode != UiMode::Contexts) {
-	      setStatus("Topic " + gContexts[gSelectedContext].shortName, 900);
-	    }
+
   } else if (optionViewToggle) {
     togglePulseChatDisplay();
 	  } else if (gUiMode == UiMode::Tetris && (tabDown || tabPrevCombo || tabNextCombo)) {
@@ -31,16 +20,7 @@
   } else if (tabNextCombo) {
     switchLauncherGroupAndApply(1);
   } else if (tabDown) {
-    if (gLauncherVisible) {
-      moveLauncherSubSelection(1);
-      const LauncherGroup& group = kLauncherGroups[gLauncherSelection];
-      setStatus(group.items[gLauncherSubSelection].label, 500);
-      setKeyDiag("menu:sub");
-    } else {
-      gLauncherVisible = true;
-      setStatus("Menu", 700);
-      setKeyDiag("menu:on");
-    }
+    handleTypingKey('\t',keys);
   } else if (gLauncherVisible && leftDown) {
     moveLauncherSubSelection(-1);
   } else if (gLauncherVisible && rightDown) {
@@ -69,10 +49,6 @@
   } else if ((gUiMode == UiMode::ChatFull || gUiMode == UiMode::ChatFace) && downDown) {
     logf("[CHAT] scroll down arrow");
     scrollChatBy(-1);
-  } else if (gUiMode == UiMode::Contexts && (leftDown || upDown)) {
-    handleTypingKey(',', keys);
-  } else if (gUiMode == UiMode::Contexts && (rightDown || downDown)) {
-    handleTypingKey('.', keys);
   } else if (gUiMode == UiMode::Notes && (leftDown || upDown)) {
     handleTypingKey(',', keys);
   } else if (gUiMode == UiMode::Notes && (rightDown || downDown)) {

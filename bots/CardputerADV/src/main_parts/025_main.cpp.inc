@@ -19,7 +19,6 @@ void togglePulseChatDisplay() {
     setUiMode(UiMode::Home);
     setStatus("View: pulse", 900);
   }
-  showTopicOverlay(0, 1200);
 }
 
 void switchLauncherGroupAndApply(int delta) {

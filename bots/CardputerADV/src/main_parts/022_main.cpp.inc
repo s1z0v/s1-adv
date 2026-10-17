@@ -228,8 +228,6 @@ bool mapActionUiMode(String mode, UiMode& out) {
     out = UiMode::Assets;
   } else if (mode == "focus") {
     out = UiMode::Focus;
-  } else if (mode == "topics" || mode == "contexts") {
-    out = UiMode::Contexts;
   } else if (mode == "logs") {
     out = UiMode::Logs;
   } else if (mode == "settings" || mode == "device_settings") {

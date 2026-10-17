@@ -240,7 +240,7 @@ def test_firmware_wiring() -> None:
     assert "writeRealtimePlaybackRing" in events
     assert "response.output_audio.delta" in events
     assert "response.output_audio.done" in events
-    assert "closeRealtimeSession(\"playback queue failed\")" in playback
+    assert "failRealtimeSession(\"Speaker queue failed\")" in playback
     assert "kRealtimeStreamStallTimeoutMs" in playback
     assert "kRealtimeSpeakerStallTimeoutMs" in playback
     assert "drainRealtimeRecording" not in playback + realtime
@@ -287,11 +287,10 @@ def test_firmware_wiring() -> None:
     assert "gRealtimeExclusiveMode || gRealtimeActive" in voice
     assert 'closeRealtimeSession("user stop")' in realtime
     assert "+ 1800" not in events + loop
-    single_topic_guard = contexts[contexts.index("String currentConversationKey"):
-                                  contexts.index("bool fetchRemoteTopicCatalog")]
-    assert "if (kSingleCardputerTopicMode)" in single_topic_guard
-    assert "return kPrimaryCardputerTopicKey;" in single_topic_guard
-    assert "context.topicKey.isEmpty() ? context.key : context.topicKey" in single_topic_guard
+    assert "return DEFAULT_TOPIC_KEY;" in contexts
+    all_parts="".join(p.read_text() for p in parts.glob("*.inc"))
+    for removed in ("UiMode::Contexts", "fetchRemoteTopicCatalog", "createRemoteTopic", "topic.next", "topic.prev", "topic.open"):
+        assert removed not in all_parts
     assert 'type == "auth_error"' in events
     assert 'setStatus("Realtime retrying...")' in events
     assert "gRealtimeWs.setReconnectInterval(750)" in events

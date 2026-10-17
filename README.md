@@ -26,7 +26,7 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | On the Cardputer | What powers it |
 | --- | --- |
 | Keyboard chat and push-to-talk voice | Your OpenClaw agent through the included bridge |
-| Conversation history and a selected topic | Authenticated HTTP and WebSocket feed |
+| One configured conversation and its history | Authenticated HTTP and WebSocket feed |
 | Spoken replies and an SD audio library | Server-side STT/TTS and device audio playback |
 | Firmware updates over Wi-Fi | Your bridge's authenticated OTA manifest |
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
@@ -75,8 +75,9 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-Current source is `0.2.148-dev`: responsive chat, shared Chat Eyes/Big Eyes
-skins and NES with bundled HonkeyPong. See [controls and release notes](docs/RELEASE-0.2.148.md).
+Current source is `0.2.149-dev`: app menu on Tab, assistant commands on Ctrl+K,
+visible Realtime connection/microphone states, one configured chat and NES with
+bundled HonkeyPong. See [controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.149.md).
 The public security fixes are retained. Public builds have not yet been tested
 on a freshly provisioned physical device.
 

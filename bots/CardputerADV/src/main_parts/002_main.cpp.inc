@@ -164,7 +164,6 @@ enum class UiMode : uint8_t {
   Notes,
   Assets,
   Ota,
-  Contexts,
   Settings,
   FocusSettings,
   ScreenSettings,

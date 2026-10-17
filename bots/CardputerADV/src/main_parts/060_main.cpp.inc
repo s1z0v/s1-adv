@@ -164,8 +164,7 @@ void renderChatUi() {
   d.print("ENT");
   d.setFont(&fonts::Font0);
   d.setTextColor(muted,bg); d.setCursor(8,128);
-  d.print("Tab commands  Ctrl+R live");
-  renderTopicOverlayIfVisible();
+  d.print("Tab menu  Ctrl+K commands");
   renderLauncherOverlay();
   renderDebugOverlay();
 }

@@ -35,9 +35,6 @@
       case UiMode::Ota:
         renderOtaUi();
         break;
-      case UiMode::Contexts:
-        renderContextsUi();
-        break;
       case UiMode::Settings:
       case UiMode::FocusSettings:
       case UiMode::ScreenSettings:
@@ -255,7 +252,7 @@ void setup() {
   pushSystem("Device ready: " + gDeviceId);
   pushSystem("Ctrl+Space = EN/RU");
   pushSystem("Voice: Ctrl x2 / Ctrl+V / hold G0");
-  pushSystem("Tab screen, Tab+Down app, Ctrl+L menu");
+  pushSystem("Tab menu, Ctrl+K commands, Ctrl+R Realtime");
   pushSystem("/pet = OpenClaw pet, /petreset resets");
   pushSystem(String("FW ") + kAppVersion + " " + String(kBuildGitSha).substring(0, 10));
   logf("[BOOT] device_id=%s", gDeviceId.c_str());
@@ -344,7 +341,6 @@ void loop() {
   }
   serviceRfidLab();
   servicePet();
-  processCompletedTopicTask();
   processCompletedTextTurn();
   if (!gPendingTextTurns.empty()) maybeStartNextTextTurn();
   serviceMemoryGuard();

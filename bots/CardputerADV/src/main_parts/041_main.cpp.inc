@@ -13,7 +13,7 @@ void flushCompletedRealtimeChunks(size_t completedCount) {
       gRealtimeInflightChunks.clear();
       M5Cardputer.Mic.end();
       initSpeaker();
-      closeRealtimeSession("audio send failed");
+      failRealtimeSession("Audio send failed");
       return;
     }
   }
@@ -169,7 +169,7 @@ void serviceRealtimePlayback() {
          static_cast<int>(M5Cardputer.Speaker.isPlaying(kPlaybackChannel)),
          static_cast<unsigned>(gRealtimePlaybackBufferedBytes));
     setStatus("Realtime recovered", 1400);
-    closeRealtimeSession(reason);
+    failRealtimeSession(reason);
     return;
   }
 
@@ -230,7 +230,7 @@ void serviceRealtimePlayback() {
       setVoiceDiag("realtime: stream queue failed");
       setStatus("Realtime audio recovery", 1400);
       setFaceMode(FaceMode::Error);
-      closeRealtimeSession("playback queue failed");
+      failRealtimeSession("Speaker queue failed");
       return;
     }
     gRealtimePlaybackProgressMs = millis();
@@ -341,6 +341,8 @@ void closeRealtimeSession(const String& reason) {
   gRealtimeRestartAfterPlayback = false;
   gRealtimeNextListenMs = 0;
   gRealtimeSmokeAudioPending = false;
+  gRealtimeSmokeActive = false;
+  gRealtimeSmokeTextPending = false;
   gRealtimeSmokeAudioStreaming = false;
   gRealtimeSmokeAudioChunkIndex = 0;
   gRealtimeSmokeAudioNextMs = 0;
@@ -356,4 +358,13 @@ void closeRealtimeSession(const String& reason) {
   gRealtimeWs.setExtraHeaders();
   leaveRealtimeExclusiveMode(reason);
   setVoiceDiag("realtime: " + reason);
+}
+
+void failRealtimeSession(const String& reason) {
+  // A transport failure must remain visible after teardown and status expiry.
+  gRealtimeUiError = reason.substring(0, 160);
+  appendRuntimeLog("RT", "failed: " + gRealtimeUiError, true);
+  closeRealtimeSession(reason);
+  setFaceMode(FaceMode::Error);
+  setStatus("Realtime: " + gRealtimeUiError);
 }

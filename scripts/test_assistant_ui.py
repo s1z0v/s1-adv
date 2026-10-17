@@ -33,6 +33,12 @@ void* gTextTurnTaskHandle=nullptr;
 void* gCompletedTextTurn=nullptr;
 bool gInboxHttpBusy=false,gPendingRealtimeStart=false,gPendingRealtimeAutoStart=false;
 bool gChatCommandsVisible=false,gLauncherVisible=false,gRealtimeActive=false,gRealtimeExclusiveMode=false;
+bool gRealtimeScreenVisible=false,gRealtimeConnected=false,gRealtimeRecording=false;
+bool gRealtimePlaybackActive=false,gPlaybackActive=false,gRealtimeAwaiting=false;
+String gRealtimeUiError;
+struct Keyboard_Class {struct KeysState {bool ctrl=false,tab=false;};};
+int launcherMoves=0;
+void moveLauncherSubSelection(int){++launcherMoves;}
 uint8_t gChatCommandSelection=0;
 constexpr int kEyeSkinCount=6;
 struct {uint8_t eyeSkin=0;} gDeviceSettings;
@@ -49,11 +55,41 @@ void saveDeviceSettings(){++saved;}
 const char* eyeSkinName(uint8_t){return "skin";}
 '''
 code+='\n'+function('064_main.cpp.inc','bool isAssistantUi()')
+code+='\n'+function('064_main.cpp.inc','bool handleAssistantMenuKey(')
+code+='\n'+function('064_main.cpp.inc','const char* realtimeStageLabel()')
 code+='\n'+function('064_main.cpp.inc','void servicePendingRealtimeStart()')
 code+='\n'+function('064_main.cpp.inc','void runChatCommand(uint8_t index)')
 code+='\n'+function('044_main.cpp.inc','void submitInput()')
 code+=r'''
 int main(){
+ // The app launcher remains reachable from Home and while the mic is busy.
+ Keyboard_Class::KeysState keys;keys.tab=true;
+ assert(handleAssistantMenuKey('\t',keys) && gLauncherVisible && !gChatCommandsVisible);
+ assert(handleAssistantMenuKey('\t',keys) && launcherMoves==1);
+ keys.tab=false;keys.ctrl=true;
+ assert(handleAssistantMenuKey('k',keys) && gChatCommandsVisible && !gLauncherVisible);
+ assert(handleAssistantMenuKey('k',keys) && !gChatCommandsVisible);
+ gUiMode=UiMode::Face;gRealtimeRecording=true;
+ assert(handleAssistantMenuKey('k',keys) && gChatCommandsVisible);
+ keys.tab=true;keys.ctrl=false;
+ assert(handleAssistantMenuKey('\t',keys) && gLauncherVisible && !gChatCommandsVisible);
+ keys.tab=false;keys.ctrl=true;
+ assert(handleAssistantMenuKey('l',keys) && !gLauncherVisible);
+ gUiMode=UiMode::Nes;assert(!handleAssistantMenuKey('k',keys));
+ gUiMode=UiMode::Home;gRealtimeRecording=false;
+ // Labels follow the actual transport/mic flags, including teardown errors.
+ assert(std::string(realtimeStageLabel())=="OFF");
+ gPendingRealtimeStart=true;assert(std::string(realtimeStageLabel())=="WAIT");
+ gPendingRealtimeStart=false;gRealtimeActive=true;
+ assert(std::string(realtimeStageLabel())=="CONNECT");
+ gRealtimeConnected=true;assert(std::string(realtimeStageLabel())=="READY");
+ gRealtimeRecording=true;assert(std::string(realtimeStageLabel())=="LISTEN");
+ gRealtimeRecording=false;gRealtimeAwaiting=true;
+ assert(std::string(realtimeStageLabel())=="THINK");
+ gPlaybackActive=true;assert(std::string(realtimeStageLabel())=="SPEAK");
+ gRealtimeUiError="TLS failure";gRealtimeActive=false;
+ assert(std::string(realtimeStageLabel())=="ERROR");
+ gRealtimeUiError="";gRealtimeConnected=false;gRealtimeAwaiting=false;gPlaybackActive=false;
  // A network worker can remain blocked for any duration; submit must still
  // change the visible mode, retain typed text and expose the pending bubble.
  gInboxHttpBusy=true;gInputBuffer="  hello  ";submitInput();
@@ -61,7 +97,8 @@ int main(){
  assert(lastUser=="hello" && gPendingTextTurns.front()=="hello" && started==0);
  gUiMode=UiMode::ChatFace;gInputBuffer="second";submitInput();
  assert(gUiMode==UiMode::ChatFace && gPendingTextTurns.size()==2);
- runChatCommand(3);assert(gUiMode==UiMode::Face && started==0);
+ gRealtimeScreenVisible=true;runChatCommand(3);
+ assert(gUiMode==UiMode::Face && started==0 && !gRealtimeScreenVisible);
  gRealtimeActive=true;gRealtimeExclusiveMode=true;runChatCommand(2);
  assert(closed==1 && gUiMode==UiMode::ChatFace);
  runChatCommand(4);assert(gDeviceSettings.eyeSkin==5);

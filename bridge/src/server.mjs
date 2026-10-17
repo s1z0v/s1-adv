@@ -269,7 +269,7 @@ function authErrorPayload(message) {
   };
 }
 
-const DEVICE_ACTION_CATALOG_VERSION = "2026-05-03.2";
+const DEVICE_ACTION_CATALOG_VERSION = "2026-10-17.1";
 const DEVICE_ACTION_CATALOG = [
   { type: "focus.start", group: "focus", description: "Start or resume focus timer", example: "start pomodoro for 45 minutes" },
   { type: "focus.pause", group: "focus", description: "Pause a running focus timer", example: "pause focus" },
@@ -291,9 +291,6 @@ const DEVICE_ACTION_CATALOG = [
   { type: "settings.set_ota_min_battery", group: "settings", description: "Set OTA battery threshold", example: "only update above 50 percent battery" },
   { type: "ota.check", group: "firmware", description: "Fetch the latest firmware OTA manifest", example: "check for firmware update" },
   { type: "ota.apply", group: "firmware", description: "Apply the latest available firmware OTA after explicit user consent", example: "install the firmware update" },
-  { type: "topic.next", group: "topics", description: "Switch to next Telegram topic", example: "next topic" },
-  { type: "topic.prev", group: "topics", description: "Switch to previous Telegram topic", example: "previous topic" },
-  { type: "topic.open", group: "topics", description: "Open topic by index, key, or title", example: "open project topic" },
   { type: "pet.feed", group: "pet", description: "Feed the OpenClaw pet", example: "feed the pet" },
   { type: "pet.play", group: "pet", description: "Play with the OpenClaw pet", example: "play with the pet" },
   { type: "pet.clean", group: "pet", description: "Clean the OpenClaw pet", example: "clean the pet" },
@@ -338,8 +335,8 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
   },
   implemented_features: [
     "Pomodoro/focus timer: start, pause, resume, reset, set focus duration, breaks, cycles, autostart, metronome, BPM",
-    "Topic switching: list/open/next/previous Telegram/OpenClaw topics",
-    "Local UI screens: home, chat, voice, library, folders, notes, assets, focus, topics, logs, settings, battery, firmware/OTA",
+    "One configured conversation; no on-device topic browser, creation or switching",
+    "Local UI screens: home, chat, voice, library, folders, notes, assets, focus, logs, settings, battery, firmware/OTA",
     "Calculator screen: basic arithmetic with +, -, *, /, decimal numbers, parentheses, clear, backspace, and Enter to evaluate",
     "Audio library and saved voice note playback by existing asset index/query/path",
     "Pet/Tamagotchi actions: feed, play, clean, sleep, medicine, discipline, hunt, explore, reset",
@@ -379,8 +376,6 @@ const DEVICE_UI_MODES = new Set([
   "folders",
   "assets",
   "focus",
-  "topics",
-  "contexts",
   "logs",
   "settings",
   "calculator",

@@ -54,9 +54,6 @@ constexpr DeviceActionCatalogEntry kDeviceActionCatalog[] = {
     {"settings.set_ota_min_battery", "OTA battery", "update above 50 percent"},
     {"ota.check", "OTA check", "check for firmware update"},
     {"ota.apply", "OTA apply", "install firmware update"},
-    {"topic.next", "next topic", "next topic"},
-    {"topic.prev", "prev topic", "previous topic"},
-    {"topic.open", "open topic", "open project topic"},
     {"pet.feed", "pet food", "feed the OpenClaw pet"},
     {"pet.play", "pet play", "play with the pet"},
     {"pet.clean", "pet clean", "clean the pet"},
@@ -175,28 +172,9 @@ struct OtaManifestSummary {
   String error;
 };
 
-struct ConversationContext {
-  String label;
-  String emoji;
-  String key;
-  String shortName;
-  String topicKey;
-  int32_t threadId = 0;
-  uint32_t headSeq = 0;
-  uint16_t unread = 0;
-  bool remote = false;
-};
 
-struct ContextPreviewLine {
-  String role;
-  String text;
-  bool voice = false;
-  bool voicePlayable = false;
-  String voiceUrl;
-  String voiceTitle;
-  String voiceSha256;
-  uint32_t voiceSize = 0;
-};
+
+
 
 struct BatterySnapshot {
   int32_t level = -1;
@@ -245,22 +223,9 @@ struct TextTurnTaskResult {
   String response;
 };
 
-struct TopicTaskPayload {
-  bool syncCatalog = false;
-  bool selectCurrent = false;
-  bool loadHistory = false;
-  bool createTopic = false;
-  String createTitle;
-};
 
-struct TopicTaskResult {
-  bool catalogOk = false;
-  bool selectOk = false;
-  bool historyOk = false;
-  bool createOk = false;
-  String createdTopicKey;
-  String label;
-};
+
+
 
 struct FocusSettings {
   uint32_t focusSec = kFocusDefaultSec;

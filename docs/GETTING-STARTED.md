@@ -4,7 +4,7 @@ The complete setup has two independent parts: a bridge beside OpenClaw and
 firmware on your Cardputer ADV. Keep the first test small: one typed question.
 
 1. Confirm OpenClaw already answers a normal chat on your host.
-2. Follow [OpenClaw and bridge setup](OPENCLAW.md). Confirm authenticated topics work.
+2. Follow [OpenClaw and bridge setup](OPENCLAW.md). Confirm the configured conversation is reachable with your device token.
 3. Follow [USB flashing](FLASHING.md). Use your own bridge address and device token.
 4. Connect the device to Wi-Fi. Check `/status`, then send `Reply with: ready`.
 5. Confirm the actual answer on the device. Server health alone is not a successful chat.
@@ -20,7 +20,9 @@ The build wrapper also supports an ignored local `.env` file.
 
 Use a dedicated agent/session for initial tests. OpenClaw actions remain subject
 to the permissions you grant that agent. Your device token grants access to the
-topics listed for that device in the bridge config.
+conversation configured for that device in the bridge config. Telegram forum
+topics are not required. The bridge's `topic_key` field is the internal routing
+key for this conversation, not an on-device topic feature.
 
 Next: [controls](CONTROLS.md), [architecture](ARCHITECTURE.md),
 [troubleshooting](TROUBLESHOOTING.md).

@@ -138,8 +138,8 @@ struct KeyRushRuntime {
 };
 
 constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
-    {"OpenClaw", "AI", "Assistant and chat", rgb565_local(47, 227, 255), 7,
-     {{"Realtime", UiMode::Home, true}, {"Pulse", UiMode::Home}, {"Full Chat", UiMode::ChatFull}, {"Topics", UiMode::Contexts},
+    {"OpenClaw", "AI", "Assistant and chat", rgb565_local(47, 227, 255), 6,
+     {{"Realtime", UiMode::Home, true}, {"Pulse", UiMode::Home}, {"Full Chat", UiMode::ChatFull},
       {"Chat Eyes", UiMode::ChatFace}, {"Big Eyes", UiMode::Face}, {"OpenClaw Pet", UiMode::Hero}}},
     {"Media", "WAV", "Listen and capture", rgb565_local(88, 240, 141), 5,
      {{"Library", UiMode::Library}, {"Folders", UiMode::AudioFolders}, {"Voice Notes", UiMode::Voice},
@@ -209,8 +209,6 @@ std::vector<VoiceNote> gVoiceNotes;
 std::vector<NoteFile> gNotes;
 std::vector<AudioAsset> gAudioAssets;
 std::vector<AudioFolder> gAudioFolders;
-std::vector<ConversationContext> gContexts;
-std::deque<ContextPreviewLine> gContextPreview;
 std::deque<String> gRuntimeLogs;
 IrRemoteSlot gIrRemoteSlots[kIrRemoteSlotCount];
 RfidClassicDump gRfidDump;
@@ -249,13 +247,8 @@ int gNoteListScrollOffset = 0;
 int gSelectedAudioAsset = 0;
 int gSelectedAudioFolder = 0;
 String gAudioFolderFilter;
-int gSelectedContext = 0;
-String gSavedContextKey;
-String gContextHistoryKey;
-String gContextError;
 uint32_t gInboxLastSeq = 0;
 uint32_t gLastInboxAutoPollMs = 0;
-String gInboxLastTopicKey;
 String gInboxLastText;
 String gInboxLastKind;
 String gInboxLastVoiceUrl;
@@ -263,15 +256,6 @@ String gInboxLastVoiceTitle;
 String gInboxLastVoiceSha256;
 uint32_t gInboxLastVoiceSize = 0;
 String gInboxLastSender;
-bool gContextsRemoteLoaded = false;
-bool gTopicCreateArmed = false;
-uint32_t gContextsFetchedAtMs = 0;
-uint32_t gContextHistoryFetchedAtMs = 0;
-uint32_t gContextAnimStartMs = 0;
-uint32_t gTopicOverlayUntilMs = 0;
-uint32_t gTopicOverlayActionMs = 0;
-uint32_t gTopicCreateArmedUntilMs = 0;
-int8_t gContextAnimDir = 0;
 int gLogScrollOffset = 0;
 int gSelectedSetting = 0;
 int gCalendarMonthOffset = 0;

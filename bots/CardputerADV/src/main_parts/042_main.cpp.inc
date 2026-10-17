@@ -97,7 +97,7 @@ bool acceptRealtimePcmBytes(const uint8_t* pcm, size_t pcmBytes) {
            static_cast<unsigned>(gRealtimePlaybackBufferedBytes),
            static_cast<unsigned>(accepted),
            static_cast<unsigned>(pcmBytes));
-      closeRealtimeSession("playback backpressure timeout");
+      failRealtimeSession("Audio stream stalled");
       return false;
     }
     delay(1);
@@ -146,17 +146,17 @@ void handleRealtimeAudioDeltaPayload(uint8_t* payload, size_t length) {
 
 void handleRealtimeBinaryFrame(uint8_t* payload, size_t length) {
   if (!gRealtimeBinaryAudio || !payload || length < kRealtimeBinaryHeaderBytes) {
-    closeRealtimeSession("unexpected binary audio");
+    failRealtimeSession("Unexpected binary audio");
     return;
   }
   if (payload[0] != kRealtimeBinaryModelPcmType ||
       payload[1] != kRealtimeBinaryVersion || payload[2] != 0 || payload[3] != 0) {
-    closeRealtimeSession("invalid binary audio header");
+    failRealtimeSession("Invalid audio header");
     return;
   }
   const size_t pcmBytes = length - kRealtimeBinaryHeaderBytes;
   if (pcmBytes == 0 || (pcmBytes & 1U) != 0) {
-    closeRealtimeSession("invalid binary pcm length");
+    failRealtimeSession("Invalid PCM length");
     return;
   }
   const uint32_t sequence = readRealtimeLe32(payload + 4);
@@ -166,7 +166,7 @@ void handleRealtimeBinaryFrame(uint8_t* payload, size_t length) {
          static_cast<unsigned>(gRealtimeExpectedModelSequence),
          static_cast<unsigned>(sequence),
          static_cast<unsigned>(gRealtimeBinaryRxSequenceErrors));
-    closeRealtimeSession("binary sequence error");
+    failRealtimeSession("Audio sequence error");
     return;
   }
   gRealtimeBinaryModelSequenceSeen = true;
@@ -314,6 +314,7 @@ void handleRealtimeJson(const JsonDocument& doc) {
   if (type == "transcript.done") {
     const String text = doc["text"] | "";
     if (!text.isEmpty()) {
+      gRealtimeUiTranscript = text.substring(0, 160);
       logf("[RT] transcript chars=%u", static_cast<unsigned>(text.length()));
       pushUser(text);
       setStatus("Transcript ready", 700);
@@ -334,6 +335,7 @@ void handleRealtimeJson(const JsonDocument& doc) {
     }
     text.trim();
     if (!text.isEmpty()) {
+      gRealtimeUiTranscript = text.substring(0, 160);
       appendAssistantReply(text);
     }
     gRealtimeText = "";
@@ -401,25 +403,12 @@ void handleRealtimeJson(const JsonDocument& doc) {
     pushError("Realtime: " + message);
     setFaceMode(FaceMode::Error);
     setStatus("Realtime error", 1800);
-    closeRealtimeSession("protocol error");
+    failRealtimeSession(message);
     return;
   }
   if (type == "realtime.closed") {
     const String reason = doc["reason"] | "closed";
-    if (gRealtimeRecording) {
-      gRealtimeRecording = false;
-      stopMic();
-      gRealtimeInflightChunks.clear();
-    }
-    gRealtimeActive = false;
-    gRealtimeConnected = false;
-    gRealtimeAwaiting = false;
-    gRealtimeRecording = false;
-    gRealtimeHandsFreeActive = false;
-    gRealtimeRestartAfterPlayback = false;
-    leaveRealtimeExclusiveMode(reason);
-    setStatus("Realtime closed", 1000);
-    appendRuntimeLog("RT", "closed " + reason, false);
+    failRealtimeSession("Server closed: " + reason);
     logf("[RT] closed reason=%s", reason.c_str());
   }
 }
@@ -449,31 +438,8 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
           break;
         }
         bool wasSmoke = gRealtimeSmokeActive;
-        appendRuntimeLog("RT", "disconnected", true);
-        setStatus("Realtime disconnected", 1200);
         logf("[RT] ws disconnected active=1");
-        if (gRealtimeRecording) {
-          gRealtimeRecording = false;
-          M5Cardputer.Mic.end();
-          gRealtimeInflightChunks.clear();
-          initSpeaker();
-        }
-        gRealtimeActive = false;
-        gRealtimeAwaiting = false;
-        gRealtimeStartAfterReady = false;
-        gRealtimeHandsFreeActive = false;
-        gRealtimeRestartAfterPlayback = false;
-        gRealtimeNextListenMs = 0;
-        gRealtimeSmokeActive = false;
-        gRealtimeSmokeTextPending = false;
-        gRealtimeSmokeAudioPending = false;
-        gRealtimeSmokeAudioStreaming = false;
-        gRealtimeBinaryAudio = false;
-        gRealtimeBinaryModelSequenceSeen = false;
-        gRealtimeSessionId = "";
-        gRealtimeExtraHeaders = "";
-        gRealtimeWs.setExtraHeaders();
-        leaveRealtimeExclusiveMode("disconnect");
+        failRealtimeSession("Disconnected. Ctrl+R retry");
         if (wasSmoke) {
           logf("[SMOKE] realtime fail stage=connect_disconnect verify=%s",
                gRealtimeTlsVerify ? "ca" : "insecure");
@@ -523,7 +489,7 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
       appendRuntimeLog("RT", "ws error", true);
       setStatus("Realtime WS error", 1200);
       logf("[RT] ws error bytes=%u", static_cast<unsigned>(length));
-      closeRealtimeSession("ws error");
+      failRealtimeSession("WebSocket error");
       break;
     default:
       break;
@@ -532,6 +498,9 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
 
 void startRealtimeSession(bool startAfterReady) {
   setUiMode(UiMode::Face);
+  gRealtimeScreenVisible = true;
+  gRealtimeUiError = "";
+  gRealtimeUiTranscript = "";
   if (gInboxHttpBusy || gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr) {
     gPendingRealtimeStart = true;
     gPendingRealtimeAutoStart = startAfterReady;
@@ -548,11 +517,11 @@ void startRealtimeSession(bool startAfterReady) {
   }
   if (!gWifiReady || gHubHost.isEmpty()) {
     pushError("Realtime needs Wi-Fi and bridge.");
-    setStatus("Realtime unavailable", 1400);
-    setFaceMode(FaceMode::Error);
+    failRealtimeSession("Wi-Fi or bridge unavailable");
     return;
   }
   if (!enterRealtimeExclusiveMode()) {
+    gRealtimeUiError = "Voice busy. Finish recording first.";
     return;
   }
   resetRealtimeTurnState();
@@ -575,6 +544,7 @@ void startRealtimeSession(bool startAfterReady) {
   gRealtimeWs.setReconnectInterval(750);
   gRealtimeWs.enableHeartbeat(15000, 3000, 2);
   setStatus("Realtime connecting...");
+  render(); // Show MIC OFF / CONNECT before the first TLS handshake.
   appendRuntimeLog("RT", "connect host=" + gHubHost + ":" + String(gHubPort), false);
   logf("[RT] connect host=%s port=%u tls=%d verify=%s free=%u largest=%u",
        gHubHost.c_str(),
@@ -622,7 +592,7 @@ void startRealtimeRecording() {
     logf("[RT] record start failed mic_queue=0 free=%u largest=%u",
          static_cast<unsigned>(ESP.getFreeHeap()),
          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-    closeRealtimeSession("mic start failed");
+    failRealtimeSession("Microphone start failed");
     return;
   }
   setFaceMode(FaceMode::Listening);

@@ -62,7 +62,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.148-dev"
+#define APP_VERSION "0.2.149-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -95,19 +95,14 @@ constexpr const char* kCardputerLogsPath = "/api/cardputer/logs";
 constexpr const char* kRealtimeWsPath = "/api/cardputer/v1/realtime";
 constexpr const char* kAssetManifestFetchPath = "/api/cardputer/assets/manifest";
 constexpr const char* kFirmwareManifestFetchPath = "/api/cardputer/firmware/manifest";
-constexpr bool kSingleCardputerTopicMode = true;
-constexpr int32_t kPrimaryCardputerThreadId = 0;
 #ifndef DEFAULT_TOPIC_KEY
 #define DEFAULT_TOPIC_KEY "cardputer:main"
 #endif
-constexpr const char* kPrimaryCardputerTopicKey = DEFAULT_TOPIC_KEY;
-constexpr const char* kPrimaryCardputerTopicTitle = "Cardputer";
 
 constexpr const char* kPrefsWifiNs = "wifi_creds";
 constexpr const char* kPrefsHubNs = "hub_ep";
 constexpr const char* kPrefsDeviceNs = "device_cfg";
 constexpr const char* kPrefsFocusNs = "focus_cfg";
-constexpr const char* kPrefsContextNs = "ctx_cfg";
 constexpr const char* kPrefsOtaGuardNs = "ota_guard";
 constexpr const char* kPrefsPetNs = "pet_v1";
 constexpr const char* kPrefsAlarmNs = "alarm_cfg";
@@ -244,7 +239,6 @@ constexpr uint32_t kPetDecisionMaxMs = 120UL * 1000UL;
 constexpr uint32_t kPetOfflineMaxMinutes = 8UL * 60UL;
 constexpr uint8_t kPetMaxPoop = 5;
 constexpr uint32_t kTextTurnTaskStackSize = 8192;
-constexpr uint32_t kTopicTaskStackSize = 8192;
 constexpr size_t kMaxFlashVoiceNotes = 12;
 constexpr size_t kMaxSdVoiceNotes = 48;
 constexpr size_t kMaxStoredPreviewChars = 84;
@@ -256,8 +250,6 @@ constexpr uint32_t kCriticalHeapFreeBytes = 16000;
 constexpr uint32_t kCriticalHeapLargestBlockBytes = 7000;
 constexpr size_t kMaxAudioAssets = 96;
 constexpr size_t kMaxRuntimeLogLines = 36;
-constexpr size_t kMaxContexts = 32;
-constexpr size_t kMaxContextPreviewLines = 5;
 constexpr size_t kMaxNotes = 128;
 constexpr size_t kMaxNoteInputChars = 512;
 constexpr size_t kVoicePreviewLineThreshold = 5;
@@ -272,7 +264,6 @@ constexpr const char* kPomodoroLogsDir = "/pomodoro/logs";
 constexpr const char* kAssetManifestPath = "/pomodoro/manifest.json";
 constexpr const char* kAudioIndexPath = "/pomodoro/audio/index.json";
 constexpr const char* kOtaManifestPath = "/pomodoro/firmware.json";
-constexpr const char* kContextRegistryPath = "/pomodoro/contexts.json";
 constexpr const char* kEmojiDir = "/emoji";
 constexpr const char* kRuntimeLogPath = "/pomodoro/logs/runtime.ndjson";
 constexpr const char* kOtaTempPath = "/pomodoro/firmware.tmp.bin";

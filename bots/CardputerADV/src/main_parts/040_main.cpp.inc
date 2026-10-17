@@ -568,8 +568,7 @@ void serviceDeferredBoot() {
       gBootStepStartedMs = millis();
       break;
     case 5:
-      gBootBackgroundLabel = "topics";
-      loadConversationContexts();
+      gBootBackgroundLabel = "config";
       gBootBackgroundStep = 6;
       gBootStepStartedMs = millis();
       break;
@@ -621,7 +620,6 @@ void serviceDeferredBoot() {
           !gOtaManifest.url.isEmpty() && gOtaManifest.version != kAppVersion) {
         applyOtaFromManifest();
       }
-      appendRuntimeLog("CTX", "boot topic preload deferred", false);
       gBootBackgroundStep = 10;
       break;
     default:

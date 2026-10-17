@@ -1,82 +1,4 @@
-  DynamicJsonDocument doc(32768);
-  auto err = deserializeJson(doc, body);
-  if (err || !doc["items"].is<JsonArray>()) {
-    gContextError = err ? String(err.c_str()) : "Bad history";
-    setStatus("History parse failed", 1400);
-    return false;
-  }
 
-  String responseTitle = doc["topic"]["display_title"] | doc["topic"]["title"] | doc["title"] | "";
-  String responseEmoji = doc["topic"]["emoji"] | doc["topic"]["icon"] | "";
-  if (!responseEmoji.isEmpty() && responseTitle.indexOf(responseEmoji) < 0) {
-    responseTitle = responseEmoji + " " + responseTitle;
-  }
-  if (!responseTitle.isEmpty()) {
-    responseTitle = normalizeTopicTitleForDisplay(responseTitle, false);
-    if (!responseTitle.isEmpty() && responseTitle != "Topic") {
-      gContexts[gSelectedContext].label = responseTitle;
-      gContexts[gSelectedContext].emoji = responseEmoji.isEmpty()
-                                              ? fallbackTopicEmojiForTitle(responseTitle, gContexts[gSelectedContext].threadId)
-                                              : responseEmoji;
-      gContexts[gSelectedContext].shortName = makeTopicShortName(responseTitle, gContexts[gSelectedContext].threadId);
-    }
-  }
-
-  std::vector<ChatLine> historyChatLines;
-  historyChatLines.reserve(kMaxContextPreviewLines);
-  gContextPreview.clear();
-  for (JsonObject item : doc["items"].as<JsonArray>()) {
-    if (gContextPreview.size() >= kMaxContextPreviewLines) {
-      break;
-    }
-    JsonObject sender = item["sender"].as<JsonObject>();
-    JsonObject content = item["content"].as<JsonObject>();
-    String kind = content["kind"] | "";
-    ContextPreviewLine line;
-    line.role = sender["kind"] | "";
-    line.voice = kind == "voice";
-    if (line.role.isEmpty()) {
-      line.role = "msg";
-    }
-    if (kind == "voice") {
-      line.text = content["transcript"] | "";
-      if (line.text.isEmpty()) {
-        uint32_t durationMs = content["voice"]["duration_ms"] | 0;
-        line.text = "Voice " + String(durationMs / 1000) + "s";
-      }
-      JsonObject voice = content["voice"].as<JsonObject>();
-      line.voiceUrl = voice["url"] | "";
-      line.voiceSha256 = voice["sha256"] | "";
-      line.voiceSize = voice["bytes"] | voice["size"] | 0;
-      String mediaId = voice["media_id"] | "";
-      line.voicePlayable = !line.voiceUrl.isEmpty();
-      line.voiceTitle = mediaId.isEmpty() ? "history voice" : ("voice " + mediaId);
-    } else {
-      line.text = content["text"] | "";
-    }
-    if (!line.text.isEmpty()) {
-      gContextPreview.push_back(line);
-      historyChatLines.push_back({
-          topicHistoryPrefix(line.role, line.voice),
-          line.text,
-          topicHistoryLineKind(line.role),
-          line.voicePlayable,
-          line.voiceUrl,
-          line.voiceTitle,
-          line.voiceSha256,
-          line.voiceSize,
-      });
-    }
-  }
-  gContextHistoryKey = topicKey;
-  gContextHistoryFetchedAtMs = millis();
-  gContextError = "";
-  replaceChatWithTopicHistory(gContexts[gSelectedContext].label, historyChatLines);
-  appendRuntimeLog("CTX", "history " + gContexts[gSelectedContext].shortName +
-                            " lines=" + String(gContextPreview.size()), true);
-  setStatus("History loaded", 800);
-  return true;
-}
 
 bool playLastInboxMessage() {
   if (gInboxLastKind == "voice" && !gInboxLastVoiceUrl.isEmpty()) {
@@ -240,11 +162,6 @@ bool fetchLatestInboxMessage(bool forcePlay, bool speak, bool quiet, bool assist
     logf("[INBOX] offline");
     return false;
   }
-  String topicKey = currentConversationKey();
-  if (topicKey != gInboxLastTopicKey) {
-    gInboxLastTopicKey = topicKey;
-    logf("[INBOX] topic key=%s", topicKey.c_str());
-  }
   // Drain a bounded batch so an already-seen or malformed event cannot remain
   // at the head of the queue forever and hide a later OTA/device action.
   String url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=10&text_chars=1024";
@@ -284,7 +201,7 @@ bool autoInboxPollAllowed() {
   return gWifiReady && !gHubHost.isEmpty() && !gOtaApplyInProgress && !gTransferUiActive &&
          passiveUi && !gLauncherVisible &&
          !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive &&
-         !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
+         !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
          gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty() &&
          gInputBuffer.isEmpty();

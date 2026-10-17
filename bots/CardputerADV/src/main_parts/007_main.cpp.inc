@@ -27,8 +27,6 @@ const char* uiModeName(UiMode mode) {
       return "Assets";
     case UiMode::Ota:
       return "OTA";
-    case UiMode::Contexts:
-      return "Topics";
     case UiMode::Settings:
       return "Settings";
     case UiMode::FocusSettings:

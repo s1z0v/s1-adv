@@ -258,7 +258,6 @@
   if (gInboxUnread || gVoiceReplyPending) {
     d.drawRoundRect(214, 5, 8, 7, 1, gInboxUnread ? cyan : amber);
   }
-  renderTopicOverlayIfVisible();
   renderLauncherOverlay();
   renderDebugOverlay();
 }

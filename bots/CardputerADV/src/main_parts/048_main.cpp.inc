@@ -10,7 +10,9 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
-  if (gChatCommandsVisible && !(keys.ctrl && lowerKey=='l')) {
+  if (handleAssistantMenuKey(key,keys)) return;
+  if (isAssistantUi() && gLauncherVisible) { handleLauncherKey(key,keys); return; }
+  if (gChatCommandsVisible) {
     if (keys.enter || key=='\r' || key=='\n') runChatCommand(gChatCommandSelection);
     else if (lowerKey=='r') runChatCommand(0);
     else if (lowerKey=='c') runChatCommand(1);
@@ -26,9 +28,6 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     if (lowerKey=='f') { runChatCommand(3); return; }
     if (key==',' || key=='[') { runChatCommand(4); return; }
     if (key=='.' || key==']') { runChatCommand(5); return; }
-  }
-  if (keys.tab && isAssistantUi() && !gLauncherVisible) {
-    gChatCommandsVisible=true; return;
   }
   if (gBlockingInputPumpActive) {
     const bool networkAction =
@@ -142,9 +141,6 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     return;
   }
   if (gUiMode == UiMode::Ota && handleOtaKey(key, keys)) {
-    return;
-  }
-  if (gUiMode == UiMode::Contexts && handleContextsKey(key, keys)) {
     return;
   }
   if (isSettingsMode(gUiMode) && handleSettingsKey(key)) {
@@ -282,12 +278,6 @@ void pollTyping() {
                                    (charDown && (curWordChar == ',' || curWordChar == ';' || curWordChar == '<')));
   bool tabNextCombo = keys.tab && (rightDown || downDown ||
                                    (charDown && (curWordChar == '.' || curWordChar == '/' || curWordChar == '>')));
-  bool topicPrevCombo = (keys.alt || keys.opt) &&
-                        (leftDown || (charDown && (curWordChar == ',' || curWordChar == ';' ||
-                                                   curWordChar == '<' || curWordChar == '[')));
-	  bool topicNextCombo = (keys.alt || keys.opt) &&
-	                        (rightDown || (charDown && (curWordChar == '.' || curWordChar == '/' ||
-	                                                    curWordChar == '>' || curWordChar == ']')));
   bool optionViewToggle = optDown && !keys.alt && !keys.ctrl && !keys.fn && !keys.shift &&
                           !keys.tab && !keys.enter && !keys.del && !keys.space &&
                           !upHeld && !downHeld && !leftHeld && !rightHeld &&

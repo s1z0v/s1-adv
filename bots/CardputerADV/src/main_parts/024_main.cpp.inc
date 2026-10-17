@@ -136,15 +136,9 @@
     appendRuntimeLog("OTA", "apply requested by device action", true);
     return true;
   }
-  if (type == "topic.next") {
-    return switchTopicRelative(1, true);
-  }
-  if (type == "topic.prev") {
-    return switchTopicRelative(-1, true);
-  }
-  if (type == "topic.open") {
-    return openTopicByAction(action);
-  }
+
+
+
   return false;
 }
 
@@ -263,7 +257,6 @@ bool uiModeInterruptsRealtime(UiMode mode) {
     case UiMode::Face:
     case UiMode::Hero:
     case UiMode::ChatFull:
-    case UiMode::Contexts:
       return false;
     default:
       return true;
@@ -271,6 +264,7 @@ bool uiModeInterruptsRealtime(UiMode mode) {
 }
 
 void setUiMode(UiMode mode) {
+  if (mode != UiMode::Face) gRealtimeScreenVisible=false;
   if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
   if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
   if (mode != gUiMode) gChatCommandsVisible = false;
@@ -326,17 +320,7 @@ void setUiMode(UiMode mode) {
     syncLauncherToMode(mode);
   }
   setStatus(String("Mode: ") + uiModeName(mode), 900);
-  if (mode == UiMode::Contexts) {
-    if (kSingleCardputerTopicMode) {
-      loadDefaultConversationContexts();
-      return;
-    }
-    bool needCatalog = !gContextsRemoteLoaded;
-    bool needHistory = !gContexts.empty() && gContextHistoryKey != currentConversationKey();
-    if (needCatalog || needHistory) {
-      startTopicTask(needCatalog, false, true, needCatalog ? "Syncing topics..." : "Loading history...");
-    }
-  } else if (mode == UiMode::Notes && !gNotesScanned) {
+  if (mode == UiMode::Notes && !gNotesScanned) {
     scanNotes();
   }
 }

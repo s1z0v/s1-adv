@@ -23,7 +23,7 @@ String compactChatTextForDevice(String text, size_t maxChars = kMaxChatStoredCha
   if (text.length() <= static_cast<int>(maxChars)) {
     return text;
   }
-  const String suffix = " ... [full text in topic]";
+  const String suffix = " ... [full reply in chat]";
   size_t keep = maxChars > static_cast<size_t>(suffix.length()) ? maxChars - suffix.length() : maxChars;
   return text.substring(0, keep) + suffix;
 }
@@ -156,96 +156,17 @@ void pushError(const String& text) {
 void pushUser(const String& text) { pushLine("YOU", text, LineKind::User); }
 void pushAssistant(const String& text) { pushLine("AI", text, LineKind::Assistant); }
 
-LineKind topicHistoryLineKind(const String& role) {
-  if (role == "assistant") {
-    return LineKind::Assistant;
-  }
-  if (role == "device" || role == "human" || role == "user") {
-    return LineKind::User;
-  }
-  return LineKind::System;
-}
 
-String topicHistoryPrefix(const String& role, bool voice) {
-  if (voice) {
-    return "VO";
-  }
-  if (role == "assistant") {
-    return "AI";
-  }
-  if (role == "device") {
-    return "ME";
-  }
-  if (role == "human" || role == "user") {
-    return "TG";
-  }
-  return "MSG";
-}
 
-void replaceChatWithTopicHistory(const String& title, const std::vector<ChatLine>& lines) {
-  gChatLines.clear();
-  String header = "Topic: " + trimPreview(normalizeTopicTitleForDisplay(title, false), 72);
-  pushLine("CTX", header, LineKind::System);
-  if (lines.empty()) {
-    pushLine("CTX", "No recent messages", LineKind::System);
-    return;
-  }
-  for (const auto& line : lines) {
-    if (line.voicePlayable) {
-      pushVoiceHistoryLine(line.prefix, line.text, line.kind, line.voiceUrl, line.voiceTitle, line.voiceSha256,
-                           line.voiceSize);
-    } else {
-      pushLine(line.prefix, line.text, line.kind);
-    }
-  }
-  gChatScrollOffset = 0;
-}
 
-String fallbackTopicEmojiForTitle(const String& title, int32_t threadId) {
-  String lower = title;
-  lower.toLowerCase();
-  if (lower.indexOf("card") >= 0 || lower.indexOf("adv") >= 0) {
-    return "💾";
-  }
-  if (lower.indexOf("marathon") >= 0 || lower.indexOf("run") >= 0) {
-    return "🏃";
-  }
-  if (lower.indexOf("body") >= 0 || lower.indexOf("health") >= 0) {
-    return "💪";
-  }
-  if (lower.indexOf("focus") >= 0 || lower.indexOf("task") >= 0) {
-    return "🎯";
-  }
-  if (lower.indexOf("video") >= 0) {
-    return "🎬";
-  }
-  if (lower.indexOf("audio") >= 0 || lower.indexOf("music") >= 0) {
-    return "🎧";
-  }
-  if (threadId == 1 || lower.indexOf("assistant") >= 0 || lower.indexOf("помощ") >= 0) {
-    return "🤖";
-  }
-  return "💬";
-}
 
-String topicDisplayTitle(const ConversationContext& ctx, bool keepAvailableEmoji = false) {
-  return normalizeTopicTitleForDisplay(ctx.label, keepAvailableEmoji);
-}
 
-String topicDisplayIcon(const ConversationContext& ctx) {
-  if (!ctx.emoji.isEmpty()) {
-    String emoji = normalizeEmojiDisplayText(ctx.emoji);
-    uint32_t codepoint = 0;
-    int consumed = 1;
-    if (decodeUtf8At(emoji, 0, codepoint, consumed) && emojiAssetAvailable(codepoint)) {
-      const EmojiCacheEntry* entry = emojiCacheLookup(codepoint);
-      if (entry && entry->data && entry->width > 0 && entry->height > 0) {
-        return emoji.substring(0, consumed);
-      }
-    }
-  }
-  return ctx.shortName.isEmpty() ? makeTopicShortName(ctx.label, ctx.threadId) : ctx.shortName;
-}
+
+
+
+
+
+
 
 bool decodeUtf8At(const String& value, int index, uint32_t& codepoint, int& consumed) {
   const auto* bytes = reinterpret_cast<const uint8_t*>(value.c_str());

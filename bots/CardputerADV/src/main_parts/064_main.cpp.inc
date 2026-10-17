@@ -5,10 +5,80 @@ extern "C" {
 
 namespace {
 constexpr uint8_t kNesAudioChannel=0;
-// S1-ADV 0.2.148: shared assistant navigation and a bounded NES app.
+// Shared assistant navigation and a bounded NES app.
 bool isAssistantUi() {
   return gUiMode == UiMode::Home || gUiMode == UiMode::ChatFace ||
          gUiMode == UiMode::ChatFull || gUiMode == UiMode::Face || gUiMode == UiMode::Hero;
+}
+
+// Tab always opens the app launcher. Assistant commands have their own chord.
+bool handleAssistantMenuKey(char key,const Keyboard_Class::KeysState& keys) {
+  if (!isAssistantUi()) return false;
+  char lower=static_cast<char>(tolower(static_cast<unsigned char>(key)));
+  if (keys.ctrl && lower=='k') {
+    gChatCommandsVisible=!gChatCommandsVisible;
+    gLauncherVisible=false;
+    return true;
+  }
+  if (keys.ctrl && lower=='l') {
+    gChatCommandsVisible=false;
+    gLauncherVisible=!gLauncherVisible;
+    return true;
+  }
+  if (keys.tab) {
+    gChatCommandsVisible=false;
+    if (gLauncherVisible) moveLauncherSubSelection(1);
+    else gLauncherVisible=true;
+    return true;
+  }
+  return false;
+}
+
+const char* realtimeStageLabel() {
+  if (!gRealtimeUiError.isEmpty()) return "ERROR";
+  if (gPendingRealtimeStart) return "WAIT";
+  if (!gRealtimeActive) return "OFF";
+  if (!gRealtimeConnected) return "CONNECT";
+  if (gRealtimePlaybackActive || gPlaybackActive) return "SPEAK";
+  if (gRealtimeRecording) return "LISTEN";
+  if (gRealtimeAwaiting) return "THINK";
+  return "READY";
+}
+
+void renderRealtimeEyesUi() {
+  renderUncannyEyesUi();
+  auto& d=gCanvas;
+  const char* stage=realtimeStageLabel();
+  const bool error=!gRealtimeUiError.isEmpty();
+  const bool micOn=gRealtimeRecording && gRealtimeActive && gRealtimeConnected && !error;
+  const uint16_t bg=rgb565_local(3,7,13);
+  const uint16_t muted=rgb565_local(140,160,180);
+  const uint16_t accent=error ? rgb565_local(255,96,64) :
+      micOn ? rgb565_local(96,255,160) : rgb565_local(96,208,255);
+  d.fillRect(0,0,240,22,bg);
+  d.setFont(&fonts::Font2); d.setTextSize(1);
+  d.setTextColor(accent,bg); d.setCursor(8,3); d.print(stage);
+  d.setFont(&fonts::Font0);
+  d.setCursor(178,8); d.print(micOn ? "MIC ON" : "MIC OFF");
+  // Input only: quiet speech/disabled microphone cannot animate a fake meter.
+  const uint8_t level=gMicInputMeter.visibleLevel(micOn,millis());
+  const int16_t height=static_cast<uint16_t>(level)*70/255;
+  d.fillRect(235,30,4,70,rgb565_local(20,32,43));
+  if (height>0) d.fillRect(235,100-height,4,height,accent);
+  String detail;
+  if (error) detail=gRealtimeUiError;
+  else if (gPendingRealtimeStart) detail="Waiting for current request...";
+  else if (!gRealtimeConnected && gRealtimeActive) detail="Connecting securely...";
+  else if (!gRealtimeUiTranscript.isEmpty()) detail=gRealtimeUiTranscript;
+  else if (micOn) detail="Speak now. Input meter >";
+  else if (gRealtimeAwaiting) detail="Waiting for reply...";
+  else detail="Ctrl+R to start / stop";
+  d.fillRect(0,110,240,25,bg);
+  d.setTextColor(accent,bg); d.setCursor(6,113);
+  d.print(fitCurrentFontToWidth(detail,228));
+  d.setTextColor(muted,bg); d.setCursor(6,128);
+  d.print("Tab menu  Ctrl+K commands  Esc end");
+  d.setFont(&fonts::Font2);
 }
 
 void servicePendingRealtimeStart() {
@@ -25,6 +95,7 @@ void runChatCommand(uint8_t index) {
   if (index <= 3) {
     if (gRealtimeActive || gRealtimeExclusiveMode) closeRealtimeSession("chat view");
     gPendingRealtimeStart = false;
+    gRealtimeScreenVisible=false;
     setUiMode(index == 1 ? UiMode::ChatFull : (index == 2 ? UiMode::ChatFace : UiMode::Face));
     return;
   }

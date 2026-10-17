@@ -58,8 +58,8 @@ void startRealtimeSession(bool listen){{assert(listen);++starts;gRealtimeActive=
 {functions}
 {pcm}
 int main() {{
- assert(kLauncherGroups[0].count==7 && kLauncherGroups[0].items[0].startRealtime);
- assert(kLauncherGroups[0].items[6].mode==UiMode::Hero);
+ assert(kLauncherGroups[0].count==6 && kLauncherGroups[0].items[0].startRealtime);
+ assert(kLauncherGroups[0].items[5].mode==UiMode::Hero);
  applyLauncherSelection();assert(starts==1 && closes==0 && gLauncherSubSelection==0);
  applyLauncherSelection();assert(starts==1 && closes==0); // repeated open is safe
  gLauncherSubSelection=1;applyLauncherSelection();assert(!gRealtimeActive && closes==1 && gLauncherSubSelection==1);

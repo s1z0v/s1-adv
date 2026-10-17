@@ -57,7 +57,7 @@ void serviceRealtimeVoice() {
          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     gRealtimeSmokeActive = false;
     gRealtimeSmokeTextPending = false;
-    closeRealtimeSession("connect timeout");
+    failRealtimeSession("Connection timed out. Ctrl+R retry");
     setStatus("Realtime connect timeout", 1800);
     setFaceMode(FaceMode::Error);
     return;
@@ -70,7 +70,7 @@ void serviceRealtimeVoice() {
          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     gRealtimeSmokeActive = false;
     gRealtimeSmokeTextPending = false;
-    closeRealtimeSession("response timeout");
+    failRealtimeSession("Response timed out. Ctrl+R retry");
     setStatus("Realtime response timeout", 1800);
     setFaceMode(FaceMode::Error);
     return;
@@ -847,17 +847,6 @@ bool handleHostSerialCommand(String line) {
     logf("[HOST] inbox.inject ok=%d chars=%d", static_cast<int>(ok), text.length());
     return true;
   }
-  if (cmd.startsWith("topic.create ") || cmd.startsWith("/topic.create ")) {
-    int spaceIndex = line.indexOf(' ');
-    String title = spaceIndex >= 0 ? line.substring(spaceIndex + 1) : "";
-    title.trim();
-    if (title.isEmpty()) {
-      title = defaultNewTopicTitle();
-    }
-    bool started = startTopicTask(false, false, false, "Creating topic...", true, title);
-    logf("[HOST] topic.create title=%s started=%d", title.c_str(), static_cast<int>(started));
-    return true;
-  }
   if (cmd.startsWith("text.send ") || cmd.startsWith("/text.send ") ||
       cmd.startsWith("send.text ") || cmd.startsWith("/send.text ")) {
     int spaceIndex = line.indexOf(' ');
@@ -950,10 +939,10 @@ bool handleLocalCommand(const String& input) {
     pushSystem("Voice: Ctrl x2, Ctrl+V, or hold G0; Realtime: Ctrl+R");
     pushSystem("Tab = menu; Tab+Down/Right = next group");
     pushSystem("Ctrl+L = launcher; Up/Down group, Left/Right item, Enter open");
-    pushSystem("Ctrl+D = debug; type: voice focus topics pet notes");
+    pushSystem("Ctrl+K = assistant commands; Ctrl+D = debug");
     pushSystem("Pet: F food P play C clean S sleep H hunt");
-    pushSystem("Agent actions: focus, ui.open, audio/voice, topics, pet, settings");
-    pushSystem("Examples: start pomodoro 25; open library; next topic");
+    pushSystem("Agent actions: focus, ui.open, audio/voice, pet, settings");
+    pushSystem("Examples: start pomodoro 25; open library");
     return true;
   }
 
@@ -966,7 +955,7 @@ bool handleLocalCommand(const String& input) {
     pushSystem("device_id=" + gDeviceId);
     pushSystem("wifi=" + String(gWifiReady ? WiFi.localIP().toString() : "offline"));
     pushSystem("hub=" + (gHubHost.isEmpty() ? String("unset") : gHubHost + ":" + String(gHubPort)));
-    pushSystem("ctx=" + currentConversationKey());
+    pushSystem(String("firmware=") + kAppVersion);
     return true;
   }
 
@@ -1064,21 +1053,7 @@ bool handleLocalCommand(const String& input) {
     return true;
   }
 
-  if (cmd == "/contexts" || cmd == "/topics") {
-    loadConversationContexts();
-    setUiMode(UiMode::Contexts);
-    if (kSingleCardputerTopicMode) {
-      gContextsRemoteLoaded = true;
-      gContextPreview.clear();
-      gContextHistoryKey = currentConversationKey();
-      gContextError = "";
-      setStatus("Cardputer topic", 900);
-      logf("[HOST] topics single key=%s", currentConversationKey().c_str());
-    } else {
-      startTopicTask(true, false, true, "Syncing topics...");
-    }
-    return true;
-  }
+
 
   if (cmd == "/settings") {
     setUiMode(UiMode::Settings);

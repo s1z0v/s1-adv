@@ -85,58 +85,7 @@ bool playVoiceNoteByAction(JsonObjectConst action) {
   return playVoiceNoteAt(index);
 }
 
-bool openTopicByAction(JsonObjectConst action) {
-  if (kSingleCardputerTopicMode) {
-    (void)action;
-    if (gContexts.empty()) {
-      loadDefaultConversationContexts();
-    }
-    gSelectedContext = 0;
-    saveCurrentContext();
-    showTopicOverlay(0, 900);
-    setUiMode(UiMode::ChatFace);
-    setStatus("Cardputer topic", 700);
-    return true;
-  }
-  if (gContexts.empty()) {
-    startTopicTask(true, false, true, "Syncing topics...");
-    setStatus("Topics syncing", 1200);
-    return false;
-  }
-  int index = -1;
-  if (!action["index"].isNull()) {
-    int requested = actionInt(action, "index", 0, 0, static_cast<int>(gContexts.size()));
-    index = requested > 0 ? requested - 1 : 0;
-  }
-  String key = action["key"] | "";
-  String query = action["query"] | "";
-  if (index < 0 && !key.isEmpty()) {
-    for (int i = 0; i < static_cast<int>(gContexts.size()); ++i) {
-      if (gContexts[i].key == key || gContexts[i].topicKey == key) {
-        index = i;
-        break;
-      }
-    }
-  }
-  if (index < 0 && !query.isEmpty()) {
-    for (int i = 0; i < static_cast<int>(gContexts.size()); ++i) {
-      if (textMatchesQuery(gContexts[i].label, query) || textMatchesQuery(gContexts[i].shortName, query)) {
-        index = i;
-        break;
-      }
-    }
-  }
-  if (index < 0 || index >= static_cast<int>(gContexts.size())) {
-    setStatus("Topic not found", 1200);
-    return false;
-  }
-  gSelectedContext = index;
-  saveCurrentContext();
-  showTopicOverlay(0, 1800);
-  setUiMode(UiMode::ChatFace);
-  startTopicTask(false, true, true, "Topic loading...");
-  return true;
-}
+
 
 String normalizePetActionText(String value) {
   value.trim();
