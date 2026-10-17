@@ -350,6 +350,7 @@ void applyLauncherSelection() {
   gLauncherLastSub[gLauncherSelection] = gLauncherSubSelection;
   const LauncherSubItem& item = kLauncherGroups[gLauncherSelection].items[gLauncherSubSelection];
   UiMode target = item.mode;
+  if (gRecording) cancelRecordingDiscard();
   if (!item.startRealtime) {
     gPendingRealtimeStart = false;
     gRealtimeScreenVisible = false;

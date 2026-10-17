@@ -55,6 +55,7 @@ template<typename T>T clampValue(T x,T lo,T hi){{return std::max(lo,std::min(x,h
 UiMode current=UiMode::Home;
 void setUiMode(UiMode mode){{current=mode;}}
 void closeRealtimeSession(const char*){{++closes;gRealtimeActive=false;}}
+void cancelRecordingDiscard(){{gRecording=false;}}
 void startRealtimeSession(bool listen){{assert(listen);++starts;gRealtimeActive=allowStart;}}
 {functions}
 {pcm}

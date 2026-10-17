@@ -34,6 +34,7 @@ void* gCompletedTextTurn=nullptr;
 bool gInboxHttpBusy=false,gPendingRealtimeStart=false,gPendingRealtimeAutoStart=false;
 bool gChatCommandsVisible=false,gLauncherVisible=false,gRealtimeActive=false,gRealtimeExclusiveMode=false;
 bool gRealtimeScreenVisible=false,gRealtimeConnected=false,gRealtimeRecording=false;
+bool gRecording=false;
 bool gRealtimePlaybackActive=false,gPlaybackActive=false,gRealtimeAwaiting=false;
 String gRealtimeUiError;
 struct Keyboard_Class {struct KeysState {bool ctrl=false,tab=false;};};
@@ -43,6 +44,7 @@ uint8_t gChatCommandSelection=0;
 constexpr int kEyeSkinCount=6;
 struct {uint8_t eyeSkin=0;} gDeviceSettings;
 int started=0,closed=0,saved=0;
+void cancelRecordingDiscard(){gRecording=false;}
 void setUiMode(UiMode m){gUiMode=m;}
 bool handleLocalCommand(const String& s){return s=="/local";}
 void pushUser(const String& s){lastUser=s;}
@@ -97,8 +99,8 @@ int main(){
  assert(lastUser=="hello" && gPendingTextTurns.front()=="hello" && started==0);
  gUiMode=UiMode::ChatFace;gInputBuffer="second";submitInput();
  assert(gUiMode==UiMode::ChatFace && gPendingTextTurns.size()==2);
- gRealtimeScreenVisible=true;runChatCommand(3);
- assert(gUiMode==UiMode::Face && started==0 && !gRealtimeScreenVisible);
+ gRecording=true;gRealtimeScreenVisible=true;runChatCommand(3);
+ assert(gUiMode==UiMode::Face && started==0 && !gRealtimeScreenVisible && !gRecording);
  gRealtimeActive=true;gRealtimeExclusiveMode=true;runChatCommand(2);
  assert(closed==1 && gUiMode==UiMode::ChatFace);
  runChatCommand(4);assert(gDeviceSettings.eyeSkin==5);
@@ -124,4 +126,6 @@ for file,name in [('037_main.cpp.inc','TextTurnTaskResult* performTextTurnReques
 poll=function('020_main.cpp.inc','void serviceAutoInboxPoll()')
 assert 'fetchLatestInboxMessage' not in poll and 'xTaskCreate(inboxHttpTask' in poll
 assert 'ensureWifiForHttp' not in function('043_main.cpp.inc','void maintainConnectivity()')
+typing=(parts/'048_main.cpp.inc').read_text()
+assert 'if (gRecording)' not in typing[typing.index('void pollTyping()'):]
 print('PASS actual submit/navigation: pending inbox, immediate chat, queue, six skins, Realtime gating; worker UI ownership')

@@ -416,6 +416,8 @@ void handleRealtimeJson(const JsonDocument& doc) {
 void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED: {
+      logf("[RT] disconnect reason=%.*s",static_cast<int>(min<size_t>(length,96)),
+           payload ? reinterpret_cast<const char*>(payload) : "");
       const bool wasReady = gRealtimeConnected;
       gRealtimeConnected = false;
       gRealtimeAuthPending = false;

@@ -314,6 +314,7 @@ void resetRealtimeTurnState() {
 }
 
 void closeRealtimeSession(const String& reason) {
+  gPendingRealtimeStart=false;
   const bool wasActive = gRealtimeActive;
   const bool wasConnected = gRealtimeConnected;
   if (gRealtimeRecording) {

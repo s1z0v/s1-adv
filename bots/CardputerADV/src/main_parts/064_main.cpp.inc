@@ -91,6 +91,7 @@ void servicePendingRealtimeStart() {
 void runChatCommand(uint8_t index) {
   gChatCommandsVisible = false;
   gLauncherVisible = false;
+  if (index<=3 && gRecording) cancelRecordingDiscard();
   if (index == 0) { toggleRealtimeVoice(); return; }
   if (index <= 3) {
     if (gRealtimeActive || gRealtimeExclusiveMode) closeRealtimeSession("chat view");

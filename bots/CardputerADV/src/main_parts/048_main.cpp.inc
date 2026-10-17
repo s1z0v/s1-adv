@@ -63,6 +63,10 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     }
     return;
   }
+  if (gRecording) {
+    setStatus("Recording: Esc cancel, Ctrl+V send",900);
+    return;
+  }
   if (gPlaybackActive && (key == '-' || key == '_')) {
     adjustSpeakerVolume(-24);
     return;
@@ -235,10 +239,6 @@ bool hasHidKey(const Keyboard_Class::KeysState& keys, uint8_t keyCode) {
 }
 
 void pollTyping() {
-  if (gRecording) {
-    return;
-  }
-
   auto& keys = gKeyboardState;
   static bool pEnter = false;
   static bool pDel = false;

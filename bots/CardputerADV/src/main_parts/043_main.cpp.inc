@@ -27,6 +27,7 @@ void stopRealtimeRecordingAndCommit() {
 }
 
 void toggleRealtimeVoice() {
+  if (gRecording) cancelRecordingDiscard();
   if (gPendingRealtimeStart) { gPendingRealtimeStart=false; setStatus("Realtime cancelled",900); return; }
   if (gRealtimeRecording) {
     stopRealtimeRecordingAndCommit();
@@ -719,6 +720,11 @@ bool handleHostSerialCommand(String line) {
   logf("[HOST] cmd=%s", line.c_str());
   String cmd = line;
   cmd.toLowerCase();
+  if (cmd=="ui.escape" || cmd=="esc") {
+    handleGlobalEscape();
+    logf("[HOST] ui.escape done");
+    return true;
+  }
   if (cmd == "diag" || cmd == "/diag" || cmd == "dbg" || cmd == "/dbg") {
     printHostDiag();
     return true;
