@@ -316,7 +316,7 @@ void serviceAutoInboxPoll() {
   // the last frame visible until the worker returns and restores the canvas.
   prepareNetworkMemory("inbox", false);
   clearEmojiCache();
-  M5Cardputer.Speaker.end();
+  // Polling is silent: retain the speaker's DMA/amp state to avoid periodic clicks.
   if ((ESP.getFreeHeap() < 80000 || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 20000))
     gInboxCanvasReleased = releaseUiCanvasForNetwork("inbox memory");
   gLastInboxAutoPollMs = now;

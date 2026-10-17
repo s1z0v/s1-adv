@@ -32,6 +32,10 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
 | NES + bundled HonkeyPong | Nofrendo; offline, no SD required |
 
+The interface and assistant replies default to English. Russian input and
+Cyrillic rendering are supported; ask explicitly for a Russian reply.
+[NES games stay on SD](docs/NES.md), separate from firmware updates.
+
 Realtime voice is an optional experimental mode with separate provider setup.
 Start with text, then add ordinary push-to-talk voice.
 
@@ -75,7 +79,7 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-Current source is `0.2.152-dev`: app menu on Tab, assistant commands on Ctrl+K,
+Current source is `0.2.153-dev`: app menu on Tab, assistant commands on Ctrl+K,
 visible Realtime connection/microphone states, one configured chat and NES with
 bundled HonkeyPong. See [controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.151.md).
 The public security fixes are retained. Public builds have not yet been tested

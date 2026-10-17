@@ -23,3 +23,10 @@ bots/CardputerADV/test-results/
 
 .DS_Store
 Thumbs.db
+
+# User-owned game files never belong in the public source tree
+*.nes
+*.NES
+!third_party/honkeypong/bin/HonkeyPong.nes
+private_roms/
+*.sav

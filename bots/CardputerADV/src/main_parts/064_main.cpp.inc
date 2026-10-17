@@ -1,7 +1,6 @@
 extern "C" {
 #include <s1_nes.h>
 }
-#include "../honkeypong_rom.h"
 
 namespace {
 constexpr uint8_t kNesAudioChannel=0;
@@ -215,98 +214,233 @@ void renderChatCommandsOverlay() {
   }
 }
 
-bool gNesRunning = false;
-bool gNesWifiWasOn = false;
-uint32_t gNesNextFrameUs = 0;
-uint32_t gNesFrameNumber = 0;
+struct NesGame { String path, title; size_t bytes=0; };
+std::vector<NesGame> gNesGames;
+File gNesRomFile;
+bool gNesRunning=false, gNesWifiWasOn=false, gNesMenuDirty=true;
+bool gNesEnterHeld=false, gNesEscapeHeld=false;
+int gNesSelection=0;
+uint32_t gNesNextFrameUs=0, gNesFrameNumber=0, gNesStartedMs=0, gNesNavMs=0;
 int16_t gNesAudio[3][368];
-uint8_t gNesAudioSlot=0;
-uint16_t gNesScanline[136];
+uint8_t gNesAudioSlot=0, gNesInjectedPad=0;
+uint16_t gNesInjectedFrames=0;
+uint16_t gNesScanline[128];
+String gNesMessage;
+File gNesUploadFile;
+String gNesUploadTarget, gNesUploadTemp, gNesUploadSha;
+size_t gNesUploadExpected=0, gNesUploadBytes=0;
+bool gNesUploadActive=false;
+uint32_t gNesUploadLastMs=0;
+void serviceNesTransfer() {
+  if(gNesUploadActive && millis()-gNesUploadLastMs>30000){gNesUploadFile.close();gNesUploadActive=false;gTransferUiActive=false;Serial.println("[NES_PUT] ERR timeout");}
+}
 
-void leaveNesApp() {
+void scanNesGames() {
+  gNesGames.clear();
+  if (!gSdReady) return;
+  File directory=SD.open("/nes");
+  if (!directory || !directory.isDirectory()) return;
+  while (gNesGames.size()<32) {
+    File file=directory.openNextFile();
+    if (!file) break;
+    String name=filenameFromPath(String(file.name())), lower=name;
+    lower.toLowerCase();
+    if (!file.isDirectory() && lower.endsWith(".nes") && file.size()>=16 && file.size()<=1024*1024) {
+      NesGame game;game.path="/nes/"+name;game.title=name.substring(0,name.length()-4);game.bytes=file.size();
+      gNesGames.push_back(game);
+    }
+    file.close();
+  }
+  directory.close();
+  std::sort(gNesGames.begin(),gNesGames.end(),[](const NesGame& a,const NesGame& b){return a.title.compareTo(b.title)<0;});
+  gNesSelection=clampValue<int>(gNesSelection,0,max<int>(0,static_cast<int>(gNesGames.size())-1));
+  gNesMenuDirty=true;
+}
+
+void renderNesMenu() {
+  auto& d=gCanvas;
+  const uint16_t bg=rgb565_local(3,8,14),accent=rgb565_local(47,227,255),muted=rgb565_local(145,163,181);
+  d.fillScreen(bg);d.setFont(&fonts::Font2);d.setTextSize(1);
+  d.setTextColor(accent,bg);d.setCursor(10,5);d.print("NES GAMES");
+  d.setFont(&fonts::Font0);d.setTextColor(muted,bg);d.setCursor(184,11);d.printf("%u on SD",static_cast<unsigned>(gNesGames.size()));
+  d.drawFastHLine(8,26,224,rgb565_local(21,51,65));
+  if (gNesGames.empty()) {
+    d.setCursor(12,44);d.print("No ROM files on the SD card.");
+    d.setCursor(12,61);d.print("Copy your .nes files to SD:/nes");
+  }
+  const int first=max<int>(0,gNesSelection-3);
+  for(int row=0;row<5 && first+row<static_cast<int>(gNesGames.size());++row) {
+    int index=first+row,y=32+row*15;
+    uint16_t panel=index==gNesSelection?rgb565_local(15,47,59):bg;
+    d.fillRoundRect(8,y,224,14,3,panel);
+    d.setTextColor(index==gNesSelection?TFT_WHITE:muted,panel);d.setCursor(13,y+3);
+    d.print(fitCurrentFontToWidth(gNesGames[index].title,210));
+  }
+  if(!gNesMessage.isEmpty()){d.setTextColor(rgb565_local(255,194,91),bg);d.setCursor(8,111);d.print(fitCurrentFontToWidth(gNesMessage,224));}
+  d.setTextColor(muted,bg);d.setCursor(8,127);d.print("W/S choose  Enter play  Esc back");
+}
+
+bool readNesRom(void* context,size_t offset,uint8_t* destination,size_t length) {
+  auto* file=static_cast<File*>(context);
+  return *file && offset<=file->size() && length<=file->size()-offset &&
+         file->seek(offset) && file->read(destination,length)==length;
+}
+
+void stopNesGame() {
   if (!gNesRunning) return;
   M5Cardputer.Speaker.stop(kNesAudioChannel);
-  s1_nes_close();
-  gNesRunning = false;
-  restoreUiCanvasAfterNetwork();
-  M5Cardputer.Mic.begin();
-  if (gNesWifiWasOn) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(gWifiSsid.c_str(),gWifiPassword.c_str());
+  s1_nes_close();gNesRomFile.close();gNesRunning=false;
+  restoreUiCanvasAfterNetwork();initSpeaker();
+  if (gNesWifiWasOn) {WiFi.mode(WIFI_STA);WiFi.begin(gWifiSsid.c_str(),gWifiPassword.c_str());}
+  markUserActivity();gNesMenuDirty=true;
+  logf("[NES] exit allocated=%u heap=%u",static_cast<unsigned>(s1_nes_memory()),ESP.getFreeHeap());
+}
+
+void leaveNesApp() { stopNesGame();gNesGames.clear();gNesGames.shrink_to_fit();gNesMessage=""; }
+
+bool startNesGame(int index) {
+  if (index<0 || index>=static_cast<int>(gNesGames.size())) return false;
+  if (gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy || gSubmitting || gThinking ||
+      gRecording || gTextTurnTaskHandle || !gPendingTextTurns.empty() || gOtaApplyInProgress || gNesUploadActive) {
+    gNesMessage="Wait for the current request";gNesMenuDirty=true;return false;
   }
-  markUserActivity();
-  logf("[NES] exit allocated=%u",static_cast<unsigned>(s1_nes_memory()));
+  if (gNesRunning) stopNesGame();
+  gNesSelection=index;gNesMessage="";
+  if (gRealtimeActive || gRealtimeExclusiveMode) closeRealtimeSession("NES");
+  if (gPlaybackActive || gPlaybackStreaming) stopPlaybackStream();
+  gPlaybackActive=false;cancelVoicePreconnect();
+  M5Cardputer.Mic.end();M5Cardputer.Speaker.end();clearEmojiCache();prepareNetworkMemory("NES",true);
+  gNesWifiWasOn=WiFi.getMode()!=WIFI_OFF;
+  WiFi.disconnect(false,false);WiFi.mode(WIFI_OFF);gWifiReady=false;
+  releaseUiCanvasForNetwork("NES");delay(30);
+  gNesRunning=true;
+  gNesRomFile=SD.open(gNesGames[index].path,"r");
+  if(gNesRomFile)gNesRomFile.setBufferSize(4096);
+  if(!gNesRomFile || !s1_nes_open_stream(readNesRom,&gNesRomFile,gNesGames[index].bytes)) {
+    stopNesGame();gNesMessage="Cannot load ROM (format / memory)";return false;
+  }
+  initSpeaker();gNesFrameNumber=0;gNesStartedMs=millis();gNesNextFrameUs=micros();
+  gNesAudioSlot=0;gNesInjectedFrames=0;
+  M5Cardputer.Display.fillScreen(TFT_BLACK);M5Cardputer.Display.setFont(&fonts::Font0);
+  M5Cardputer.Display.setTextColor(TFT_WHITE,TFT_BLACK);M5Cardputer.Display.setCursor(4,127);
+  M5Cardputer.Display.print("WASD move  Z/X A/B  Enter start  Esc");
+  logf("[NES] enter game=%s bytes=%u allocated=%u heap=%u",gNesGames[index].title.c_str(),
+       static_cast<unsigned>(gNesGames[index].bytes),static_cast<unsigned>(s1_nes_memory()),ESP.getFreeHeap());
+  return true;
 }
 
 bool enterNesApp() {
-  if (gNesRunning) return true;
-  if (gInboxHttpBusy || gSubmitting || gThinking || gRecording || gTextTurnTaskHandle ||
-      !gPendingTextTurns.empty() || gOtaApplyInProgress || gBootBackgroundActive) {
-    setStatus("NES: wait for current task",1200); return false;
+  if (gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy || gSubmitting || gThinking ||
+      gRecording || gTextTurnTaskHandle || gBootBackgroundActive || gNesUploadActive) {
+    setStatus("NES: wait for current task",1200);return false;
   }
-  if (gRealtimeActive || gRealtimeExclusiveMode) closeRealtimeSession("NES");
-  if (gPlaybackActive || gPlaybackStreaming) stopPlaybackStream();
-  gPlaybackActive = false;
-  M5Cardputer.Mic.end(); M5Cardputer.Speaker.stop(kNesAudioChannel);
-  prepareNetworkMemory("NES",true);
-  gNesWifiWasOn = WiFi.getMode() != WIFI_OFF;
-  WiFi.disconnect(false,false); WiFi.mode(WIFI_OFF); gWifiReady = false;
-  releaseUiCanvasForNetwork("NES framebuffer");
-  gNesRunning = true; // Ensures failed allocation takes the same cleanup path.
-  if (!s1_nes_open(kHonkeyPongRom,sizeof(kHonkeyPongRom))) {
-    leaveNesApp(); setStatus("NES: not enough memory",1600); return false;
-  }
-  gNesFrameNumber=0; gNesNextFrameUs=micros();
-  M5Cardputer.Display.fillScreen(TFT_BLACK);
-  M5Cardputer.Display.setFont(&fonts::Font0);
-  M5Cardputer.Display.setTextColor(TFT_WHITE,TFT_BLACK);
-  M5Cardputer.Display.setCursor(4,132-7);
-  M5Cardputer.Display.print("W/S move  Enter start  Z/X A/B  Esc exit");
-  logf("[NES] enter NROM HonkeyPong heap=%u allocated=%u",ESP.getFreeHeap(),
-       static_cast<unsigned>(s1_nes_memory()));
+  scanNesGames();gNesMessage="";gNesEnterHeld=gKeyboardState.enter;gNesEscapeHeld=false;
   return true;
 }
 
 void serviceNesApp() {
-  const auto& keys = gKeyboardState;
-  uint8_t pad=0;
-  bool escape=hasHidKey(keys,kHidKeyEscape);
-  for (char c: keys.word) {
+  const auto& keys=gKeyboardState;uint8_t pad=0;
+  bool escape=hasHidKey(keys,kHidKeyEscape),up=hasHidKey(keys,0xDA),down=hasHidKey(keys,0xD9);
+  for(char c:keys.word){
     c=static_cast<char>(tolower(static_cast<unsigned char>(c)));
-    if(c=='`'||c=='~') escape=true;
-    if(c=='w'||c=='i') pad|=0x10;
-    if(c=='s'||c=='k') pad|=0x20;
-    if(c=='a'||c=='j') pad|=0x40;
-    if(c=='d'||c=='l') pad|=0x80;
-    if(c=='z') pad|=1;
-    if(c=='x') pad|=2;
+    if(c=='`'||c=='~')escape=true;
+    if(c=='w'||c=='i'){pad|=0x10;up=true;}if(c=='s'||c=='k'){pad|=0x20;down=true;}
+    if(c=='a'||c=='j')pad|=0x40;if(c=='d'||c=='l')pad|=0x80;
+    if(c=='z')pad|=1;if(c=='x')pad|=2;
   }
-  if (escape) { setUiMode(UiMode::Home); render(); return; }
-  if(keys.enter) pad|=8;
-  if(keys.space) pad|=4;
-  if(hasHidKey(keys,0xDA)) pad|=0x10;
-  if(hasHidKey(keys,0xD9)) pad|=0x20;
-  if(hasHidKey(keys,0xD8)) pad|=0x40;
-  if(hasHidKey(keys,0xD7)) pad|=0x80;
-  if (static_cast<int32_t>(micros()-gNesNextFrameUs)<0) return;
+  bool escapePressed=escape&&!gNesEscapeHeld,enterPressed=keys.enter&&!gNesEnterHeld;
+  gNesEscapeHeld=escape;gNesEnterHeld=keys.enter;
+  if(escapePressed){
+    if(gNesRunning)stopNesGame();else setUiMode(UiMode::Home);
+    render();return;
+  }
+  if(!gNesRunning){
+    if((up||down) && (!gNesNavMs || millis()-gNesNavMs>180)){
+      gNesNavMs=millis();gNesSelection=clampValue<int>(gNesSelection+(down?1:-1),0,max<int>(0,static_cast<int>(gNesGames.size())-1));gNesMenuDirty=true;
+    }
+    if(!up&&!down)gNesNavMs=0;
+    if(enterPressed)startNesGame(gNesSelection);
+    if(!gNesRunning&&gNesMenuDirty){render();gNesMenuDirty=false;}
+    return;
+  }
+  if(keys.enter)pad|=8;if(keys.space)pad|=4;
+  if(hasHidKey(keys,0xDA))pad|=0x10;if(hasHidKey(keys,0xD9))pad|=0x20;
+  if(hasHidKey(keys,0xD8))pad|=0x40;if(hasHidKey(keys,0xD7))pad|=0x80;
+  if(static_cast<int32_t>(micros()-gNesNextFrameUs)<0)return;
   gNesNextFrameUs=micros()+16667;
+  if(gNesInjectedFrames){pad|=gNesInjectedPad;--gNesInjectedFrames;}
   bool canQueue=M5Cardputer.Speaker.isPlaying(kNesAudioChannel)<2;
-  uint8_t slot=canQueue?gNesAudioSlot:2;
-  int count=(gNesFrameNumber&1)?368:367;
-  bool draw=(gNesFrameNumber%2)==0; // 60 Hz emulation, 30 Hz display.
+  uint8_t slot=canQueue?gNesAudioSlot:2;int count=(gNesFrameNumber&1)?368:367;bool draw=(gNesFrameNumber%2)==0;
   s1_nes_frame(pad,draw,gNesAudio[slot],count);
-  if (canQueue && M5Cardputer.Speaker.playRaw(gNesAudio[slot],count,22050,false,1,kNesAudioChannel,false))
-    gNesAudioSlot^=1;
-  if(draw) {
+  if(!s1_nes_io_ok()){stopNesGame();gNesMessage="SD read failed. Check the card.";return;}
+  if(canQueue&&M5Cardputer.Speaker.playRaw(gNesAudio[slot],count,22050,false,1,kNesAudioChannel,false))gNesAudioSlot^=1;
+  if(draw){
     M5Cardputer.Display.startWrite();
-    for(int y=0;y<124;++y) {
-      const uint8_t* row=s1_nes_row(y*240/124);
-      for(int x=0;x<136;++x) gNesScanline[x]=s1_nes_color(row[x*256/136]);
-      M5Cardputer.Display.pushImage(52,y,136,1,gNesScanline);
+    for(int y=0;y<120;++y){
+      const uint8_t* row=s1_nes_row(y*2);
+      for(int x=0;x<128;++x)gNesScanline[x]=s1_nes_color(row[x*2]);
+      M5Cardputer.Display.pushImage(56,y,128,1,gNesScanline);
     }
     M5Cardputer.Display.endWrite();
   }
   ++gNesFrameNumber;
+}
+
+bool handleNesHostCommand(const String& line) {
+  if(line=="nes.put.abort"){gNesUploadFile.close();gNesUploadActive=false;gTransferUiActive=false;Serial.println("[NES_PUT] ABORTED");return true;}
+  if(line=="nes.list"){
+    scanNesGames();for(size_t i=0;i<gNesGames.size();++i)logf("[NES_GAME] index=%u bytes=%u path=%s",static_cast<unsigned>(i),static_cast<unsigned>(gNesGames[i].bytes),gNesGames[i].path.c_str());return true;
+  }
+  if(line.startsWith("nes.start ")){setUiMode(UiMode::Nes);if(gUiMode==UiMode::Nes)startNesGame(line.substring(10).toInt());return true;}
+  if(line=="nes.exit"){setUiMode(UiMode::Home);render();return true;}
+  if(line.startsWith("nes.pad ")){
+    int at=line.indexOf(' ',8);if(at>0){gNesInjectedPad=line.substring(8,at).toInt();gNesInjectedFrames=clampValue<int>(line.substring(at+1).toInt(),0,600);}return true;
+  }
+  if(line=="nes.status"){
+    uint32_t hash=2166136261U;
+    if(gNesRunning)for(int y=0;y<240;y+=2){const auto* row=s1_nes_row(y);for(int x=0;x<256;x+=2)hash=(hash^row[x])*16777619U;}
+    logf("[NES_STATUS] running=%d index=%d frames=%u fps=%u allocated=%u heap=%u io=%u hash=%08x",gNesRunning,gNesSelection,gNesFrameNumber,
+         gNesRunning?static_cast<unsigned>(gNesFrameNumber*1000ULL/max<uint32_t>(1,millis()-gNesStartedMs)):0,
+         static_cast<unsigned>(s1_nes_memory()),ESP.getFreeHeap(),static_cast<unsigned>(s1_nes_io_bytes()),hash);return true;
+  }
+  if(line.startsWith("nes.put.begin ")){
+    int first=line.indexOf(' ',14),second=first<0?-1:line.indexOf(' ',first+1);
+    if(first<0||second<0||gNesUploadActive||gNesRunning||gRecording||gSubmitting||gInboxHttpBusy||gVoiceDialBusy||gVoiceReplySpeechBusy||gTransferUiActive){Serial.println("[NES_PUT] ERR busy/header");return true;}
+    size_t size=line.substring(14,first).toInt();String sha=line.substring(first+1,second),name=line.substring(second+1),lower=name;lower.toLowerCase();
+    bool valid=size>=16&&size<=1024*1024&&sha.length()==64&&name.length()<=96&&!name.startsWith(".")&&name.indexOf("..")<0&&lower.endsWith(".nes");
+    for(char c:name)if(!(isalnum(static_cast<unsigned char>(c))||c==' '||c=='_'||c=='-'||c=='.'||c=='('||c==')'))valid=false;
+    for(char c:sha)if(!isxdigit(static_cast<unsigned char>(c)))valid=false;
+    if(!valid||!gSdReady){Serial.println("[NES_PUT] ERR invalid");return true;}
+    if(!SD.exists("/nes"))SD.mkdir("/nes");gNesUploadTarget="/nes/"+name;gNesUploadTemp=gNesUploadTarget+".upload.part";
+    gNesUploadFile=SD.open(gNesUploadTemp,"w");
+    if(!gNesUploadFile){Serial.println("[NES_PUT] ERR open");return true;}
+    gNesUploadFile.setBufferSize(512);gNesUploadExpected=size;gNesUploadBytes=0;gNesUploadSha=sha;
+    gNesUploadActive=true;gTransferUiActive=true;gNesUploadLastMs=millis();markUserActivity();Serial.println("[NES_PUT] READY");return true;
+  }
+  if(line.startsWith("nes.put.chunk ")){
+    int at=line.indexOf(' ',14);String hex=at<0?String():line.substring(at+1);
+    size_t offset=at<0?0:line.substring(14,at).toInt();bool ok=gNesUploadActive&&at>0&&offset==gNesUploadBytes&&hex.length()>0&&hex.length()<=768&&(hex.length()%2)==0&&gNesUploadBytes+hex.length()/2<=gNesUploadExpected;
+    uint8_t bytes[384];
+    for(int i=0;ok&&i<hex.length();i+=2){
+      if(!isxdigit(hex[i])||!isxdigit(hex[i+1])){ok=false;break;}
+      auto digit=[](char c)->uint8_t{return isdigit(c)?c-'0':tolower(c)-'a'+10;};bytes[i/2]=(digit(hex[i])<<4)|digit(hex[i+1]);
+    }
+    if(ok)ok=writeRecordedBytes(gNesUploadFile,bytes,hex.length()/2)==hex.length()/2;
+    if(!ok){gNesUploadFile.close();gNesUploadActive=false;gTransferUiActive=false;Serial.println("[NES_PUT] ERR chunk");return true;}
+    gNesUploadBytes+=hex.length()/2;gNesUploadLastMs=millis();markUserActivity();Serial.printf("[NES_PUT] ACK %u\n",static_cast<unsigned>(gNesUploadBytes));return true;
+  }
+  if(line=="nes.put.end"){
+    bool ok=gNesUploadActive&&gNesUploadBytes==gNesUploadExpected;
+    gNesUploadFile.flush();gNesUploadFile.close();
+    if(ok)ok=sha256File(SD,gNesUploadTemp)==gNesUploadSha;
+    if(ok&&SD.exists(gNesUploadTarget)){
+      if(sha256File(SD,gNesUploadTarget)==gNesUploadSha){SD.remove(gNesUploadTemp);}
+      else ok=SD.rename(gNesUploadTarget,gNesUploadTarget+".previous."+String(millis()))&&SD.rename(gNesUploadTemp,gNesUploadTarget);
+    }else if(ok)ok=SD.rename(gNesUploadTemp,gNesUploadTarget);
+    gNesUploadActive=false;gTransferUiActive=false;scanNesGames();
+    Serial.printf("[NES_PUT] %s bytes=%u\n",ok?"DONE":"ERR verify",static_cast<unsigned>(gNesUploadBytes));return true;
+  }
+  return false;
 }
 
 } // namespace

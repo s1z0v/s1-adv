@@ -194,7 +194,7 @@ void loadDeviceSettings() {
   gDeviceSettings.screensaverClockOnWake = gPrefs.getBool("scr_clk", true);
   gDeviceSettings.notificationVolumePct = static_cast<uint8_t>(gPrefs.getUChar("vol_notif", kDefaultNotificationVolumePct));
   gDeviceSettings.updateChannel = gPrefs.getString("fw_chan", "dev");
-  gDeviceSettings.audioLanguage = gPrefs.getString("aud_lang", "ru");
+  gDeviceSettings.audioLanguage = gPrefs.getString("aud_lang", "en");
   gPrefs.end();
   gDeviceSettings.minBatteryForUpdate = clampValue<uint8_t>(gDeviceSettings.minBatteryForUpdate, 5, 95);
   gDeviceSettings.clockFace %= kClockFaceCount;
@@ -210,7 +210,7 @@ void loadDeviceSettings() {
     gDeviceSettings.updateChannel = "dev";
   }
   if (gDeviceSettings.audioLanguage.isEmpty()) {
-    gDeviceSettings.audioLanguage = "ru";
+    gDeviceSettings.audioLanguage = "en";
   }
 }
 

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
+import { requestedReplyLanguage } from './reply-language.mjs';
 import { RealtimePacingBudget } from './realtime-pacing-budget.mjs';
 
 test('actual firmware routing owns voice UI changes once without a desktop chat dependency',async()=>{
@@ -13,11 +14,11 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
  assert(classifier('Develop and publish new firmware'));
  assert(!classifier('Какая погода сегодня?'));
  const method=source.slice(source.indexOf('async tryFastLaneTurn('),source.indexOf('async runFirmwareWorkJob(')).trim();
- const route=new Function('wantsFirmwareWork','textLooksRussian',`return async function ${method.slice(6)}`)(classifier,()=>true);
+ const route=new Function('wantsFirmwareWork','languageNameForText',`return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage);
  let jobs=0,sends=0,replies=0;
  const runtime={primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
   sendText:async v=>{++sends;assert.equal(v.topicKey,'job');assert.equal(v.waitForUpstream,false);return {seq:1};},
-  buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async()=>{++replies;return {};},buildTurnResponse:async()=>({ok:true})};
+  buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {};},buildTurnResponse:async()=>({ok:true})};
  const result=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'убери индикатор с главного экрана',inputMode:'voice'});
  assert.equal(result.response.ok,true);assert.deepEqual([jobs,sends,replies],[1,1,1]);
  assert.equal(await route.call(runtime,{transcript:'hello',inputMode:'voice'}),null);

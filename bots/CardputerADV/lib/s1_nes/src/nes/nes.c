@@ -1,3 +1,4 @@
+#include "../s1_nes.h"
 /*
 ** Nofrendo (c) 1998-2000 Matthew Conte (matt@conte.com)
 **
@@ -314,6 +315,7 @@ static void nes_renderframe(bool draw_flag)
 #else  /* !NOFRENDO_DOUBLE_FRAMEBUFFER */
       ppu_scanline(vid_getbuffer(), nes.scanline, draw_flag);
 #endif /* !NOFRENDO_DOUBLE_FRAMEBUFFER */
+      if(draw_flag) s1_nes_capture_scanline(nes.scanline);
 
       if (241 == nes.scanline)
       {

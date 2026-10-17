@@ -12,17 +12,25 @@ license. The complete firmware source and PlatformIO build scripts are included
 so the library can be modified, rebuilt and relinked. Debugging/reverse
 engineering modifications to the library is permitted by this license.
 
-The initial app supports **mapper 0 (NROM), iNES, 16/32 KiB PRG and 0/8 KiB CHR**.
-It embeds HonkeyPong; it is not a general ROM browser. Trainers, battery saves,
-NES2 and other mappers are rejected before core allocation.
+The app supports mapper 0 (NROM) and mapper 4 (MMC3), including simple NES 2.0
+headers without extended bank counts/submappers. ROMs are read from SD through
+a bounded callback. No game is linked into the device firmware. See
+[SD installation and controls](../../../../docs/NES.md).
+
+A scratch scanline and 128x120 captured viewport replace a large contiguous
+framebuffer. All PPU scanlines still execute. A cache holds at most twelve
+8 KiB PRG banks and pins currently mapped CPU windows. CHR has an 8 KiB window.
+Small cartridges allocate fewer banks. The allocator has a 144 KiB ceiling;
+all allocations and the SD file are released on exit or failed initialization.
+There are no XIP partitions, flash-ROM caches, or OTA layout changes.
 
 ## Local changes on 2026-10-17
 
 - `s1_nes.c/h`: checked immutable ROM loader, one-owner lifecycle, bounded
-  allocator, controller and palette adapter. ROM data stays in program flash.
+  allocator, controller and palette adapter; SD bank cache and checked reads.
 - `nes.c`: expose one frame per call and release handler tables on destruction.
 - `bitmap.c/h`: correct pitch/overdraw allocation, 64-bit-safe alignment and
-  allocation-failure cleanup. Keep the flexible line-pointer array last.
+  allocation-failure cleanup; scanline scratch and captured viewport. Keep the flexible line-pointer array last.
 - `nes_ppu.c`: preserve separately allocated nametable pointers across context
   copies, release nested allocations, use unsigned background pixel expansion.
 - `nes_apu.c`: small static lookup tables, checked rectangle allocation and
@@ -44,5 +52,7 @@ python3 scripts/cardputer.py build
 
 The host test runs the actual CPU/PPU/APU and bundled ROM with AddressSanitizer
 and UndefinedBehaviorSanitizer, checks the game's state and paddle movement,
-repeated entry/exit and every initialization allocation failure. Hardware
-timing, speaker output and actual device heap still need a physical test.
+repeated entry/exit, streaming mapper banks/cache reuse, read failures and
+initialization allocation failures. `scripts/test_nes_rom.py` also tests a
+user-provided ROM with sanitizers without adding it to the repository. Physical
+installation, timing and heap measurements are recorded separately.

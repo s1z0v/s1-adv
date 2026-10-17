@@ -32,7 +32,10 @@
 
 void bmp_clear(const bitmap_t *bitmap, uint8 color)
 {
-   memset(bitmap->data, color, bitmap->pitch * bitmap->height);
+   if (bitmap->blocks) {
+      for (int i=0;i<bitmap->block_count;++i)
+         memset(bitmap->blocks[i],color,bitmap->pitch*bitmap->block_rows);
+   } else memset(bitmap->data, color, bitmap->pitch * bitmap->height);
 }
 
 static bitmap_t *_make_bitmap(uint8 *data_addr, bool hw, int width,
@@ -49,6 +52,7 @@ static bitmap_t *_make_bitmap(uint8 *data_addr, bool hw, int width,
    bitmap = NOFRENDO_MALLOC(sizeof(bitmap_t) + (sizeof(uint8 *) * height));
    if (NULL == bitmap) { if (!hw) NOFRENDO_FREE(data_addr); return NULL; }
 
+   bitmap->blocks=NULL; bitmap->block_count=bitmap->block_rows=0;
    bitmap->hardware = hw;
    bitmap->height = height;
    bitmap->width = width;
@@ -78,18 +82,40 @@ static bitmap_t *_make_bitmap(uint8 *data_addr, bool hw, int width,
 /* Allocate and initialize a bitmap structure */
 bitmap_t *bmp_create(int width, int height, int overdraw)
 {
-    uint8 *addr;
-    int pitch = width + (overdraw * 2);   // left + right
+    const int pitch=(width+overdraw*2+3)&~3;
+    const int block_rows=16;
+    const int blocks=((height<256?256:height+16)+block_rows-1)/block_rows;
+    bitmap_t *bitmap=NOFRENDO_MALLOC(sizeof(bitmap_t)+sizeof(uint8*)*height);
+    if (!bitmap) return NULL;
+    memset(bitmap,0,sizeof(bitmap_t)+sizeof(uint8*)*height);
+    bitmap->width=width;bitmap->height=height;bitmap->pitch=pitch;
+    bitmap->block_rows=block_rows;bitmap->block_count=blocks;
+    bitmap->blocks=NOFRENDO_MALLOC(sizeof(uint8*)*blocks);
+    if (!bitmap->blocks) { bmp_destroy(&bitmap); return NULL; }
+    memset(bitmap->blocks,0,sizeof(uint8*)*blocks);
+    for (int i=0;i<blocks;++i) {
+       bitmap->blocks[i]=NOFRENDO_MALLOC(pitch*block_rows);
+       if (!bitmap->blocks[i]) { bmp_destroy(&bitmap); return NULL; }
+    }
+    for (int y=0;y<height;++y)
+       bitmap->line[y]=bitmap->blocks[y/block_rows]+(y%block_rows)*pitch+overdraw;
+    return bitmap;
+}
 
-    // Suralloc verticale
-    enum { EXTRA_GUARD_ROWS = 16 };
-    int alloc_height = (height < 256) ? 256 : (height + EXTRA_GUARD_ROWS);
-    size_t alloc_bytes = (size_t)pitch * (size_t)alloc_height;
-
-    addr = NOFRENDO_MALLOC((alloc_bytes + 7) & ~7);  // alignement 8
-    if (!addr) return NULL;
-
-    return _make_bitmap(addr, false, width, height, pitch, overdraw);
+/* PPU scratch row; the host captures its 128x120 output after each odd line. */
+bitmap_t *bmp_create_scanline(int width,int height,int overdraw)
+{
+   bitmap_t *b=NOFRENDO_MALLOC(sizeof(bitmap_t)+sizeof(uint8*)*height);
+   if(!b)return NULL;
+   memset(b,0,sizeof(bitmap_t)+sizeof(uint8*)*height);
+   b->width=width;b->height=height;b->pitch=(width+overdraw*2+3)&~3;
+   b->block_count=1;b->block_rows=2;
+   b->blocks=NOFRENDO_MALLOC(sizeof(uint8*));
+   if(!b->blocks){bmp_destroy(&b);return NULL;}
+   b->blocks[0]=NOFRENDO_MALLOC(b->pitch*2);
+   if(!b->blocks[0]){bmp_destroy(&b);return NULL;}
+   for(int y=0;y<height;++y)b->line[y]=b->blocks[0]+overdraw;
+   return b;
 }
 
 /* allocate and initialize a hardware bitmap */
@@ -103,6 +129,10 @@ void bmp_destroy(bitmap_t **bitmap)
 {
    if (*bitmap)
    {
+      if ((*bitmap)->blocks) {
+         for (int i=0;i<(*bitmap)->block_count;++i) NOFRENDO_FREE((*bitmap)->blocks[i]);
+         NOFRENDO_FREE((*bitmap)->blocks);
+      }
       if ((*bitmap)->data && false == (*bitmap)->hardware)
          NOFRENDO_FREE((*bitmap)->data);
       NOFRENDO_FREE(*bitmap);

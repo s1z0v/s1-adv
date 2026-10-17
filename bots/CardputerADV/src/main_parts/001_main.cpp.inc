@@ -65,7 +65,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.152-dev"
+#define APP_VERSION "0.2.153-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -288,9 +288,9 @@ constexpr uint32_t kRfidPollIntervalMs = 350;
 constexpr uint32_t kRfidReconnectIntervalMs = 1500;
 constexpr uint16_t kRfidDumpMaxBlocks = 256;
 constexpr uint8_t kRfidBlockBytes = 16;
-constexpr const char* kFocusCuePath = "/pomodoro/audio/focus_ru.wav";
-constexpr const char* kBreakCuePath = "/pomodoro/audio/break_ru.wav";
-constexpr const char* kReflectionCuePath = "/pomodoro/audio/reflection_ru.wav";
+constexpr const char* kFocusCuePath = "/pomodoro/audio/focus_en.wav";
+constexpr const char* kBreakCuePath = "/pomodoro/audio/break_en.wav";
+constexpr const char* kReflectionCuePath = "/pomodoro/audio/reflection_en.wav";
 constexpr const char* kPomodoroAudioLanguages[] = {"ru", "en", "es"};
 constexpr const char* kPomodoroAudioCues[] = {"start", "break", "reflection"};
 constexpr size_t kPomodoroAudioLanguageCount = sizeof(kPomodoroAudioLanguages) / sizeof(kPomodoroAudioLanguages[0]);

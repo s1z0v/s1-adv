@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Nes:
+        renderNesMenu();
+        break;
       case UiMode::Home:
         renderAssistantPulseUi();
         break;
@@ -316,6 +319,7 @@ void loop() {
   // other subsystem. This lets automated smoke tests and rt.close recover a
   // session without a physical reset.
   handleHostSerialInput();
+  serviceNesTransfer();
   serviceRealtimeDialCompletion();
   if (gRealtimeExclusiveMode) {
     serviceRealtimeExclusiveLoop(loopStartMs);

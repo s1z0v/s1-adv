@@ -6,7 +6,7 @@ String normalizedPomodoroAudioLanguage(String language) {
       return language;
     }
   }
-  return "ru";
+  return "en";
 }
 
 String pomodoroMeditationAssetPath(const char* language, const char* cue) {

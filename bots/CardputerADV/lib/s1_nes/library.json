@@ -14,7 +14,8 @@
       "+<nes/nes_pal.c>",
       "+<sndhrdw/nes_apu.c>",
       "+<mappers/map000.c>",
-      "+<s1_nes.c>"
+      "+<s1_nes.c>",
+      "+<mappers/map004.c>"
     ]
   }
 }

@@ -256,7 +256,7 @@ struct DeviceSettings {
   bool screensaverClockOnWake = true;
   uint8_t notificationVolumePct = kDefaultNotificationVolumePct;
   String updateChannel = "dev";
-  String audioLanguage = "ru";
+  String audioLanguage = "en";
 };
 
 const char* eyeSkinName(uint8_t skin) {

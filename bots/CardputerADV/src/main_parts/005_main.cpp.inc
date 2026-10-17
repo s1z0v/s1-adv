@@ -65,6 +65,9 @@ void renderChatCommandsOverlay();
 bool enterNesApp();
 void leaveNesApp();
 void serviceNesApp();
+void renderNesMenu();
+bool handleNesHostCommand(const String& line);
+void serviceNesTransfer();
 
 FaceMode gFaceMode = FaceMode::Idle;
 KeyboardLayout gKeyboardLayout = KeyboardLayout::En;

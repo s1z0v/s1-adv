@@ -44,12 +44,15 @@ typedef struct bitmap_s
 {
    int width, height, pitch;
    bool hardware;            /* is data a hardware region? */
+   uint8 **blocks;
+   int block_count, block_rows;
    uint8 *data;              /* protected */
    uint8 *line[ZERO_LENGTH]; /* will hold line pointers */
 } bitmap_t;
 
 extern void bmp_clear(const bitmap_t *bitmap, uint8 color);
 extern bitmap_t *bmp_create(int width, int height, int overdraw);
+extern bitmap_t *bmp_create_scanline(int width, int height, int overdraw);
 extern bitmap_t *bmp_createhw(uint8 *addr, int width, int height, int pitch);
 extern void bmp_destroy(bitmap_t **bitmap);
 

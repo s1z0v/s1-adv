@@ -30,3 +30,7 @@ A pending agent request remains visible. Its later reply appears in a notificati
 sheet above Home: Enter opens AI Chat and Escape closes the sheet.
 The clock screen shows READY with its decorative animated bars when the
 microphone is off. REC and the live input meter appear after recording starts.
+
+The interface and default assistant replies are English, including replies to
+Russian input. Explicit requests such as "Reply in Russian" are respected.
+Russian keyboard input and Cyrillic rendering remain available. See [NES games](NES.md) for SD game installation.

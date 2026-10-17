@@ -772,7 +772,9 @@ bool handleHostSerialCommand(String line) {
   if (line.isEmpty()) {
     return false;
   }
+  if(line.startsWith("nes.put.chunk ")) return handleNesHostCommand(line);
   logf("[HOST] cmd=%s", line.c_str());
+  if(handleNesHostCommand(line)) return true;
   String cmd = line;
   cmd.toLowerCase();
   if (cmd == "logs.dump") {
@@ -784,6 +786,7 @@ bool handleHostSerialCommand(String line) {
     logf("[HOST] ui.escape done");
     return true;
   }
+  if(cmd.startsWith("audio.language ")){String language=cmd.substring(15);if(language=="en"||language=="ru"||language=="es"){gDeviceSettings.audioLanguage=language;saveDeviceSettings();logf("[HOST] audio.language=%s",language.c_str());}return true;}
   if (cmd == "clock.status" || cmd == "clock.format 12" || cmd == "clock.format 24") {
     if (cmd != "clock.status") {
       gDeviceSettings.clockTwelveHour = cmd.endsWith("12");

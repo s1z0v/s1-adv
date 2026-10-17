@@ -50,6 +50,8 @@
 #define MMC_LAST2KVROM (MMC_2KVROM - 1)
 #define MMC_LAST1KVROM (MMC_1KVROM - 1)
 
+#include "../s1_nes.h"
+
 static mmc_t mmc;
 
 rominfo_t *mmc_getinfo(void)
@@ -74,6 +76,11 @@ void mmc_bankvrom(int size, uint32 address, int bank)
 {
    if (0 == mmc.cart->vrom_banks)
       return;
+   if (s1_nes_streaming()) {
+      uint8 *data=s1_nes_chr_window(size,address,bank);
+      if (data) ppu_setpage(size,address>>10,data-address);
+      return;
+   }
 
    switch (size)
    {
@@ -112,6 +119,12 @@ void mmc_bankrom(int size, uint32 address, int bank)
    nes6502_context mmc_cpu;
 
    nes6502_getcontext(&mmc_cpu);
+   if (s1_nes_streaming()) {
+      if(s1_nes_map_prg(size,address,bank))
+         for(int i=0;i<size/4;++i)mmc_cpu.mem_page[(address>>12)+i]=s1_nes_prg_page(address+i*4096);
+      nes6502_setcontext(&mmc_cpu);
+      return;
+   }
 
    switch (size)
    {
@@ -233,11 +246,13 @@ mmc_t *mmc_create(rominfo_t *rominfo)
    mmc_t *temp;
    mapintf_t **map_ptr;
 
-   for (map_ptr = mappers; (*map_ptr)->number != rominfo->mapper_number; map_ptr++)
+   for (map_ptr = mappers; *map_ptr && (*map_ptr)->number != rominfo->mapper_number; map_ptr++)
    {
       if (NULL == *map_ptr)
          return NULL; /* Should *never* happen */
    }
+
+   if (!*map_ptr) return NULL;
 
    temp = NOFRENDO_MALLOC(sizeof(mmc_t));
    if (NULL == temp)

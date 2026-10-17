@@ -1,3 +1,4 @@
+import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
 import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -696,7 +697,7 @@ function textLooksRussian(text) {
 }
 
 function languageNameForText(text) {
-  return textLooksRussian(text) ? "Russian" : "English";
+  return requestedReplyLanguage(text);
 }
 
 function wantsImmediateFirmwareInstall(text) {
@@ -1407,7 +1408,7 @@ function realtimeInstructions(config, topic) {
   const topicEmoji = String(topic?.emoji || topic?.icon || "").trim();
   return [
     "You are OpenClaw speaking live with Sergey through a tiny M5Stack Cardputer ADV.",
-    "Use the user's language. Keep answers short, direct, and natural for speech.",
+    REPLY_LANGUAGE_POLICY,
     "Prefer 1-2 spoken sentences. Do not do deep analysis in this realtime mode unless the user explicitly asks.",
     `Current Telegram/OpenClaw topic: ${topicEmoji ? `${topicEmoji} ` : ""}${topicTitle}.`,
     config.realtimeVoice?.s1ToolsEnabled === false
@@ -1419,7 +1420,8 @@ function realtimeInstructions(config, topic) {
     "For local device actions, include the same machine marker protocol as the normal bridge after the spoken sentence.",
     buildDeviceActionPolicyText(),
     buildFirmwareCapabilityPolicyText(),
-    base
+    base,
+    REPLY_LANGUAGE_POLICY
   ].filter(Boolean).join(" ");
 }
 
@@ -4325,7 +4327,7 @@ class BridgeRuntime {
     const system = [
       "You are the low-latency OpenClaw voice bridge for a M5Stack Cardputer ADV.",
       "Answer as the same personal assistant, but optimize for immediate spoken interaction.",
-      "Default to English. If the user writes or speaks Russian, answer in Russian; otherwise answer in English.",
+      REPLY_LANGUAGE_POLICY,
       "For voice turns, answer in 1-2 short spoken sentences unless a command needs a terse confirmation.",
       "Do not do deep analysis, browsing, long planning, or broad memory search in this fast lane.",
       "If the user asks for a device/app action, include the required machine marker after the human sentence.",
@@ -4578,7 +4580,7 @@ class BridgeRuntime {
         }),
         waitForUpstream: false
       });
-      const replyText = textLooksRussian(transcript)
+      const replyText = languageNameForText(transcript) === "Russian"
         ? (
           `Задача принята. OpenClaw подготовит прошивку и пришлёт результат на устройство.`
         )
@@ -5323,7 +5325,7 @@ class BridgeRuntime {
       if_user_asks_about_previous_context: "Use the full persistent session and available memory. recent_topic_history is only a transport hint, never a context limit.",
       if_user_asks_about_recent_topics: "Use recent_topics_overview only when present; otherwise ask the user to open topics.",
       if_user_mentions_other_topic: "Use available memory/tools for earlier work; ask only when the intended topic is ambiguous.",
-      reply_language: "Default to English. If the user writes or speaks Russian, answer in Russian; otherwise answer in English.",
+      reply_language: REPLY_LANGUAGE_POLICY,
       topic_switching: "Indexes in available_topics map to /topic <index> on the device.",
       text_reply_style: `For text turns, default visible reply is ${shortReplyWords} words or fewer.`,
       voice_mode: inputMode === "voice"
@@ -6164,7 +6166,7 @@ async function main() {
             status: "pending",
             pending: true,
             after_seq: ack.seq,
-            status_text: textLooksRussian(transcript) ? "Принято. Ответ появится в Inbox." : "Accepted. Reply will appear in Inbox.",
+            status_text: languageNameForText(transcript) === "Russian" ? "Принято. Ответ появится в Inbox." : "Accepted. Reply will appear in Inbox.",
             inbox_hint: true
           });
           return;
