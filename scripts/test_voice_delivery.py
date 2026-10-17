@@ -38,8 +38,8 @@ void failRealtimeSession(const char*){++failed;gRealtimeActive=false;}
 void scheduleRealtimeListenAfterPlayback(){if(gRealtimeResponseComplete&&!gRealtimePlaybackActive)++scheduled;}
 size_t readRealtimePlaybackRing(uint8_t*,size_t n){gRealtimePlaybackBufferedBytes-=n;return n;}
 void updatePlaybackAnalyzerFromSamples(const int16_t*,size_t,uint32_t){}
-struct Speaker {int isPlaying(int){return playing;} bool playRaw(const int16_t*,size_t,uint32_t,bool,int,int,bool){playing=1;return true;}};
-struct {Speaker Speaker;} M5Cardputer;
+struct SpeakerStub {size_t isPlaying(int){return playing;} bool playRaw(const int16_t*,size_t,uint32_t,bool,int,int,bool){playing=1;return true;}};
+struct {SpeakerStub Speaker;} M5Cardputer;
 '''
 code+='\n'+function('041_main.cpp.inc','void serviceRealtimePlayback()')
 code+=f'\n#include "{root}/bots/CardputerADV/src/clock_display.h"\n'
