@@ -182,6 +182,7 @@ void setup() {
   Serial.setRxBufferSize(4096);
   Serial.begin(115200);
   Serial.println("[BOOT] serial ready");
+  Serial.printf("[BOOT] reset_reason=%d\n", static_cast<int>(esp_reset_reason()));
   delay(800);
   ensureBangkokTimezone();
 

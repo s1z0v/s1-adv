@@ -34,6 +34,10 @@ for installations without a saved choice; midnight and noon use 12 AM and
 no AM/PM indicator on the home screen.
 Screensaver clock chips follow the selected format. AI Agent, AI Chat and AI
 Pet replace the previous OpenClaw labels in the device interface.
+The idle clock screen says READY and its audio meter remains static. REC or
+LISTEN and a live meter are reserved for actual microphone capture. The clock
+and pulse layout are unchanged. Serial diagnostics include uptime and the last
+reset reason to distinguish intentional resets from a runtime failure.
 
 Realtime remains experimental. Two small delivery corrections complete a
 rebuffered, drained speaker before the prebuffer gate and release terminal

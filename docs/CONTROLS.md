@@ -1,7 +1,7 @@
 # Everyday controls
 
 - Type a question and press Enter in chat.
-- Use the device talk control for push-to-talk: hold, speak, release.
+- Hold **G0**, speak, then release to send. **Ctrl+V** or double **Ctrl** toggles recording.
 - **Tab** opens the app menu from Home and the chat/eyes screens; arrows select, Enter opens.
 - **Ctrl+K** opens assistant commands. R selects Realtime, C AI Chat, E Chat Eyes, F Big Eyes.
 - **Ctrl+R** starts Realtime or commits the current speech turn. While awaiting a reply, it stops Realtime.
@@ -26,4 +26,7 @@ there is no topic browser or topic creation/switching.
 
 Device Settings → Clock format switches between 12h AM/PM (default) and 24h.
 Voice upload shows its percentage, then transcription and an accepted receipt.
-A pending agent request remains visible in AI Chat; its later reply opens the chat with a notification.
+A pending agent request remains visible. Its later reply appears in a notification
+sheet above Home: Enter opens AI Chat and Escape closes the sheet.
+The clock screen shows READY with a quiet, static meter when the microphone is
+off. REC and the live input meter appear only after recording starts.

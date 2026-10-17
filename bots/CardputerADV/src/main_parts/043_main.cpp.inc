@@ -639,6 +639,7 @@ bool runHostOtaApply(bool refreshManifest) {
 }
 
 void printHostDiag() {
+  logf("[DBG_BOOT] uptime_ms=%u reset_reason=%d", static_cast<unsigned>(millis()), static_cast<int>(esp_reset_reason()));
   logf("[DBG_VOICE] dial=%d speech=%d notice=%d pending=%d stack_free=%u", gVoiceDialBusy, gVoiceReplySpeechBusy, gVoiceNoticeVisible, gVoiceReplyPending, static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   updateBatterySnapshot(true);
   logf("[DBG] version=%s git=%s heap_free=%u heap_largest=%u wifi=%d ip=%s hub=%s:%u tls=%d setup=%d ap=%s rt_verify=%s rt_active=%d rt_connected=%d rt_recording=%d rt_awaiting=%d rt_hf=%d rt_restart=%d ota=%s/%s pending=%d applying=%d battery=%ld%% raw=%ld est=%d/%dmV/%ldmA/%s vbus=%dmV drain=%.2f%%h/%dmVh eta=%umin samples=%u loop_max=%u pump_input=%u/%u voice=%s http=%s key=%s",
