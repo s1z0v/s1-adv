@@ -1,4 +1,18 @@
 namespace {
+bool gVoiceWifiPerformance = false;
+wifi_ps_type_t gVoicePreviousWifiSleep = WIFI_PS_NONE;
+void beginVoiceWifiPerformance() {
+  if (!gVoiceWifiPerformance && esp_wifi_get_ps(&gVoicePreviousWifiSleep) == ESP_OK) {
+    gVoiceWifiPerformance = true;
+    esp_wifi_set_ps(WIFI_PS_NONE);
+  }
+}
+void endVoiceWifiPerformance() {
+  if (gVoiceWifiPerformance) {
+    esp_wifi_set_ps(gVoicePreviousWifiSleep);
+    gVoiceWifiPerformance = false;
+  }
+}
 void showVoiceNotice(const String& text, bool pending) {
   gVoiceNoticeText = cleanReplyForDevice(text);
   while (gVoiceNoticeText.length() > 1200) removeLastUtf8Char(gVoiceNoticeText);
@@ -146,6 +160,8 @@ void serviceVoiceReplySpeech() {
   if (completed) {
     std::unique_ptr<VoiceSpeechResult> result(completed);
     gVoiceReplySpeechBusy = false;
+    if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }
+    initSpeaker();
     const bool current = result->generation == gVoiceReplySpeechGeneration;
     const bool play = result->ok && current && !gRecording && !gRealtimeActive && !gPlaybackActive;
     bool started = play && startPlaybackStreamFromRawPcmFile(result->path, result->sampleRate, result->bytes, "voice reply");
@@ -154,8 +170,12 @@ void serviceVoiceReplySpeech() {
          static_cast<unsigned>(result->bytes), started, current);
     if (!started && current) setStatus("Reply text ready; voice unavailable", 2500);
   }
-  if (gVoiceSpeechAllocationFailed) { gVoiceSpeechAllocationFailed = false; gVoiceReplySpeechBusy = false; }
-  if (gQueuedVoiceReplySpeech.isEmpty() || gVoiceReplySpeechBusy || gInboxHttpBusy ||
+  if (gVoiceSpeechAllocationFailed) {
+    gVoiceSpeechAllocationFailed = false; gVoiceReplySpeechBusy = false;
+    if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }
+    initSpeaker();
+  }
+  if (gQueuedVoiceReplySpeech.isEmpty() || gVoiceReplySpeechBusy || gInboxHttpBusy || gVoiceDialBusy ||
       gSubmitting || gThinking || gRecording || gPlaybackActive || gRealtimeActive || gOtaApplyInProgress ||
       gTextTurnTaskHandle || !gPendingTextTurns.empty()) return;
   std::unique_ptr<VoiceSpeechPayload> payload(new (std::nothrow) VoiceSpeechPayload());
@@ -170,9 +190,87 @@ void serviceVoiceReplySpeech() {
   doc["device_id"] = gDeviceId; doc["text"] = gQueuedVoiceReplySpeech;
   serializeJson(doc, payload->body); gQueuedVoiceReplySpeech = "";
   gVoiceReplySpeechBusy = true;
+  M5Cardputer.Speaker.end();
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
+    gVoiceSpeechCanvasReleased = releaseUiCanvasForNetwork("speech memory");
   VoiceSpeechPayload* raw = payload.release();
   if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 12288, raw, 1, nullptr) != pdPASS) {
-    delete raw; gVoiceReplySpeechBusy = false; setStatus("Reply text ready; voice memory low", 2500);
+    delete raw; gVoiceReplySpeechBusy = false;
+    if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }
+    initSpeaker(); setStatus("Reply text ready; voice memory low", 2500);
   } else logf("[VOICE_TTS] background start generation=%u", static_cast<unsigned>(gVoiceReplySpeechGeneration));
+}
+struct VoiceDialPayload { String host; uint16_t port=443; bool tls=true; uint32_t generation=0; };
+struct VoiceDialResult { std::unique_ptr<WiFiClient> socket; uint32_t generation=0; };
+portMUX_TYPE gVoiceDialMux = portMUX_INITIALIZER_UNLOCKED;
+VoiceDialResult* gVoiceDialResult = nullptr;
+volatile bool gVoiceDialAllocationFailed = false;
+uint32_t gVoiceDialGeneration = 0;
+std::unique_ptr<WiFiClient> gVoiceReadySocket;
+
+VoiceDialResult* performVoicePreconnect(void* arg) {
+  std::unique_ptr<VoiceDialPayload> payload(static_cast<VoiceDialPayload*>(arg));
+  std::unique_ptr<VoiceDialResult> result(new (std::nothrow) VoiceDialResult());
+  if (!result) return nullptr;
+  result->generation = payload->generation;
+  if (payload->tls) {
+    std::unique_ptr<WiFiClientSecure> socket(new WiFiClientSecure());
+    socket->setCACert(kTlsRootCaPem); socket->setHandshakeTimeout(12);
+    socket->setTimeout((kTurnHttpTimeoutMs + 999) / 1000);
+    if (socket->connect(payload->host.c_str(), payload->port, 4000)) result->socket = std::move(socket);
+  } else {
+    std::unique_ptr<WiFiClient> socket(new WiFiClient());
+    socket->setTimeout((kTurnHttpTimeoutMs + 999) / 1000);
+    if (socket->connect(payload->host.c_str(), payload->port, 4000)) result->socket = std::move(socket);
+  }
+  if (result->socket) result->socket->setNoDelay(true);
+  return result.release();
+}
+void voicePreconnectTask(void* arg) {
+  VoiceDialResult* result = performVoicePreconnect(arg);
+  portENTER_CRITICAL(&gVoiceDialMux);
+  gVoiceDialResult = result; gVoiceDialAllocationFailed = result == nullptr;
+  portEXIT_CRITICAL(&gVoiceDialMux);
+  vTaskDelete(nullptr);
+}
+void cancelVoicePreconnect() {
+  ++gVoiceDialGeneration;
+  gVoiceReadySocket.reset();
+}
+void serviceVoicePreconnect() {
+  VoiceDialResult* completed = nullptr;
+  portENTER_CRITICAL(&gVoiceDialMux);
+  completed = gVoiceDialResult; gVoiceDialResult = nullptr;
+  portEXIT_CRITICAL(&gVoiceDialMux);
+  if (completed) {
+    std::unique_ptr<VoiceDialResult> result(completed);
+    gVoiceDialBusy = false;
+    const bool current = result->generation == gVoiceDialGeneration;
+    if (current) gVoiceReadySocket = std::move(result->socket);
+    logf("[VOICE] preconnect ready=%d current=%d", static_cast<int>(gVoiceReadySocket != nullptr), current);
+  }
+  if (gVoiceDialAllocationFailed) { gVoiceDialAllocationFailed = false; gVoiceDialBusy = false; }
+}
+void beginVoicePreconnect() {
+  serviceVoicePreconnect();
+  cancelVoicePreconnect();
+  if (gVoiceDialBusy || gVoiceReplySpeechBusy || gInboxHttpBusy || !gWifiReady || gHubHost.isEmpty() ||
+      heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000) return;
+  std::unique_ptr<VoiceDialPayload> payload(new (std::nothrow) VoiceDialPayload());
+  if (!payload) return;
+  payload->host = gHubHost; payload->port = gHubPort; payload->tls = hubUsesTls(); payload->generation = gVoiceDialGeneration;
+  gVoiceDialBusy = true;
+  VoiceDialPayload* raw = payload.release();
+  if (xTaskCreate(voicePreconnectTask, "voice-connect", 12288, raw, 1, nullptr) != pdPASS) { delete raw; gVoiceDialBusy = false; }
+}
+std::unique_ptr<WiFiClient> takeVoicePreconnect() {
+  const uint32_t started = millis();
+  while (gVoiceDialBusy && millis() - started < 17000U) {
+    serviceVoicePreconnect();
+    if (gVoiceDialBusy) pumpBlockingNetworkUi();
+  }
+  serviceVoicePreconnect();
+  if (gVoiceReadySocket && !gVoiceReadySocket->connected()) gVoiceReadySocket.reset();
+  return std::move(gVoiceReadySocket);
 }
 } // namespace

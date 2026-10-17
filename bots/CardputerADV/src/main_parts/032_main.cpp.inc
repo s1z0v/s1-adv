@@ -208,9 +208,9 @@ void startRealtimeMic() {
   M5Cardputer.Mic.begin();
 }
 
-void stopMic() {
+void stopMic(bool restartSpeaker = true) {
   M5Cardputer.Mic.end();
-  initSpeaker();
+  if (restartSpeaker) initSpeaker();
 }
 
 void flushCompletedRecordChunksToFile(size_t completedCount) {
@@ -244,7 +244,7 @@ bool queueRecordChunk(uint8_t chunkIndex) {
 }
 
 void serviceRecordingToFile(bool refill) {
-  if (!gRecording || !gRecordingToFile) {
+  if ((!gRecording && refill) || !gRecordingToFile) {
     return;
   }
   size_t micQueued = M5Cardputer.Mic.isRecording();

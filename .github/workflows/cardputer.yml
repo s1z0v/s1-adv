@@ -46,7 +46,6 @@ jobs:
       - run: python scripts/test_assistant_ui.py
       - run: python scripts/test_realtime_connection.py
       - run: python scripts/test_voice_delivery.py
-      - run: python scripts/test_voice_codec.py
       - run: python bots/CardputerADV/scripts/realtime_ui_smoke.py
       - run: python bots/CardputerADV/scripts/realtime_state_smoke.py
       - run: python scripts/test_nes.py

@@ -51,12 +51,17 @@ void startRecording() {
   }
   if (gRecordingToFile) {
     fs::FS* fs = activeVoiceFs();
-    fsRemove(*fs, kActiveRecordPcmPath);
-    gActiveRecordFile = fs->open(kActiveRecordPcmPath, "w");
+    gActiveRecordPath = voiceAudioPath(makeVoiceNoteId(false));
+    gActiveRecordFile = fs->open(gActiveRecordPath, "w");
+    if (gActiveRecordFile) {
+      uint8_t header[44]; writeWavHeader(header, 0, kMicSampleRate);
+      if (gActiveRecordFile.write(header, sizeof(header)) != sizeof(header)) {
+        gActiveRecordFile.close(); fsRemove(*fs, gActiveRecordPath);
+      }
+    }
     if (!gActiveRecordFile) {
       gRecordingToFile = false;
     } else {
-      gActiveRecordPath = kActiveRecordPcmPath;
       gActiveRecordBytes = 0;
       gActiveRecordCommittedBytes = 0;
       gActiveRecordExpectedBytes = 0;
@@ -78,7 +83,9 @@ void startRecording() {
     }
   }
 
+  beginVoiceWifiPerformance();
   startMic();
+  beginVoicePreconnect();
   if (gRecordingToFile) {
     serviceRecordingToFile();
     setVoiceDiag("voice: recording fs");

@@ -263,6 +263,8 @@ void cycleClockFace(int delta = 1) {
 }
 
 void cancelRecordingDiscard() {
+  cancelVoicePreconnect();
+  endVoiceWifiPerformance();
   if (!gRecording) {
     return;
   }

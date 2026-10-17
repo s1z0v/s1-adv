@@ -14,7 +14,7 @@
   pumpBlockingNetworkUi();
   if (gRecordingToFile) {
     setHttpDiag("voice_pcm: raw file " + String(static_cast<unsigned>(dataSize / 1024)) + "k");
-    transportOk = postRawVoiceTurn(nullptr, pcmUploadPath, dataSize, turnId, statusCode, response);
+    transportOk = postRawVoiceTurn(nullptr, pcmUploadPath, dataSize, turnId, statusCode, response, true);
   } else {
     setHttpDiag("voice_pcm: raw ram " + String(static_cast<unsigned>(dataSize / 1024)) + "k");
     transportOk = postRawVoiceTurn(reinterpret_cast<const uint8_t*>(gRecordBuffer), "", dataSize,
@@ -23,10 +23,7 @@
   gBlockingRenderPumpEnabled = prevRenderPump;
   finishVoiceTurn();
   if (gRecordingToFile) {
-    fs::FS* fs = activeVoiceFs();
-    if (fs) {
-      fsRemove(*fs, pcmUploadPath);
-    }
+    // Upload and voice-note history share this finalized WAV. Retain it.
     gRecordingToFile = false;
     gActiveRecordPath = "";
     gActiveRecordBytes = 0;
@@ -42,6 +39,7 @@
       transportError = statusCode <= 0 ? HTTPClient::errorToString(statusCode) : String("unknown");
     }
     pushError("Voice transport failed: " + transportError);
+    if (!pcmUploadPath.isEmpty()) pushSystem("Recording kept in Voice Notes.");
     setFaceMode(FaceMode::Error);
     setStatus("Voice transport failed", 2200);
     setVoiceDiag("voice: transport " + String(statusCode));

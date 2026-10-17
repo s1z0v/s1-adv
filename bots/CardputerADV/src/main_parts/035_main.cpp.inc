@@ -52,42 +52,8 @@ bool readHttpResponseBody(WiFiClient& client, int contentLength, String& respons
   return true;
 }
 
-struct EncodedVoiceFile {
-  fs::FS* fs = nullptr;
-  const char* path = "/voice/__voice_upload.wav";
-  ~EncodedVoiceFile() { if (fs) fsRemove(*fs, path); }
-};
-
-bool encodeVoiceUpload(const uint8_t* ram, const String& source, size_t bytes, EncodedVoiceFile& encoded) {
-  encoded.fs = activeVoiceFs();
-  if (!encoded.fs || !bytes || (bytes & 1) || kMicSampleRate != 24000) return false;
-  std::unique_ptr<uint8_t[]> work(new (std::nothrow) uint8_t[4096]);
-  if (!work) return false;
-  File input = source.isEmpty() ? File() : encoded.fs->open(source, "r");
-  if (!ram && !input) return false;
-  File output = encoded.fs->open(encoded.path, "w");
-  if (!output) return false;
-  const size_t samples = voice_upload::encodedBytes(bytes);
-  uint8_t header[voice_upload::headerBytes];
-  voice_upload::header(header, samples);
-  if (output.write(header, sizeof(header)) != sizeof(header)) return false;
-  size_t offset = 0;
-  while (offset < bytes) {
-    const size_t chunk = min<size_t>(3072, bytes - offset);
-    if (ram) memcpy(work.get(), ram + offset, chunk);
-    else if (input.read(work.get(), chunk) != chunk) return false;
-    const size_t size = voice_upload::encode(work.get(), chunk, work.get() + 3072);
-    if (output.write(work.get() + 3072, size) != size) return false;
-    offset += chunk;
-    yield();
-  }
-  if ((samples & 1) && output.write(static_cast<uint8_t>(0)) != 1) return false;
-  output.close();
-  return true;
-}
-
 bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t dataSize,
-                      const String& turnId, int& statusCode, String& response) {
+                      const String& turnId, int& statusCode, String& response, bool wavFile = false) {
   statusCode = -1;
   response = "";
   if (dataSize == 0 || (!ramPayload && filePath.isEmpty())) {
@@ -99,22 +65,27 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     return false;
   }
 
-  EncodedVoiceFile encoded;
-  const uint32_t encodeStartedMs = millis();
-  setStatus("Preparing voice...");
-  render();
-  const bool compressed = encodeVoiceUpload(ramPayload, filePath, dataSize, encoded);
-  const size_t uploadBytes = compressed ? voice_upload::headerBytes + voice_upload::encodedBytes(dataSize) +
-                                         (voice_upload::encodedBytes(dataSize) & 1) : dataSize;
-  logf("[VOICE] encode codec=%s source=%u upload=%u ms=%u", compressed ? "mulaw16" : "pcm24",
-       static_cast<unsigned>(dataSize), static_cast<unsigned>(uploadBytes), static_cast<unsigned>(millis() - encodeStartedMs));
+  if (gVoiceReplySpeechBusy) { setHttpDiag("voice_post: reply audio busy"); return false; }
+  const size_t uploadBytes = dataSize + (wavFile ? 44U : 0U);
+  logf("[VOICE] upload codec=pcm16 sample=%u bytes=%u same_file=%d", kMicSampleRate,
+       static_cast<unsigned>(uploadBytes), wavFile);
   setStatus("Connecting voice...");
   render();
 
+  struct CanvasGuard {
+    bool released = false;
+    ~CanvasGuard() { if (released) restoreUiCanvasAfterNetwork(); }
+  } canvas;
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
+    canvas.released = releaseUiCanvasForNetwork("voice memory");
   WiFiClient plainClient;
   WiFiClientSecure secureClient;
+  std::unique_ptr<WiFiClient> prepared = takeVoicePreconnect();
+  if (gVoiceDialBusy) { setHttpDiag("voice_post: connection still preparing"); return false; }
   WiFiClient* client = nullptr;
-  if (hubUsesTls()) {
+  if (prepared) {
+    client = prepared.get();
+  } else if (hubUsesTls()) {
     configureSecureClient(secureClient);
     secureClient.setTimeout((kTurnHttpTimeoutMs + 999) / 1000);
     client = &secureClient;
@@ -133,7 +104,8 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     logf("[VOICE] raw post tls_verify=%s", tlsVerifyMode());
   }
   setHttpDiag("voice_post: connect");
-  if (!client->connect(gHubHost.c_str(), gHubPort)) {
+  const uint32_t connectStartedMs = millis();
+  if (!client->connected() && !client->connect(gHubHost.c_str(), gHubPort)) {
     setHttpDiag("voice_post: connect failed largest=" +
                 String(static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))));
     logf("[VOICE] raw post connect failed host=%s port=%u free=%u largest=%u",
@@ -143,6 +115,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     return false;
   }
+  logf("[VOICE] connected reused=%d ms=%u", static_cast<int>(prepared != nullptr), static_cast<unsigned>(millis() - connectStartedMs));
 
   String hostHeader = gHubHost;
   client->setNoDelay(true); // The connected socket must exist before TCP_NODELAY is set.
@@ -159,11 +132,11 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   headers += "\r\nUser-Agent: S1-ADV/";
   headers += kAppVersion;
   headers += "\r\nConnection: close\r\nContent-Type: ";
-  headers += compressed ? "audio/wav" : "application/octet-stream";
+  headers += wavFile ? "audio/wav" : "application/octet-stream";
   headers += "\r\nContent-Length: ";
   headers += String(static_cast<unsigned>(uploadBytes));
   headers += "\r\nX-Audio-Sample-Rate: ";
-  headers += String(compressed ? voice_upload::sampleRate : kMicSampleRate);
+  headers += String(kMicSampleRate);
   headers += "\r\nX-Device-Id: ";
   headers += gDeviceId;
   headers += "\r\nX-Firmware-Version: ";
@@ -190,9 +163,9 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   }
 
   bool payloadOk = false;
-  if (compressed || !filePath.isEmpty()) {
+  if (!filePath.isEmpty()) {
     fs::FS* fs = activeVoiceFs();
-    File pcmFile = fs ? fs->open(compressed ? String(encoded.path) : filePath, "r") : File();
+    File pcmFile = fs ? fs->open(filePath, "r") : File();
     if (!pcmFile) {
       setHttpDiag("voice_body: file open failed");
       client->stop();

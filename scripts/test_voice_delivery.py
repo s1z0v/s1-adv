@@ -126,3 +126,42 @@ for forbidden in ['setUiMode(', 'setStatus(', 'render(', 'gCanvas', 'logf(', 'vT
 escape=function('047_main.cpp.inc','bool handleGlobalEscape()')
 assert escape.index('gVoiceNoticeVisible') < escape.index('setUiMode(UiMode::Home)')
 print('PASS actual notice Enter/open and dismiss/cancel; background speech has no UI mutations')
+
+record=r'''
+#include <cassert>
+#include <cstdint>
+#include <cstring>
+#include <deque>
+#include <memory>
+bool gRecording=false,gRecordingToFile=true;std::deque<uint8_t> gRecordInflightChunks={0,1};
+int flushed=0,queued=0;uint8_t gRecordNextChunkIndex=0;constexpr int kRecordChunkBufferCount=3;
+struct {struct {int isRecording(){return 0;}} Mic;} M5Cardputer;
+void flushCompletedRecordChunksToFile(size_t n){flushed+=n;while(n--&&!gRecordInflightChunks.empty())gRecordInflightChunks.pop_front();}
+bool queueRecordChunk(uint8_t){++queued;return true;}
+'''
+record+='\n'+function('032_main.cpp.inc','void serviceRecordingToFile(')
+record+='\n'+function('033_main.cpp.inc','void writeWavHeader(')
+record+=r'''
+uint32_t le(const uint8_t* p){return uint32_t(p[0])|(uint32_t(p[1])<<8)|(uint32_t(p[2])<<16)|(uint32_t(p[3])<<24);}
+int main(){
+ serviceRecordingToFile(false);assert(flushed==2&&queued==0&&gRecordInflightChunks.empty());
+ gRecordInflightChunks={0,1};serviceRecordingToFile(true);assert(flushed==2&&queued==0);
+ gRecording=true;serviceRecordingToFile(true);assert(flushed==4&&queued==2&&gRecordInflightChunks.size()==2);
+ uint8_t h[44];writeWavHeader(h,32000,16000);
+ assert(!memcmp(h,"RIFF",4)&&!memcmp(h+8,"WAVE",4)&&le(h+4)==32036&&le(h+40)==32000);
+ assert(le(h+24)==16000&&le(h+28)==32000&&h[22]==1&&h[34]==16);
+}
+'''
+with tempfile.TemporaryDirectory(prefix='s1-record-') as d:
+ p=Path(d);(p/'test.cpp').write_text(record)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
+ subprocess.run([str(p/'test')],check=True)
+source=(parts/'038_main.cpp.inc').read_text()
+assert 'rememberVoiceNoteFromPcmFile' not in source and 'registerDownloadedVoiceNote(pcmUploadPath' in source
+assert 'fsRemove' not in (parts/'039_main.cpp.inc').read_text().split('if (!transportOk')[0]
+assert 'constexpr uint32_t kMicSampleRate = 16000' in (parts/'001_main.cpp.inc').read_text()
+assert 'CompressedVoiceUpload' not in voice and 'encodeVoiceUpload' not in voice
+for name in ['VoiceDialResult* performVoicePreconnect(']:
+ worker=function('065_main.cpp.inc',name)
+ for forbidden in ['setUiMode(', 'setStatus(', 'render(', 'gCanvas', 'logf(', 'vTaskDelete(']: assert forbidden not in worker
+print('PASS actual stopped-mic tail drain and WAV header; one saved file; direct PCM16 upload; connection-worker ownership')

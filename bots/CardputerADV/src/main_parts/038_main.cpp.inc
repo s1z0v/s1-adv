@@ -106,17 +106,28 @@ bool stopRecordingAndSend() {
            static_cast<unsigned>(queuedBeforeStop),
            static_cast<unsigned>(gRecordInflightChunks.size()));
     }
-    stopMic();
+    stopMic(false);
     gRecordInflightChunks.clear();
     if (gActiveRecordFile) {
+      const size_t fileBytes = gActiveRecordFile.size();
+      uint8_t header[44];
+      writeWavHeader(header, fileBytes >= 44 ? fileBytes - 44 : 0, kMicSampleRate);
+      const bool finalized = fileBytes >= 44 && gActiveRecordFile.seek(0) &&
+                             gActiveRecordFile.write(header, sizeof(header)) == sizeof(header);
       gActiveRecordFile.flush();
       gActiveRecordFile.close();
+      if (!finalized) {
+        cancelVoicePreconnect(); endVoiceWifiPerformance(); initSpeaker();
+        gRecordingToFile = false;
+        pushError("Voice WAV finalization failed; recording retained on SD.");
+        setStatus("Record storage failed", 2200); return false;
+      }
     }
     fs::FS* fs = activeVoiceFs();
     if (fs && !gActiveRecordPath.isEmpty() && fsExists(*fs, gActiveRecordPath)) {
       File verifyFile = fs->open(gActiveRecordPath, "r");
       if (verifyFile) {
-        size_t actualBytes = verifyFile.size();
+        size_t actualBytes = verifyFile.size() >= 44 ? verifyFile.size() - 44 : 0;
         verifyFile.close();
         if (actualBytes != gActiveRecordBytes) {
           appendRuntimeLog("VOICE", "record size adjusted counter=" +
@@ -138,7 +149,7 @@ bool stopRecordingAndSend() {
     if (gRecordedSamples > gRecordCapacitySamples) {
       gRecordedSamples = gRecordCapacitySamples;
     }
-    stopMic();
+    stopMic(false);
     dataSize = static_cast<uint32_t>(gRecordedSamples * sizeof(int16_t));
   }
 
@@ -147,6 +158,7 @@ bool stopRecordingAndSend() {
        gRecordingToFile ? "file" : "ram");
 
   if (elapsed < kMinRecordSeconds || gRecordedSamples == 0) {
+    cancelVoicePreconnect(); endVoiceWifiPerformance(); initSpeaker();
     setFaceMode(FaceMode::Idle);
     setStatus("Voice turn canceled", 1200);
     logf("[VOICE] canceled: too short");
@@ -168,21 +180,19 @@ bool stopRecordingAndSend() {
     return false;
   }
 
+  if (gRecordingToFile) {
+    registerDownloadedVoiceNote(pcmUploadPath, makeVoiceNoteTitle(false, dataSize, kMicSampleRate), "Outbound voice note", false);
+  }
   gWifiReady = WiFi.status() == WL_CONNECTED;
   if (!gWifiReady) {
+    cancelVoicePreconnect(); endVoiceWifiPerformance(); initSpeaker();
     pushError("Wi-Fi dropped during recording.");
     setFaceMode(FaceMode::Error);
     setStatus("Wi-Fi lost", 2000);
     setVoiceDiag("voice: wifi lost");
     logf("[VOICE] wifi lost before upload");
     if (gRecordingToFile) {
-      fs::FS* fs = activeVoiceFs();
-      if (!pcmUploadPath.isEmpty()) {
-        rememberVoiceNoteFromPcmFile("My voice", "Outbound voice note", pcmUploadPath, dataSize, kMicSampleRate, false);
-        if (fs) {
-          fsRemove(*fs, pcmUploadPath);
-        }
-      }
+      // The original WAV remains saved for replay or retry.
       gRecordingToFile = false;
       gActiveRecordPath = "";
       gActiveRecordBytes = 0;
@@ -205,12 +215,12 @@ bool stopRecordingAndSend() {
   auto finishVoiceTurn = [&]() {
     gSubmitting = false;
     gThinking = false;
+    endVoiceWifiPerformance();
+    initSpeaker();
     resumeHubWebSocketAfterVoice();
   };
 
-  if (gRecordingToFile) {
-    rememberVoiceNoteFromPcmFile("My voice", "Outbound voice note", pcmUploadPath, dataSize, kMicSampleRate, false);
-  } else {
+  if (!gRecordingToFile) {
     uint8_t wavHeader[44];
     writeWavHeader(wavHeader, dataSize, kMicSampleRate);
     rememberVoiceNote("My voice", "Outbound voice note", wavHeader, sizeof(wavHeader),

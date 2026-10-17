@@ -42,7 +42,6 @@
 #include "transport_security.h"
 #include "realtime_socket.h"
 #include "clock_display.h"
-#include "voice_upload_codec.h"
 
 extern "C" {
 #include "libb64/cdecode.h"
@@ -65,7 +64,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.150-dev"
+#define APP_VERSION "0.2.151-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -165,7 +164,7 @@ constexpr bool kUseHubWebSocket = false;
 constexpr size_t kMaxChatLines = 24;
 constexpr size_t kMaxInputChars = 180;
 constexpr size_t kWrapColumns = 34;
-constexpr uint32_t kMicSampleRate = 24000;
+constexpr uint32_t kMicSampleRate = 16000;
 constexpr uint32_t kTtsDefaultSampleRate = 12000;
 constexpr float kMaxRecordSeconds = 600.0f;
 constexpr float kMaxTtsSeconds = 14.0f;
@@ -295,7 +294,6 @@ constexpr const char* kPomodoroAudioLanguages[] = {"ru", "en", "es"};
 constexpr const char* kPomodoroAudioCues[] = {"start", "break", "reflection"};
 constexpr size_t kPomodoroAudioLanguageCount = sizeof(kPomodoroAudioLanguages) / sizeof(kPomodoroAudioLanguages[0]);
 constexpr size_t kPomodoroAudioCueCount = sizeof(kPomodoroAudioCues) / sizeof(kPomodoroAudioCues[0]);
-constexpr const char* kActiveRecordPcmPath = "/voice/__active_record.pcm";
 constexpr const char* kActiveTtsPcmPath = "/voice/__active_tts.pcm";
 constexpr uint8_t kSdSckPin = 40;
 constexpr uint8_t kSdMisoPin = 39;

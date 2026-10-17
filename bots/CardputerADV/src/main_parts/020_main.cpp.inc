@@ -214,7 +214,7 @@ bool autoInboxPollAllowed() {
                    gUiMode == UiMode::ChatFull || gUiMode == UiMode::Ota;
   return gWifiReady && !gHubHost.isEmpty() && !gOtaApplyInProgress && !gTransferUiActive &&
          passiveUi && !gLauncherVisible &&
-         !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy &&
+         !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy && !gVoiceDialBusy &&
          !gRealtimeDialBusy && !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
          gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty() &&
@@ -273,11 +273,17 @@ void serviceInboxNetworkCompletion() {
   gInboxHttpResult = nullptr;
   portEXIT_CRITICAL(&gInboxHttpMux);
   if (!completed) {
-    if(gInboxAllocationFailed) { gInboxAllocationFailed=false; gInboxHttpBusy=false; gInboxRetryAfterMs=millis()+10000; }
+    if(gInboxAllocationFailed) {
+      gInboxAllocationFailed=false; gInboxHttpBusy=false; gInboxRetryAfterMs=millis()+10000;
+      if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased=false; }
+      initSpeaker();
+    }
     return;
   }
   std::unique_ptr<InboxHttpResult> result(completed);
   gInboxHttpBusy = false;
+  if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
+  initSpeaker();
   if (result->code < 200 || result->code >= 300) {
     gInboxRetryAfterMs=millis()+4000;
     logf("[INBOX] background HTTP %d",result->code);
@@ -306,14 +312,20 @@ void serviceAutoInboxPoll() {
   } else {
     payload->url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=2&text_chars=1024&sender_kind=assistant&firmware_version=" + String(kAppVersion) + "&firmware_git=" + String(kBuildGitSha);
   }
-  // Memory housekeeping belongs to loopTask and must retain the visible canvas.
+  // Only loopTask manages display/audio memory. A low-memory fallback keeps
+  // the last frame visible until the worker returns and restores the canvas.
   prepareNetworkMemory("inbox", false);
+  M5Cardputer.Speaker.end();
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
+    gInboxCanvasReleased = releaseUiCanvasForNetwork("inbox memory");
   gLastInboxAutoPollMs = now;
   gInboxHttpBusy = true;
   InboxHttpPayload* raw = payload.release();
   if (xTaskCreate(inboxHttpTask, "inbox-http", 8192, raw, 1, nullptr) != pdPASS) {
     delete raw;
     gInboxHttpBusy = false;
+    if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
+    initSpeaker();
   }
 }
 

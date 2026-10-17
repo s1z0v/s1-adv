@@ -173,7 +173,7 @@ void renderRealtimeEyesUi() {
 }
 
 void servicePendingRealtimeStart() {
-  if (!gPendingRealtimeStart || gInboxHttpBusy || gRealtimeDialBusy || gTextTurnTaskHandle || gCompletedTextTurn ||
+  if (!gPendingRealtimeStart || gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy || gRealtimeDialBusy || gTextTurnTaskHandle || gCompletedTextTurn ||
       gSubmitting || !gPendingTextTurns.empty()) return;
   gPendingRealtimeStart = false;
   if (isAssistantUi()) startRealtimeSession(gPendingRealtimeAutoStart);

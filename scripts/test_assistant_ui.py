@@ -33,6 +33,7 @@ void* gTextTurnTaskHandle=nullptr;
 void* gCompletedTextTurn=nullptr;
 bool gRealtimeDialBusy=false;
 bool gInboxHttpBusy=false,gPendingRealtimeStart=false,gPendingRealtimeAutoStart=false;
+bool gVoiceDialBusy=false,gVoiceReplySpeechBusy=false;
 bool gChatCommandsVisible=false,gLauncherVisible=false,gRealtimeActive=false,gRealtimeExclusiveMode=false;
 bool gRealtimeScreenVisible=false,gRealtimeConnected=false,gRealtimeRecording=false;
 bool gRecording=false;

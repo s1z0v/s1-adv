@@ -322,6 +322,7 @@ void loop() {
     return;
   }
   serviceInboxNetworkCompletion();
+  serviceVoicePreconnect();
   serviceVoiceReplySpeech();
   servicePendingRealtimeStart();
   if (gUiMode == UiMode::Nes) { serviceNesApp(); delay(1); return; }
@@ -427,4 +428,5 @@ void loop() {
          static_cast<int>(gRealtimeActive),
          static_cast<int>(gRealtimeAwaiting));
   }
+  delay(1); // Let idle tasks reclaim finished network-worker resources.
 }
