@@ -1,9 +1,14 @@
 # Firmware source continuity
 
-The current public source is `0.2.147-security.1`: the procedural eye skins
-from the previously served `0.2.147-dev`, combined with the public transport,
-provisioning and OTA security fixes. This source update does not install a
-firmware image or establish hardware acceptance.
+The current public source is `0.2.151-dev`. Ordinary voice records one 16 kHz
+mono WAV that is both retained in history and uploaded, with an early verified
+TLS connection and visible reply notifications. See the current
+[release notes](RELEASE-0.2.151.md). Building or publishing alone does not
+establish installation or acceptance on hardware.
+
+The recovery below documents how the earlier `0.2.147-security.1` baseline
+combined the procedural eye skins with public transport, provisioning and OTA
+security fixes.
 
 The original `0.2.147-dev` was built from an uncommitted working copy based on
 the older `0.2.146-dev` source. Its source archive was recovered from the private

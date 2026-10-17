@@ -2,8 +2,8 @@
 from pathlib import Path
 p=Path(__file__).resolve().parents[1]/'src'/'main_parts'
 part=lambda n:(p/f'{n:03}_main.cpp.inc').read_text()
-assert 'kMicSampleRate = 24000' in part(1)
-assert 'kRecordChunkSamples = 1024' in part(1)  # 42.7ms, same fixed RAM
+assert 'kMicSampleRate = 16000' in part(1)
+assert 'kRecordChunkSamples = 1024' in part(1)  # 64ms at 16kHz; same fixed RAM
 assert 'kRealtimeInputSampleRate = 24000' in part(1)
 assert 'kRealtimePlaybackPrebufferBytes = 4 * 1024' in part(1)
 assert part(17).index('apply blocked before reboot') < part(17).index('requestOtaApplyBootMode(')
