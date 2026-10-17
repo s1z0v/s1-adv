@@ -617,7 +617,8 @@ void serviceDeferredBoot() {
         maybeSyncPomodoroMeditationAssetsOnBoot();
       }
       if (gDeviceSettings.autoUpdateFirmware && gOtaManifest.parsed &&
-          !gOtaManifest.url.isEmpty() && gOtaManifest.version != kAppVersion) {
+          !gOtaManifest.url.isEmpty() &&
+          release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion)) {
         applyOtaFromManifest();
       }
       gBootBackgroundStep = 10;

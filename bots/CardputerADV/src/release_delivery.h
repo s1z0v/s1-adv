@@ -4,6 +4,26 @@
 #include <math.h>
 
 namespace release_delivery {
+inline bool versionCore(const char* text, uint32_t (&out)[3]) {
+  if (!text) return false;
+  for (unsigned i=0;i<3;++i) {
+    if (*text<'0' || *text>'9') return false;
+    out[i]=0;
+    while (*text>='0' && *text<='9') {
+      const unsigned digit=static_cast<unsigned>(*text++-'0');
+      if (out[i]>(UINT32_MAX-digit)/10) return false;
+      out[i]=out[i]*10+digit;
+    }
+    if (i<2) { if (*text++!='.') return false; }
+  }
+  return *text=='\0' || ((*text=='-' || *text=='+') && text[1]!='\0');
+}
+inline bool isNewerVersion(const char* candidate, const char* current) {
+  uint32_t next[3],now[3];
+  if (!versionCore(candidate,next) || !versionCore(current,now)) return false;
+  for (unsigned i=0;i<3;++i) if (next[i]!=now[i]) return next[i]>now[i];
+  return false;
+}
 inline bool otaPowerAllowed(int level, bool external, unsigned minimum) {
   return external || (level >= 0 && static_cast<unsigned>(level) >= minimum);
 }

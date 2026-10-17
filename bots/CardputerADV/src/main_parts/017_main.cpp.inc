@@ -139,6 +139,12 @@ bool applyOtaFromManifest() {
   };
 
   if (!gOtaBootApplyMode) {
+    if (gOtaManifest.parsed &&
+        !release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion)) {
+      gOtaApplyInProgress=false;
+      setStatus("No newer firmware",1800);
+      return false;
+    }
     // Check power BEFORE setting the persistent clean-updater boot request.
     // Recheck below after the fresh manifest too; this never bypasses its limit.
     updateBatterySnapshot(true);
@@ -169,8 +175,8 @@ bool applyOtaFromManifest() {
   if (!fetchRemoteOtaManifest()) {
     return fail("manifest refresh failed");
   }
-  if (gOtaManifest.version == kAppVersion) {
-    return fail("already current " + String(kAppVersion));
+  if (!release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion)) {
+    return fail("no newer version than " + String(kAppVersion));
   }
   if (!gOtaManifest.parsed || gOtaManifest.url.isEmpty() || gOtaManifest.sha256.isEmpty()) {
     return fail("manifest incomplete");

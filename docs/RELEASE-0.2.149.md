@@ -9,6 +9,10 @@ READY and ERROR states. The microphone label and input meter reflect recording;
 the last transcript/reply and persistent error reason use a separate status line.
 A pending Realtime start prevents a new background inbox request from overtaking it.
 
+OTA accepts a strictly newer numeric version. A stale manifest cannot downgrade
+a USB-flashed build. A clean updater that skips or fails an update now starts
+the normal keyboard and apps instead of leaving a partial updater session.
+
 The on-device topic browser, topic creation, switching, keyboard shortcuts,
 saved selection and topic actions have been removed. One configured conversation
 still uses the bridge protocol's routing key. Existing bridge history endpoints

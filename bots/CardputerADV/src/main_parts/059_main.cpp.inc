@@ -252,7 +252,7 @@
   }
   renderAssistantPulseChatHint();
   // Persistent, quiet indicators; status toasts may expire independently.
-  if (gOtaManifest.parsed && gOtaManifest.version != kAppVersion) {
+  if (gOtaManifest.parsed && release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion)) {
     d.fillCircle(228, 9, 3, green);
   }
   if (gInboxUnread || gVoiceReplyPending) {

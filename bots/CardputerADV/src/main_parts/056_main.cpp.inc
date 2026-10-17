@@ -173,7 +173,7 @@ void renderOtaUi() {
   }
   auto& d = gCanvas;
   const bool hasCandidate = gOtaManifest.parsed && !gOtaManifest.version.isEmpty();
-  const bool updateReady = hasCandidate && gOtaManifest.version != kAppVersion;
+  const bool updateReady = hasCandidate && release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion);
   const uint16_t bg = rgb565_local(3, 5, 10);
   const uint16_t panel = rgb565_local(12, 12, 20);
   const uint16_t panel2 = rgb565_local(25, 16, 24);

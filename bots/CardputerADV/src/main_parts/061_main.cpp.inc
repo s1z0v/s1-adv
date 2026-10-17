@@ -244,8 +244,22 @@ void setup() {
       clearOtaApplyBootRequest();
       setStatus("OTA Wi-Fi failed", 2200);
     }
-    render();
-    return;
+    // A skipped or failed clean updater must still start the normal keyboard
+    // and apps. Successful flashing reboots inside applyOtaFromManifest().
+    clearOtaApplyBootRequest();
+    gOtaBootApplyMode=false;
+    gOtaApplyInProgress=false;
+    gTransferUiActive=false;
+    restoreUiCanvasAfterNetwork();
+    initSpeaker();
+    applySpeakerVolumeSetting();
+    randomSeed(micros());
+    scheduleBlink();
+    gImuEnabled=M5.Imu.isEnabled();
+    setupKeyboardInput();
+    gTimeValid=hasValidSystemTime();
+    setUiMode(UiMode::Home);
+    setStatus("Update skipped. Ready",2200);
   }
 
   loadPetState();

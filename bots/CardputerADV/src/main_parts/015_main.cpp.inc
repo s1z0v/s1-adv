@@ -249,7 +249,8 @@ bool fetchRemoteOtaManifest() {
   loadOtaManifestSummary();
   appendRuntimeLog("OTA", "fetch ok bytes=" + String(body.length()), true);
   if (gDeviceSettings.beepOnUpdate && gOtaManifest.parsed && !gOtaManifest.version.isEmpty() &&
-      gOtaManifest.version != kAppVersion && gOtaManifest.version != gOtaNotifiedVersion) {
+      release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion) &&
+      gOtaManifest.version != gOtaNotifiedVersion) {
     if (!gRecording && !gPlaybackActive && !gRealtimeActive && !M5Cardputer.Speaker.isPlaying()) {
       release_delivery::makeUpdateChime(gUpdateChime);
       M5Cardputer.Speaker.playRaw(gUpdateChime, release_delivery::kChimeSamples,

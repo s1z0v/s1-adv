@@ -5,6 +5,14 @@
 #include <algorithm>
 #include <initializer_list>
 int main() {
+  assert(release_delivery::isNewerVersion("0.2.149-dev","0.2.148-dev"));
+  assert(!release_delivery::isNewerVersion("0.2.148-dev","0.2.149-dev"));
+  assert(!release_delivery::isNewerVersion("0.2.149-dev","0.2.149-dev"));
+  assert(!release_delivery::isNewerVersion("0.2.149-security.1","0.2.149-dev"));
+  assert(release_delivery::isNewerVersion("0.3.0-dev","0.2.999-dev"));
+  assert(release_delivery::isNewerVersion("1.0.0","0.99.999"));
+  for(const char* bad:{"", "latest", "0.2", "0.2.150garbage", "0.2.150-", "4294967296.0.0"})
+    assert(!release_delivery::isNewerVersion(bad,"0.2.149-dev"));
   unsigned tests=0;
   for(int level=-1;level<=100;++level) for(unsigned min=5;min<=95;++min) for(bool ext:{false,true}) {
     assert(release_delivery::otaPowerAllowed(level,ext,min)==(ext || level>=static_cast<int>(min)));++tests;

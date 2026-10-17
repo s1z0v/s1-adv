@@ -41,6 +41,7 @@ jobs:
       - run: g++ -std=c++17 -Wall -Wextra -pedantic bots/CardputerADV/tests/transport_security_test.cpp -o /tmp/transport-security-test && /tmp/transport-security-test
       - run: python bots/CardputerADV/scripts/ui_feature_smoke.py
       - run: python bots/CardputerADV/scripts/release_delivery_smoke.py
+      - run: g++ -std=c++17 -Wall -Wextra -pedantic bots/CardputerADV/tests/release_delivery_test.cpp -o /tmp/release-delivery-test && /tmp/release-delivery-test
       - run: node bots/CardputerADV/tests/render_eye_skins.mjs /tmp/cardputer-eye-skins
       - run: python scripts/test_assistant_ui.py
       - run: python bots/CardputerADV/scripts/realtime_ui_smoke.py
