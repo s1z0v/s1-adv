@@ -13,7 +13,8 @@ pending reply or advance the device's inbox cursor.
 
 Device Settings → Clock format selects 12h AM/PM or 24h. AM/PM is the default
 for installations without a saved choice; midnight and noon use 12 AM and
-12 PM. The large home digits retain their font, with a separate period label.
+12 PM. The large home digits retain their font and display only the time, with
+no AM/PM indicator on the home screen.
 Screensaver clock chips follow the selected format. AI Agent, AI Chat and AI
 Pet replace the previous OpenClaw labels in the device interface.
 
