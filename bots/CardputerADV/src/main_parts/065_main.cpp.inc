@@ -194,7 +194,7 @@ void serviceVoiceReplySpeech() {
   gVoiceReplySpeechBusy = true;
   clearEmojiCache();
   M5Cardputer.Speaker.end();
-  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
+  if ((ESP.getFreeHeap() < 80000 || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 20000))
     gVoiceSpeechCanvasReleased = releaseUiCanvasForNetwork("speech memory");
   VoiceSpeechPayload* raw = payload.release();
   if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 12288, raw, 1, nullptr) != pdPASS) {
@@ -259,7 +259,7 @@ void beginVoicePreconnect() {
   serviceVoicePreconnect();
   cancelVoicePreconnect();
   if (gVoiceDialBusy || gVoiceReplySpeechBusy || gInboxHttpBusy || !gWifiReady || gHubHost.isEmpty() ||
-      heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000) return;
+      (ESP.getFreeHeap() < 80000 || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 20000)) return;
   std::unique_ptr<VoiceDialPayload> payload(new (std::nothrow) VoiceDialPayload());
   if (!payload) return;
   payload->host = gHubHost; payload->port = gHubPort; payload->tls = hubUsesTls(); payload->generation = gVoiceDialGeneration;

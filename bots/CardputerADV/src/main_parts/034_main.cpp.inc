@@ -69,6 +69,7 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
   std::unique_ptr<uint8_t[]> stage(new (std::nothrow) uint8_t[kHttpStageChunkBytes]);
   if (!stage) { setHttpDiag(String(label) + ": no staging memory"); return false; }
   size_t written = 0;
+  uint32_t readMs = 0, writeMs = 0, uiMs = 0;
   unsigned long deadline = millis() + 90000;
   unsigned long lastProgress = millis();
 
@@ -85,7 +86,9 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
     if (chunk > kHttpStageChunkBytes) {
       chunk = kHttpStageChunkBytes;
     }
+    uint32_t phaseMs = millis();
     size_t readBytes = file.read(stage.get(), chunk);
+    readMs += millis() - phaseMs;
     if (readBytes == 0) {
       break;
     }
@@ -99,7 +102,9 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
         setHttpDiag(String(label) + ": disconnected");
         return false;
       }
+      phaseMs = millis();
       size_t sent = client.write(stage.get() + sentFromStage, readBytes - sentFromStage);
+      writeMs += millis() - phaseMs;
       if (sent == 0) {
         if (millis() - lastProgress > 5000) {
           setHttpDiag(String(label) + ": stalled");
@@ -117,7 +122,9 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
         setHttpDiag(String(label) + ": " + String(static_cast<unsigned>(written / 1024)) + "k/" +
                     String(static_cast<unsigned>(length / 1024)) + "k");
       }
+      phaseMs = millis();
       pumpBlockingNetworkUi();
+      uiMs += millis() - phaseMs;
     }
   }
 
@@ -126,6 +133,7 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
                 String(static_cast<unsigned>(length)));
     return false;
   }
+  logf("[VOICE_TIMING] bytes=%u sd_ms=%u socket_ms=%u ui_ms=%u", static_cast<unsigned>(length), readMs, writeMs, uiMs);
   setHttpDiag(String(label) + ": ok " + String(static_cast<unsigned>(length / 1024)) + "k");
   return true;
 }

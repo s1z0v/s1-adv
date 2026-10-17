@@ -81,7 +81,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     ~CanvasGuard() { if (released) restoreUiCanvasAfterNetwork(); }
   } canvas;
   clearEmojiCache();
-  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
+  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 24000)
     canvas.released = releaseUiCanvasForNetwork("voice memory");
   WiFiClient plainClient;
   WiFiClientSecure secureClient;

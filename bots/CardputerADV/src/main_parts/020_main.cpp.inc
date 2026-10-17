@@ -317,7 +317,7 @@ void serviceAutoInboxPoll() {
   prepareNetworkMemory("inbox", false);
   clearEmojiCache();
   M5Cardputer.Speaker.end();
-  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
+  if ((ESP.getFreeHeap() < 80000 || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 20000))
     gInboxCanvasReleased = releaseUiCanvasForNetwork("inbox memory");
   gLastInboxAutoPollMs = now;
   gInboxHttpBusy = true;
