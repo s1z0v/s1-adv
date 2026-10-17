@@ -1,6 +1,6 @@
 # 0.2.150-dev
 
-Voice uploads use 4 KiB staged writes and enable TCP_NODELAY on the connected
+Voice uploads use 16 KiB staged writes in a heap-owned buffer and enable TCP_NODELAY on the connected
 TLS socket. Upload progress, transcription and agent processing have separate
 labels. The bridge accepts a bounded request wait budget, so firmware can obtain
 a pending receipt after one second instead of keeping the upload screen open

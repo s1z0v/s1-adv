@@ -293,7 +293,7 @@ bool playVoiceSmokeResponse(const String& response, const char* logPrefix) {
   return true;
 }
 
-bool runVoiceSmokeFromDevice() {
+bool runVoiceSmokeFromDevice(uint8_t seconds = 2) {
   if (gRecording || gSubmitting || gThinking || gRealtimeRecording) {
     logf("[SMOKE] voice busy rec=%d submit=%d think=%d rt_rec=%d",
          static_cast<int>(gRecording),
@@ -316,7 +316,7 @@ bool runVoiceSmokeFromDevice() {
     return false;
   }
   const String path = "/voice/__smoke_voice.pcm";
-  const size_t samples = kMicSampleRate * 2;
+  const size_t samples = kMicSampleRate * seconds;
   const size_t bytes = samples * sizeof(int16_t);
   fsRemove(*fs, path);
   if (!writeVoiceSmokePcm(*fs, path, samples)) {
@@ -793,6 +793,10 @@ bool handleHostSerialCommand(String line) {
   if (cmd == "ota.rollback" || cmd == "/ota.rollback" || cmd == "fw.rollback" || cmd == "/fw.rollback") {
     logf("[HOST] ota.rollback requested");
     rollbackPendingOta("serial rollback");
+    return true;
+  }
+  if (cmd == "voice.smoke.large") {
+    runVoiceSmokeFromDevice(22);
     return true;
   }
   if (cmd == "voice.smoke" || cmd == "/voice.smoke" || cmd == "voice smoke") {
