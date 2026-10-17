@@ -100,6 +100,7 @@ bool stopRecordingAndSend() {
 
   if (gRecordingToFile) {
     drainRecordingToFile();
+    if (gRecordFileWriteFailed) return false; // Failure path already stopped audio and retained the file.
     size_t queuedBeforeStop = M5Cardputer.Mic.isRecording();
     if (queuedBeforeStop > 0 || !gRecordInflightChunks.empty()) {
       logf("[VOICE] dropping tail queued=%u inflight=%u",
@@ -109,6 +110,7 @@ bool stopRecordingAndSend() {
     stopMic(false);
     gRecordInflightChunks.clear();
     if (gActiveRecordFile) {
+      gActiveRecordFile.flush(); // size() uses stat and cannot see buffered tail bytes.
       const size_t fileBytes = gActiveRecordFile.size();
       uint8_t header[44];
       writeWavHeader(header, fileBytes >= 44 ? fileBytes - 44 : 0, kMicSampleRate);

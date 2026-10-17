@@ -184,11 +184,6 @@
                           rgb565_local(45, 32, 40), c1, c2);
   } else for (int i = 0; i < bars; ++i) {
     int16_t bx = waveX + i * 7;
-    if (state == AssistantPulseState::Ready) {
-      // Home is idle, not a live microphone or an upload progress indicator.
-      d.fillRoundRect(bx - 1, waveY - 1, 3, 3, 1, c3);
-      continue;
-    }
     if (state == AssistantPulseState::Thinking || (realtime && gRealtimeAwaiting)) {
       int16_t dotY = waveY + static_cast<int16_t>(sinf(t * 5.0f + i * 0.7f) * 6.0f);
       d.fillCircle(bx, dotY, (i % 3 == 0) ? 3 : 2, (i % 2) ? c1 : c2);

@@ -133,7 +133,7 @@ record=r'''
 #include <cstring>
 #include <deque>
 #include <memory>
-bool gRecording=false,gRecordingToFile=true;std::deque<uint8_t> gRecordInflightChunks={0,1};
+bool gRecording=false,gRecordingToFile=true,gRecordFileWriteFailed=false;int storageFailures=0;void handleRecordingStorageFailure(){++storageFailures;}std::deque<uint8_t> gRecordInflightChunks={0,1};
 int flushed=0,queued=0;uint8_t gRecordNextChunkIndex=0;constexpr int kRecordChunkBufferCount=3;
 struct {struct {int isRecording(){return 0;}} Mic;} M5Cardputer;
 void flushCompletedRecordChunksToFile(size_t n){flushed+=n;while(n--&&!gRecordInflightChunks.empty())gRecordInflightChunks.pop_front();}
@@ -147,6 +147,7 @@ int main(){
  serviceRecordingToFile(false);assert(flushed==2&&queued==0&&gRecordInflightChunks.empty());
  gRecordInflightChunks={0,1};serviceRecordingToFile(true);assert(flushed==2&&queued==0);
  gRecording=true;serviceRecordingToFile(true);assert(flushed==4&&queued==2&&gRecordInflightChunks.size()==2);
+ gRecordFileWriteFailed=true;serviceRecordingToFile(true);assert(storageFailures==1&&queued==2);
  uint8_t h[44];writeWavHeader(h,32000,16000);
  assert(!memcmp(h,"RIFF",4)&&!memcmp(h+8,"WAVE",4)&&le(h+4)==32036&&le(h+40)==32000);
  assert(le(h+24)==16000&&le(h+28)==32000&&h[22]==1&&h[34]==16);
@@ -188,3 +189,56 @@ with tempfile.TemporaryDirectory(prefix='s1-canvas-') as d:
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
 print('PASS real canvas recovery rejects failed allocation and recovers before rendering')
+
+
+storage=r"""
+#include <cassert>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
+#include <string>
+#include <vector>
+#include <deque>
+#include <algorithm>
+using std::min;using String=std::string;
+constexpr size_t kRecordWriteBytes=512;constexpr uint32_t kMicSampleRate=16000;
+struct File {
+ std::vector<uint8_t> bytes;size_t pos=0,calls=0,failCall=999;bool open=true;
+ explicit operator bool()const{return open;}
+ size_t write(const uint8_t* p,size_t n){assert(n<=512);size_t m=(calls++==failCall)?min(n,size_t(468)):n;
+ if(pos+m>bytes.size())bytes.resize(pos+m);memcpy(bytes.data()+pos,p,m);pos+=m;return m;}
+ size_t size(){return bytes.size();}void flush(){}bool seek(size_t p){pos=p;return true;}void close(){open=false;}
+};
+bool gRecording=true,gRecordingToFile=true;File gActiveRecordFile;String gActiveRecordPath="/voice/original.wav";
+std::deque<uint8_t> gRecordInflightChunks={0,1};size_t gActiveRecordBytes=468,gActiveRecordCommittedBytes=468,gActiveRecordExpectedBytes=2048,gRecordedSamples=234;
+int micStops=0,connectionCancels=0,wifiRestores=0,speakerStarts=0,notices=0;String lastError;
+enum class FaceMode{Error};enum class LineKind{Error};
+void stopMic(bool restart){assert(!restart);++micStops;}void cancelVoicePreconnect(){++connectionCancels;}
+void endVoiceWifiPerformance(){++wifiRestores;}void initSpeaker(){++speakerStarts;}
+void setVoiceDiag(const char*){}void setFaceMode(FaceMode){}void setStatus(const char*,int){}
+void pushLine(const char*,const String& s,LineKind){lastError=s;}
+void showVoiceNotice(const String&,bool){++notices;}void logf(const char*,...){}
+"""
+storage+='\n'+function('033_main.cpp.inc','void writeWavHeader(')
+storage+='\n'+function('032_main.cpp.inc','size_t writeRecordedBytes(')
+storage+='\n'+function('032_main.cpp.inc','void handleRecordingStorageFailure(')
+storage+=r"""
+int main(){
+ uint8_t b[2048];for(size_t i=0;i<sizeof(b);++i)b[i]=uint8_t(i*17+3);
+ File good;assert(writeRecordedBytes(good,b,sizeof(b))==sizeof(b));assert(good.calls==4&&good.bytes.size()==2048);
+ assert(!memcmp(b,good.bytes.data(),2048));
+ File failed;failed.failCall=0;assert(writeRecordedBytes(failed,b,sizeof(b))==468);assert(failed.calls==1&&failed.bytes.size()==468);
+ gActiveRecordFile.bytes.resize(44+468);memcpy(gActiveRecordFile.bytes.data()+44,b,468);
+ handleRecordingStorageFailure();
+ assert(!gRecording&&!gRecordingToFile&&!gActiveRecordFile.open&&gRecordInflightChunks.empty());
+ assert(micStops==1&&connectionCancels==1&&wifiRestores==1&&speakerStarts==1&&notices==1);
+ assert(gActiveRecordFile.bytes.size()==44+468&&!memcmp(gActiveRecordFile.bytes.data()+44,b,468));
+ assert(gActiveRecordPath.empty()&&gActiveRecordBytes==0&&gRecordedSamples==0&&!lastError.empty());
+}
+"""
+with tempfile.TemporaryDirectory(prefix='s1-sd-failure-') as d:
+ p=Path(d);(p/'test.cpp').write_text(storage)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
+ subprocess.run([str(p/'test')],check=True)
+assert source.index('gActiveRecordFile.flush()') < source.index('const size_t fileBytes = gActiveRecordFile.size()')
+print('PASS actual bounded SD writes, short-write stop/cleanup, retained PCM, and flush before WAV sizing')

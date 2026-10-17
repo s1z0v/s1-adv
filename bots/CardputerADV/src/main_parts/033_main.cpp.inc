@@ -37,6 +37,15 @@ void startRecording() {
     releaseTtsBuffer();
   }
   dismissVoiceNotice();
+  if (gRecordFileWriteFailed) {
+    cancelVoicePreconnect();
+    if (!remountSdStorage("record retry")) {
+      showVoiceNotice("SD unavailable. Check the card and retry.", false);
+      setStatus("SD unavailable", 5000);
+      return;
+    }
+    gRecordFileWriteFailed = false;
+  }
   gRecordedSamples = 0;
   gRecording = true;
   gRecordStartMs = millis();
@@ -54,13 +63,16 @@ void startRecording() {
     gActiveRecordPath = voiceAudioPath(makeVoiceNoteId(false));
     gActiveRecordFile = fs->open(gActiveRecordPath, "w");
     if (gActiveRecordFile) {
+      gActiveRecordFile.setBufferSize(kRecordWriteBytes);
       uint8_t header[44]; writeWavHeader(header, 0, kMicSampleRate);
       if (gActiveRecordFile.write(header, sizeof(header)) != sizeof(header)) {
         gActiveRecordFile.close(); fsRemove(*fs, gActiveRecordPath);
       }
     }
     if (!gActiveRecordFile) {
-      gRecordingToFile = false;
+      gRecordFileWriteFailed = true;
+      handleRecordingStorageFailure();
+      return;
     } else {
       gActiveRecordBytes = 0;
       gActiveRecordCommittedBytes = 0;

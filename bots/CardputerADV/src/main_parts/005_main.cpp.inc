@@ -315,6 +315,7 @@ void syncClockFromNtp(bool force = false);
 void flashActivityLed(uint8_t r, uint8_t g, uint8_t b, uint32_t durationMs = 180);
 void updateStatusLed();
 void writeWavHeader(uint8_t* h, uint32_t dataSize, uint32_t sampleRate);
+void handleRecordingStorageFailure();
 void serviceRecordingToFile(bool refill = true);
 void serviceRealtimeVoice();
 void stopPlaybackStream();

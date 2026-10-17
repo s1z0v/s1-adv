@@ -213,14 +213,58 @@ void stopMic(bool restartSpeaker = true) {
   if (restartSpeaker) initSpeaker();
 }
 
+size_t writeRecordedBytes(File& file, const uint8_t* bytes, size_t length) {
+  size_t total = 0;
+  while (total < length) {
+    const size_t chunk = min<size_t>(kRecordWriteBytes, length - total);
+    const size_t written = file.write(bytes + total, chunk);
+    total += written;
+    if (written != chunk) break;
+  }
+  return total;
+}
+
+void handleRecordingStorageFailure() {
+  gRecording = false;
+  stopMic(false);
+  cancelVoicePreconnect();
+  endVoiceWifiPerformance();
+  gRecordInflightChunks.clear();
+  // Preserve the original file, including every byte accepted by the filesystem.
+  // Do not retry an ambiguous card write or silently upload a truncated request.
+  if (gActiveRecordFile) {
+    gActiveRecordFile.flush();
+    const size_t size = gActiveRecordFile.size();
+    if (size >= 44) {
+      uint8_t header[44];
+      writeWavHeader(header, (size - 44) & ~size_t(1), kMicSampleRate);
+      if (gActiveRecordFile.seek(0)) gActiveRecordFile.write(header, sizeof(header));
+    }
+    gActiveRecordFile.close();
+  }
+  const String retainedPath = gActiveRecordPath;
+  gRecordingToFile = false;
+  gActiveRecordPath = "";
+  gActiveRecordBytes = gActiveRecordCommittedBytes = gActiveRecordExpectedBytes = 0;
+  gRecordedSamples = 0;
+  initSpeaker();
+  setVoiceDiag("voice: SD write failed");
+  setFaceMode(FaceMode::Error);
+  const String error = "SD recording failed. File kept on SD. Hold G0 to retry.";
+  pushLine("ERR", error, LineKind::Error);
+  showVoiceNotice(error, false);
+  setStatus("SD write failed; retry G0", 10000);
+  logf("[VOICE] record failed; mic stopped; connection canceled; retained=%s", retainedPath.c_str());
+}
+
 void flushCompletedRecordChunksToFile(size_t completedCount) {
   for (size_t i = 0; i < completedCount && !gRecordInflightChunks.empty(); ++i) {
     uint8_t chunkIndex = gRecordInflightChunks.front();
     gRecordInflightChunks.pop_front();
     updateVoiceLevelFromSamples(gRecordChunkBuffers[chunkIndex], kRecordChunkSamples);
     if (gActiveRecordFile) {
-      size_t written = gActiveRecordFile.write(reinterpret_cast<const uint8_t*>(gRecordChunkBuffers[chunkIndex]),
-                                               kRecordChunkBytes);
+      size_t written = writeRecordedBytes(gActiveRecordFile,
+          reinterpret_cast<const uint8_t*>(gRecordChunkBuffers[chunkIndex]), kRecordChunkBytes);
       gActiveRecordBytes += written;
       gActiveRecordCommittedBytes += written;
       if (written != kRecordChunkBytes) {
@@ -250,6 +294,10 @@ void serviceRecordingToFile(bool refill) {
   size_t micQueued = M5Cardputer.Mic.isRecording();
   if (gRecordInflightChunks.size() > micQueued) {
     flushCompletedRecordChunksToFile(gRecordInflightChunks.size() - micQueued);
+  }
+  if (gRecordFileWriteFailed) {
+    handleRecordingStorageFailure();
+    return;
   }
   if (!refill) {
     return;

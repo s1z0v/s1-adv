@@ -109,6 +109,10 @@ bool syncAssetsFromManifest(bool pomodoroOnly) {
 }
 
 bool uploadRuntimeLogs() {
+  if (gRecording || gSubmitting || gThinking || gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy) {
+    setStatus("Network busy; retry logs", 2500);
+    return false;
+  }
   gWifiReady = WiFi.status() == WL_CONNECTED;
   if (!ensureWifiForHttp("logs", 7000) || gHubHost.isEmpty()) {
     setStatus("Logs no Wi-Fi", 1200);

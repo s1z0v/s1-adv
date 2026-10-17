@@ -65,7 +65,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.151-dev"
+#define APP_VERSION "0.2.152-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -303,7 +303,8 @@ constexpr uint8_t kSdCsPin = 12;
 // Cardputer ADV SD is reliable for small reads at high SPI clocks, but OTA
 // writes a continuous ~2.4MB file. 25MHz produced intermittent token errors
 // on the user's 64GB card, so keep OTA/audio storage on a conservative clock.
-constexpr uint32_t kSdFrequencyHz = 8000000;
+constexpr uint32_t kSdFrequencyHz = 4000000;
+constexpr size_t kRecordWriteBytes = 512;
 constexpr size_t kRecordChunkSamples = 1024;
 constexpr size_t kRecordChunkBytes = kRecordChunkSamples * sizeof(int16_t);
 constexpr size_t kRecordChunkBufferCount = 3;

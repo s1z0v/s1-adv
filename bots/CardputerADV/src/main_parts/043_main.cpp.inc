@@ -141,6 +141,54 @@ bool writeVoiceSmokePcm(fs::FS& fs, const String& path, size_t sampleCount) {
   return true;
 }
 
+bool runVoiceStorageCheck() {
+  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gVoiceDialBusy ||
+      gInboxHttpBusy || gVoiceReplySpeechBusy || gRealtimeActive) {
+    logf("[STORAGE_TEST] busy"); return false;
+  }
+  fs::FS* fs = activeVoiceFs();
+  if (!fs || !ensureVoiceStorage()) { logf("[STORAGE_TEST] no storage"); return false; }
+  const String path = "/voice/__storage_check.wav";
+  if (fsExists(*fs, path)) fsRemove(*fs, path);
+  File file = fs->open(path, "w");
+  if (!file) { logf("[STORAGE_TEST] open failed"); return false; }
+  file.setBufferSize(kRecordWriteBytes);
+  constexpr size_t bytes = 512U * 1024U;
+  uint8_t header[44]; writeWavHeader(header, 0, kMicSampleRate);
+  bool ok = file.write(header, sizeof(header)) == sizeof(header);
+  auto* buffer = reinterpret_cast<uint8_t*>(gRecordChunkBuffers[0]);
+  for (size_t i = 0; i < kRecordChunkBytes; ++i) buffer[i] = static_cast<uint8_t>(i * 17U + 3U);
+  gSubmitting = true;
+  const uint32_t start = millis();
+  for (size_t n = 0; ok && n < bytes; n += kRecordChunkBytes) {
+    ok = writeRecordedBytes(file, buffer, kRecordChunkBytes) == kRecordChunkBytes;
+    delay(1);
+  }
+  writeWavHeader(header, bytes, kMicSampleRate);
+  ok = ok && file.seek(0) && file.write(header, sizeof(header)) == sizeof(header);
+  file.flush(); file.close();
+  File verify = fs->open(path, "r");
+  WavInfo info;
+  ok = ok && parseWavInfo(verify, info) && info.dataBytes == bytes &&
+       info.sampleRate == kMicSampleRate && verify.size() == bytes + 44 && verify.seek(info.dataOffset);
+  size_t checked = 0;
+  while (ok && checked < bytes) {
+    const size_t got = verify.read(buffer, kRecordChunkBytes);
+    if (got != kRecordChunkBytes) { ok = false; break; }
+    for (size_t i = 0; i < got; ++i)
+      if (buffer[i] != static_cast<uint8_t>(i * 17U + 3U)) { ok = false; break; }
+    checked += got;
+    delay(1);
+  }
+  verify.close();
+  gSubmitting = false;
+  if (ok) fsRemove(*fs, path); // Only this diagnostic's own file is disposable.
+  logf("[STORAGE_TEST] ok=%d bytes=%u checked=%u ms=%u sd_hz=%u", ok,
+       static_cast<unsigned>(bytes), static_cast<unsigned>(checked),
+       static_cast<unsigned>(millis() - start), static_cast<unsigned>(kSdFrequencyHz));
+  return ok;
+}
+
 bool findLatestUserVoiceNote(VoiceNote& noteOut) {
   loadVoiceNotes();
   for (const auto& note : gVoiceNotes) {
@@ -640,7 +688,7 @@ bool runHostOtaApply(bool refreshManifest) {
 
 void printHostDiag() {
   logf("[DBG_BOOT] uptime_ms=%u reset_reason=%d", static_cast<unsigned>(millis()), static_cast<int>(esp_reset_reason()));
-  logf("[DBG_VOICE] dial=%d speech=%d notice=%d pending=%d stack_free=%u", gVoiceDialBusy, gVoiceReplySpeechBusy, gVoiceNoticeVisible, gVoiceReplyPending, static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+  logf("[DBG_VOICE] rec=%d file=%d bytes=%u fs_failed=%d dial=%d speech=%d notice=%d pending=%d stack_free=%u", gRecording, gRecordingToFile, static_cast<unsigned>(gActiveRecordBytes), gRecordFileWriteFailed, gVoiceDialBusy, gVoiceReplySpeechBusy, gVoiceNoticeVisible, gVoiceReplyPending, static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   updateBatterySnapshot(true);
   logf("[DBG] version=%s git=%s heap_free=%u heap_largest=%u wifi=%d ip=%s hub=%s:%u tls=%d setup=%d ap=%s rt_verify=%s rt_active=%d rt_connected=%d rt_recording=%d rt_awaiting=%d rt_hf=%d rt_restart=%d ota=%s/%s pending=%d applying=%d battery=%ld%% raw=%ld est=%d/%dmV/%ldmA/%s vbus=%dmV drain=%.2f%%h/%dmVh eta=%umin samples=%u loop_max=%u pump_input=%u/%u voice=%s http=%s key=%s",
        kAppVersion,
@@ -727,6 +775,10 @@ bool handleHostSerialCommand(String line) {
   logf("[HOST] cmd=%s", line.c_str());
   String cmd = line;
   cmd.toLowerCase();
+  if (cmd == "logs.dump") {
+    for (const auto& entry : gRuntimeLogs) { Serial.print("[LOG] "); Serial.println(entry); }
+    return true;
+  }
   if (cmd=="ui.escape" || cmd=="esc") {
     handleGlobalEscape();
     logf("[HOST] ui.escape done");
@@ -799,6 +851,10 @@ bool handleHostSerialCommand(String line) {
   }
   if (cmd == "voice.smoke.large") {
     runVoiceSmokeFromDevice(22);
+    return true;
+  }
+  if (cmd == "voice.storage.test") {
+    runVoiceStorageCheck();
     return true;
   }
   if (cmd == "voice.notice.test") {

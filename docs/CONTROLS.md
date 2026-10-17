@@ -28,5 +28,5 @@ Device Settings → Clock format switches between 12h AM/PM (default) and 24h.
 Voice upload shows its percentage, then transcription and an accepted receipt.
 A pending agent request remains visible. Its later reply appears in a notification
 sheet above Home: Enter opens AI Chat and Escape closes the sheet.
-The clock screen shows READY with a quiet, static meter when the microphone is
-off. REC and the live input meter appear only after recording starts.
+The clock screen shows READY with its decorative animated bars when the
+microphone is off. REC and the live input meter appear after recording starts.
