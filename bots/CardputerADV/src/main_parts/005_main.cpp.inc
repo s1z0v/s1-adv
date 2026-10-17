@@ -46,7 +46,7 @@ void beginVoicePreconnect();
 void cancelVoicePreconnect();
 void serviceVoicePreconnect();
 std::unique_ptr<WiFiClient> takeVoicePreconnect();
-void beginVoiceWifiPerformance();
+bool beginVoiceWifiPerformance();
 void endVoiceWifiPerformance();
 uint8_t gChatCommandSelection = 0;
 void serviceInboxNetworkCompletion();

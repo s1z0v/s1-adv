@@ -54,6 +54,10 @@ bool readHttpResponseBody(WiFiClient& client, int contentLength, String& respons
 
 bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t dataSize,
                       const String& turnId, int& statusCode, String& response, bool wavFile = false) {
+  struct WifiPerformanceGuard {
+    bool owned;
+    ~WifiPerformanceGuard() { if (owned) endVoiceWifiPerformance(); }
+  } wifiPerformance{beginVoiceWifiPerformance()};
   statusCode = -1;
   response = "";
   if (dataSize == 0 || (!ramPayload && filePath.isEmpty())) {

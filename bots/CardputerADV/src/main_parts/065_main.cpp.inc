@@ -1,11 +1,13 @@
 namespace {
 bool gVoiceWifiPerformance = false;
 wifi_ps_type_t gVoicePreviousWifiSleep = WIFI_PS_NONE;
-void beginVoiceWifiPerformance() {
+bool beginVoiceWifiPerformance() {
   if (!gVoiceWifiPerformance && esp_wifi_get_ps(&gVoicePreviousWifiSleep) == ESP_OK) {
     gVoiceWifiPerformance = true;
     esp_wifi_set_ps(WIFI_PS_NONE);
+    return true;
   }
+  return false;
 }
 void endVoiceWifiPerformance() {
   if (gVoiceWifiPerformance) {
