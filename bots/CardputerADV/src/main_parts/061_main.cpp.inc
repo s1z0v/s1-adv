@@ -194,8 +194,7 @@ void setup() {
   M5Cardputer.Display.setTextSize(1);
   renderBootSplash("Display");
   gCanvas.setColorDepth(8);
-  gCanvas.createSprite(240, 135);
-  gCanvasSpriteActive = true;
+  gCanvasSpriteActive = gCanvas.createSprite(240, 135) != nullptr;
   gCanvas.setTextWrap(false);
   gCanvas.setFont(&fonts::Font2);
   gCanvas.setTextSize(1);
@@ -324,6 +323,15 @@ void loop() {
   serviceInboxNetworkCompletion();
   serviceVoicePreconnect();
   serviceVoiceReplySpeech();
+  if (!gCanvasSpriteActive && gUiMode != UiMode::Nes && !gInboxHttpBusy && !gVoiceReplySpeechBusy &&
+      !gVoiceDialBusy && !gSubmitting && !gRecording && !gPlaybackActive && !gRealtimeDialBusy) {
+    static uint32_t retryCanvasMs = 0;
+    if (millis() - retryCanvasMs >= 1000) {
+      retryCanvasMs = millis(); clearEmojiCache(); M5Cardputer.Speaker.end();
+      restoreUiCanvasAfterNetwork();
+      if (gCanvasSpriteActive) initSpeaker();
+    }
+  }
   servicePendingRealtimeStart();
   if (gUiMode == UiMode::Nes) { serviceNesApp(); delay(1); return; }
   serviceSetupPortal();

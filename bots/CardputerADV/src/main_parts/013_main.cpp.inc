@@ -38,6 +38,9 @@
 
 int32_t drawEmojiFromSd(lgfx::LGFXBase* gfx, int32_t x, int32_t y, uint32_t codepoint,
                         int32_t fontHeight) {
+  if (!gfx || (gfx == &gCanvas && !gCanvasSpriteActive) || gRecording || gSubmitting ||
+      gInboxHttpBusy || gVoiceReplySpeechBusy || gVoiceDialBusy || gRealtimeDialBusy ||
+      heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000) return 0;
   const EmojiCacheEntry* entry = emojiCacheLookup(codepoint);
   if (!gfx || !entry || !entry->data || entry->height <= 0 || fontHeight <= 0) {
     return 0;

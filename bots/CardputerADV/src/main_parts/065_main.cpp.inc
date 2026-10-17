@@ -192,6 +192,7 @@ void serviceVoiceReplySpeech() {
   doc["device_id"] = gDeviceId; doc["text"] = gQueuedVoiceReplySpeech;
   serializeJson(doc, payload->body); gQueuedVoiceReplySpeech = "";
   gVoiceReplySpeechBusy = true;
+  clearEmojiCache();
   M5Cardputer.Speaker.end();
   if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
     gVoiceSpeechCanvasReleased = releaseUiCanvasForNetwork("speech memory");
@@ -254,6 +255,7 @@ void serviceVoicePreconnect() {
   if (gVoiceDialAllocationFailed) { gVoiceDialAllocationFailed = false; gVoiceDialBusy = false; }
 }
 void beginVoicePreconnect() {
+  clearEmojiCache();
   serviceVoicePreconnect();
   cancelVoicePreconnect();
   if (gVoiceDialBusy || gVoiceReplySpeechBusy || gInboxHttpBusy || !gWifiReady || gHubHost.isEmpty() ||

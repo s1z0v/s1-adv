@@ -92,7 +92,12 @@ void restoreUiCanvasAfterNetwork() {
     return;
   }
   gCanvas.setColorDepth(8);
-  gCanvas.createSprite(240, 135);
+  if (!gCanvas.createSprite(240, 135)) {
+    gCanvasSpriteActive = false;
+    logf("[MEM] canvas restore deferred free=%u largest=%u", static_cast<unsigned>(ESP.getFreeHeap()),
+         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+    return;
+  }
   gCanvas.setTextWrap(false);
   gCanvas.setFont(&fonts::Font2);
   gCanvas.setTextSize(1);

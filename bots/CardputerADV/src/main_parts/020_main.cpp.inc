@@ -315,6 +315,7 @@ void serviceAutoInboxPoll() {
   // Only loopTask manages display/audio memory. A low-memory fallback keeps
   // the last frame visible until the worker returns and restores the canvas.
   prepareNetworkMemory("inbox", false);
+  clearEmojiCache();
   M5Cardputer.Speaker.end();
   if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 40000)
     gInboxCanvasReleased = releaseUiCanvasForNetwork("inbox memory");

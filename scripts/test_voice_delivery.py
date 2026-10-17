@@ -165,3 +165,26 @@ for name in ['VoiceDialResult* performVoicePreconnect(']:
  worker=function('065_main.cpp.inc',name)
  for forbidden in ['setUiMode(', 'setStatus(', 'render(', 'gCanvas', 'logf(', 'vTaskDelete(']: assert forbidden not in worker
 print('PASS actual stopped-mic tail drain and WAV header; one saved file; direct PCM16 upload; connection-worker ownership')
+
+canvas=r'''
+#include <cassert>
+#include <cstdint>
+bool gCanvasSpriteActive=false;uint32_t gLastRenderMs=5;bool allocation=false;int configured=0;
+namespace fonts {int Font2;}
+struct {void setColorDepth(int){};void* createSprite(int,int){return allocation?(void*)1:nullptr;}
+ void setTextWrap(bool){};void setFont(int*){};void setTextSize(int){};} gCanvas;
+struct {int getFreeHeap(){return 10000;}} ESP;
+constexpr int MALLOC_CAP_8BIT=0;int heap_caps_get_largest_free_block(int){return 4000;}
+void configureEmojiRendering(){++configured;}void logf(const char*,...){}
+'''
+canvas+='\n'+function('006_main.cpp.inc','void restoreUiCanvasAfterNetwork()')
+canvas+=r'''
+int main(){restoreUiCanvasAfterNetwork();assert(!gCanvasSpriteActive&&configured==0);
+ allocation=true;restoreUiCanvasAfterNetwork();assert(gCanvasSpriteActive&&configured==1&&gLastRenderMs==0);
+ restoreUiCanvasAfterNetwork();assert(configured==1);}
+'''
+with tempfile.TemporaryDirectory(prefix='s1-canvas-') as d:
+ p=Path(d);(p/'test.cpp').write_text(canvas)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
+ subprocess.run([str(p/'test')],check=True)
+print('PASS real canvas recovery rejects failed allocation and recovers before rendering')
