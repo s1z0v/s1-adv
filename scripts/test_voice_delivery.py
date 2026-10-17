@@ -84,3 +84,6 @@ assert 'voiceReplyWasPending && !gVoiceReplyPending' in inbox
 pending=(parts/'039_main.cpp.inc').read_text().split('if (resp["pending"] | false)')[1].split('gVoiceReplyPending = false')[0]
 assert 'gAssistantPendingVisible = true' in pending and 'setUiMode(UiMode::ChatFull)' in pending
 print('PASS actual drained/rebuffered playback and 12/24h boundaries; connected TCP_NODELAY; visible voice receipt and delayed reply')
+
+staging=(parts/"034_main.cpp.inc").read_text()
+assert "uint8_t stage[" not in staging and staging.count("std::unique_ptr<uint8_t[]> stage")==2

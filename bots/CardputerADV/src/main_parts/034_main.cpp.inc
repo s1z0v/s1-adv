@@ -3,7 +3,8 @@ bool writeClientAll(WiFiClient& client, const String& text, const char* label) {
 }
 
 bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length, const char* label) {
-  uint8_t stage[kHttpStageChunkBytes];
+  std::unique_ptr<uint8_t[]> stage(new (std::nothrow) uint8_t[kHttpStageChunkBytes]);
+  if (!stage) { setHttpDiag(String(label) + ": no staging memory"); return false; }
   size_t written = 0;
   unsigned long deadline = millis() + 45000;
   unsigned long lastProgress = millis();
@@ -23,11 +24,11 @@ bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length
     }
 
     size_t chunk = length - written;
-    if (chunk > sizeof(stage)) {
-      chunk = sizeof(stage);
+    if (chunk > kHttpStageChunkBytes) {
+      chunk = kHttpStageChunkBytes;
     }
-    memcpy(stage, data + written, chunk);
-    size_t sent = client.write(stage, chunk);
+    memcpy(stage.get(), data + written, chunk);
+    size_t sent = client.write(stage.get(), chunk);
     if (sent == 0) {
       if (millis() - lastProgress > 3000) {
         setHttpDiag(String(label) + ": stalled");
@@ -65,7 +66,8 @@ bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length
 }
 
 bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, const char* label) {
-  uint8_t stage[kHttpStageChunkBytes];
+  std::unique_ptr<uint8_t[]> stage(new (std::nothrow) uint8_t[kHttpStageChunkBytes]);
+  if (!stage) { setHttpDiag(String(label) + ": no staging memory"); return false; }
   size_t written = 0;
   unsigned long deadline = millis() + 90000;
   unsigned long lastProgress = millis();
@@ -80,10 +82,10 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
       return false;
     }
     size_t chunk = length - written;
-    if (chunk > sizeof(stage)) {
-      chunk = sizeof(stage);
+    if (chunk > kHttpStageChunkBytes) {
+      chunk = kHttpStageChunkBytes;
     }
-    size_t readBytes = file.read(stage, chunk);
+    size_t readBytes = file.read(stage.get(), chunk);
     if (readBytes == 0) {
       break;
     }
@@ -97,7 +99,7 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
         setHttpDiag(String(label) + ": disconnected");
         return false;
       }
-      size_t sent = client.write(stage + sentFromStage, readBytes - sentFromStage);
+      size_t sent = client.write(stage.get() + sentFromStage, readBytes - sentFromStage);
       if (sent == 0) {
         if (millis() - lastProgress > 5000) {
           setHttpDiag(String(label) + ": stalled");
