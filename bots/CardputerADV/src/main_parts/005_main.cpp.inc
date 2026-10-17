@@ -39,6 +39,7 @@ void dismissVoiceNotice();
 bool handleVoiceNoticeKey(char key, const Keyboard_Class::KeysState& keys);
 void renderVoiceNotice();
 void serviceVoiceReplySpeech();
+void initSpeaker();
 bool gVoiceDialBusy = false;
 bool gInboxCanvasReleased = false;
 bool gVoiceSpeechCanvasReleased = false;

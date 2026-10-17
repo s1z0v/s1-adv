@@ -800,6 +800,17 @@ bool handleHostSerialCommand(String line) {
     runVoiceSmokeFromDevice(22);
     return true;
   }
+  if (cmd == "voice.notice.test") {
+    if (gRecording || gSubmitting || gThinking || gRealtimeActive || gVoiceReplySpeechBusy) return true;
+    showVoiceNotice("Ready.", false);
+    gQueuedVoiceReplySpeech = "Ready.";
+    return true;
+  }
+  if (cmd == "voice.notice.open") {
+    Keyboard_Class::KeysState keys; keys.enter = true;
+    handleVoiceNoticeKey('\n', keys);
+    return true;
+  }
   if (cmd == "voice.smoke" || cmd == "/voice.smoke" || cmd == "voice smoke") {
     runVoiceSmokeFromDevice();
     return true;
