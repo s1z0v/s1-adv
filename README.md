@@ -19,7 +19,7 @@ The agent runs on your computer or server; the Cardputer runs this firmware.
 S1-ADV is experimental firmware built on Arduino/FreeRTOS, with an included
 OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover details.
 
-[Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Русский](docs/README.ru.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+[Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## What you can do
 
@@ -30,7 +30,7 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | Spoken replies and an SD audio library | Server-side STT/TTS and device audio playback |
 | Firmware updates over Wi-Fi | Your bridge's authenticated OTA manifest |
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
-| NES + bundled HonkeyPong | Nofrendo; offline, no SD required |
+| NES game library on SD | Nofrendo, mapper 0/4; your own ROM files |
 
 The interface and assistant replies default to English. Russian input and
 Cyrillic rendering are supported; ask explicitly for a Russian reply.
@@ -80,8 +80,8 @@ Prefer asking your OpenClaw agent to help? Copy the
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
 Current source is `0.2.153-dev`: app menu on Tab, assistant commands on Ctrl+K,
-visible Realtime connection/microphone states, one configured chat and NES with
-bundled HonkeyPong. See [controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.151.md).
+visible Realtime connection/microphone states, one configured chat and an SD
+NES game library. See [controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.153.md).
 The public security fixes are retained. Public builds have not yet been tested
 on a freshly provisioned physical device.
 
