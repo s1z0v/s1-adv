@@ -52,6 +52,40 @@ bool readHttpResponseBody(WiFiClient& client, int contentLength, String& respons
   return true;
 }
 
+struct EncodedVoiceFile {
+  fs::FS* fs = nullptr;
+  const char* path = "/voice/__voice_upload.wav";
+  ~EncodedVoiceFile() { if (fs) fsRemove(*fs, path); }
+};
+
+bool encodeVoiceUpload(const uint8_t* ram, const String& source, size_t bytes, EncodedVoiceFile& encoded) {
+  encoded.fs = activeVoiceFs();
+  if (!encoded.fs || !bytes || (bytes & 1) || kMicSampleRate != 24000) return false;
+  std::unique_ptr<uint8_t[]> work(new (std::nothrow) uint8_t[4096]);
+  if (!work) return false;
+  File input = source.isEmpty() ? File() : encoded.fs->open(source, "r");
+  if (!ram && !input) return false;
+  File output = encoded.fs->open(encoded.path, "w");
+  if (!output) return false;
+  const size_t samples = voice_upload::encodedBytes(bytes);
+  uint8_t header[voice_upload::headerBytes];
+  voice_upload::header(header, samples);
+  if (output.write(header, sizeof(header)) != sizeof(header)) return false;
+  size_t offset = 0;
+  while (offset < bytes) {
+    const size_t chunk = min<size_t>(3072, bytes - offset);
+    if (ram) memcpy(work.get(), ram + offset, chunk);
+    else if (input.read(work.get(), chunk) != chunk) return false;
+    const size_t size = voice_upload::encode(work.get(), chunk, work.get() + 3072);
+    if (output.write(work.get() + 3072, size) != size) return false;
+    offset += chunk;
+    yield();
+  }
+  if ((samples & 1) && output.write(static_cast<uint8_t>(0)) != 1) return false;
+  output.close();
+  return true;
+}
+
 bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t dataSize,
                       const String& turnId, int& statusCode, String& response) {
   statusCode = -1;
@@ -64,6 +98,18 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     setHttpDiag("voice_post: wifi/hub unavailable");
     return false;
   }
+
+  EncodedVoiceFile encoded;
+  const uint32_t encodeStartedMs = millis();
+  setStatus("Preparing voice...");
+  render();
+  const bool compressed = encodeVoiceUpload(ramPayload, filePath, dataSize, encoded);
+  const size_t uploadBytes = compressed ? voice_upload::headerBytes + voice_upload::encodedBytes(dataSize) +
+                                         (voice_upload::encodedBytes(dataSize) & 1) : dataSize;
+  logf("[VOICE] encode codec=%s source=%u upload=%u ms=%u", compressed ? "mulaw16" : "pcm24",
+       static_cast<unsigned>(dataSize), static_cast<unsigned>(uploadBytes), static_cast<unsigned>(millis() - encodeStartedMs));
+  setStatus("Connecting voice...");
+  render();
 
   WiFiClient plainClient;
   WiFiClientSecure secureClient;
@@ -112,10 +158,12 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   headers += hostHeader;
   headers += "\r\nUser-Agent: S1-ADV/";
   headers += kAppVersion;
-  headers += "\r\nConnection: close\r\nContent-Type: application/octet-stream\r\nContent-Length: ";
-  headers += String(static_cast<unsigned>(dataSize));
+  headers += "\r\nConnection: close\r\nContent-Type: ";
+  headers += compressed ? "audio/wav" : "application/octet-stream";
+  headers += "\r\nContent-Length: ";
+  headers += String(static_cast<unsigned>(uploadBytes));
   headers += "\r\nX-Audio-Sample-Rate: ";
-  headers += String(kMicSampleRate);
+  headers += String(compressed ? voice_upload::sampleRate : kMicSampleRate);
   headers += "\r\nX-Device-Id: ";
   headers += gDeviceId;
   headers += "\r\nX-Firmware-Version: ";
@@ -126,7 +174,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   headers += turnId;
   headers += "\r\nX-Turn-Id: ";
   headers += turnId;
-  headers += "\r\nX-Reply-Audio: true\r\nX-Save-Reply-Audio: true\r\nX-Voice-Wait-Ms: 1000\r\n";
+  headers += "\r\nX-Reply-Audio: false\r\nX-Save-Reply-Audio: false\r\nX-Voice-Wait-Ms: 1000\r\n";
   if (!gDeviceToken.isEmpty()) {
     headers += "Authorization: Bearer ";
     headers += gDeviceToken;
@@ -142,25 +190,25 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   }
 
   bool payloadOk = false;
-  if (!filePath.isEmpty()) {
+  if (compressed || !filePath.isEmpty()) {
     fs::FS* fs = activeVoiceFs();
-    File pcmFile = fs ? fs->open(filePath, "r") : File();
+    File pcmFile = fs ? fs->open(compressed ? String(encoded.path) : filePath, "r") : File();
     if (!pcmFile) {
       setHttpDiag("voice_body: file open failed");
       client->stop();
       return false;
     }
-    payloadOk = writeClientAllFileStaged(*client, pcmFile, dataSize, "voice_body");
+    payloadOk = writeClientAllFileStaged(*client, pcmFile, uploadBytes, "voice_body");
     pcmFile.close();
   } else {
-    payloadOk = writeClientAllStaged(*client, ramPayload, dataSize, "voice_body");
+    payloadOk = writeClientAllStaged(*client, ramPayload, uploadBytes, "voice_body");
   }
   if (!payloadOk) {
     client->stop();
     return false;
   }
 
-  logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(dataSize),
+  logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(uploadBytes),
        static_cast<unsigned>(millis()-uploadStartedMs));
   setStatus("Transcribing / AI Agent...");
   render();

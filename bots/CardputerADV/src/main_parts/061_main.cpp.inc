@@ -86,6 +86,7 @@
         break;
   }
   renderChatCommandsOverlay();
+  renderVoiceNotice();
   gCanvas.pushSprite(0, 0);
   uint32_t renderCostMs = millis() - renderStartMs;
   if (renderCostMs >= 45U && millis() - gLastUiSlowLogMs >= 2000U) {
@@ -321,6 +322,7 @@ void loop() {
     return;
   }
   serviceInboxNetworkCompletion();
+  serviceVoiceReplySpeech();
   servicePendingRealtimeStart();
   if (gUiMode == UiMode::Nes) { serviceNesApp(); delay(1); return; }
   serviceSetupPortal();

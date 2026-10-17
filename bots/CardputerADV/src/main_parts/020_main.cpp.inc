@@ -141,7 +141,8 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
   body = "";
   if (found) {
     if (voiceReplyWasPending && !gVoiceReplyPending) {
-      if (isAssistantUi()) setUiMode(UiMode::ChatFull);
+      showVoiceNotice(gInboxLastText, false);
+      gQueuedVoiceReplySpeech = cleanReplyForDevice(gInboxLastText);
       M5Cardputer.Speaker.tone(1319,90);
       setStatus("AI Agent replied",4000);
     }
@@ -210,7 +211,7 @@ bool autoInboxPollAllowed() {
                    gUiMode == UiMode::ChatFull || gUiMode == UiMode::Ota;
   return gWifiReady && !gHubHost.isEmpty() && !gOtaApplyInProgress && !gTransferUiActive &&
          passiveUi && !gLauncherVisible &&
-         !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive &&
+         !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy &&
          !gRealtimeDialBusy && !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
          gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty() &&

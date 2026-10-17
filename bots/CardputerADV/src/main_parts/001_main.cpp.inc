@@ -42,6 +42,7 @@
 #include "transport_security.h"
 #include "realtime_socket.h"
 #include "clock_display.h"
+#include "voice_upload_codec.h"
 
 extern "C" {
 #include "libb64/cdecode.h"

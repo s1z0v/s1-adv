@@ -207,6 +207,10 @@ void stopPlaybackStream() {
   if (gPlaybackStreamFile) {
     gPlaybackStreamFile.close();
   }
+  if (gPlaybackStreamPath.startsWith("/voice/__reply_") && gPlaybackStreamPath.endsWith(".pcm")) {
+    fs::FS* fs = activeVoiceFs();
+    if (fs) fsRemove(*fs, gPlaybackStreamPath);
+  }
   gPlaybackStreamPath = "";
   gPlaybackStreaming = false;
   gPlaybackStreamRemainingBytes = 0;

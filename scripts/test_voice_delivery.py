@@ -82,8 +82,47 @@ inbox=(parts/'020_main.cpp.inc').read_text()
 assert inbox.index('if (kind == "text" && text.isEmpty())')<inbox.index('gInboxLastSeq = seq')
 assert 'voiceReplyWasPending && !gVoiceReplyPending' in inbox
 pending=(parts/'039_main.cpp.inc').read_text().split('if (resp["pending"] | false)')[1].split('gVoiceReplyPending = false')[0]
-assert 'gAssistantPendingVisible = true' in pending and 'setUiMode(UiMode::ChatFull)' in pending
+assert 'gAssistantPendingVisible = true' in pending and 'showVoiceNotice(transcript, true)' in pending
+assert 'setUiMode(UiMode::ChatFull)' not in pending
 print('PASS actual drained/rebuffered playback and 12/24h boundaries; connected TCP_NODELAY; visible voice receipt and delayed reply')
 
 staging=(parts/"034_main.cpp.inc").read_text()
 assert "uint8_t stage[" not in staging and staging.count("std::unique_ptr<uint8_t[]> stage")==2
+
+notice=r'''
+#include <cassert>
+#include <string>
+#include <cstdint>
+struct String:std::string {using std::string::string;String(const std::string& s):std::string(s){};};
+enum class UiMode {Home,ChatFull,Other}; UiMode gUiMode=UiMode::Home;
+struct Keyboard_Class {struct KeysState {bool enter=false;};};
+bool gVoiceNoticeVisible=false,gInboxUnread=true;
+String gQueuedVoiceReplySpeech="voice";uint32_t gVoiceReplySpeechGeneration=4;
+bool isAssistantUi(){return gUiMode!=UiMode::Other;}
+void setUiMode(UiMode mode){gUiMode=mode;}void logf(const char*,...){}
+'''
+notice+='\n'+function('065_main.cpp.inc','void dismissVoiceNotice()')
+notice+='\n'+function('065_main.cpp.inc','bool handleVoiceNoticeKey(')
+notice+=r'''
+int main(){
+ Keyboard_Class::KeysState keys;
+ assert(!handleVoiceNoticeKey('x',keys));
+ gVoiceNoticeVisible=true;assert(handleVoiceNoticeKey('x',keys));
+ assert(gVoiceNoticeVisible&&gUiMode==UiMode::Home);
+ keys.enter=true;assert(handleVoiceNoticeKey('\n',keys));
+ assert(!gVoiceNoticeVisible&&gUiMode==UiMode::ChatFull&&!gInboxUnread);
+ assert(gQueuedVoiceReplySpeech=="voice"&&gVoiceReplySpeechGeneration==4);
+ gUiMode=UiMode::Home;gVoiceNoticeVisible=true;dismissVoiceNotice();
+ assert(!gVoiceNoticeVisible&&gQueuedVoiceReplySpeech.empty()&&gVoiceReplySpeechGeneration==5);
+ assert(gUiMode==UiMode::Home);
+}
+'''
+with tempfile.TemporaryDirectory(prefix='s1-notice-') as d:
+ p=Path(d);(p/'test.cpp').write_text(notice)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
+ subprocess.run([str(p/'test')],check=True)
+worker=function('065_main.cpp.inc','VoiceSpeechResult* performVoiceReplySpeech(')
+for forbidden in ['setUiMode(', 'setStatus(', 'render(', 'gCanvas', 'logf(', 'vTaskDelete(']: assert forbidden not in worker
+escape=function('047_main.cpp.inc','bool handleGlobalEscape()')
+assert escape.index('gVoiceNoticeVisible') < escape.index('setUiMode(UiMode::Home)')
+print('PASS actual notice Enter/open and dismiss/cancel; background speech has no UI mutations')

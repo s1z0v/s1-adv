@@ -12,6 +12,7 @@ void drainRecordingToFile() {
 }
 
 void startRecording() {
+  if (gVoiceReplySpeechBusy) { setStatus("Reply voice preparing; Esc cancels", 1000); return; }
   if (gInboxHttpBusy) { setStatus("Network finishing; try voice again",900); return; }
   if (gRealtimeExclusiveMode || gRealtimeActive) {
     logf("[VOICE] start blocked by realtime exclusive mode");
@@ -35,6 +36,7 @@ void startRecording() {
   if (!gPlaybackActive && gTtsBuffer) {
     releaseTtsBuffer();
   }
+  dismissVoiceNotice();
   gRecordedSamples = 0;
   gRecording = true;
   gRecordStartMs = millis();

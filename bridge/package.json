@@ -10,7 +10,7 @@
     "smoke:realtime-contract": "node scripts/smoke-realtime-contract.mjs",
     "smoke:mininerva": "node src/mininerva-compat-smoke.mjs",
     "test:security": "node src/security-policy.test.mjs",
-    "test:boundaries": "node --test src/security-boundaries.test.mjs src/turn-delivery-policy.test.mjs",
+    "test:boundaries": "node --test src/security-boundaries.test.mjs src/turn-delivery-policy.test.mjs src/voice-upload-codec.test.mjs",
     "gate:security": "node src/security-model-gate.mjs",
     "publish:firmware": "node scripts/publish-firmware.mjs",
     "enqueue:ota-install": "node scripts/enqueue-ota-install.mjs",

@@ -38,6 +38,7 @@ import {
   stripTelegramEnvelope
 } from "./utils.mjs";
 import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs } from "./turn-delivery-policy.mjs";
+import { decodeVoiceUpload } from "./voice-upload-codec.mjs";
 import { RealtimePacingBudget, REALTIME_MAX_AUDIO_LEAD_MS } from "./realtime-pacing-budget.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -715,7 +716,10 @@ function trimDeviceEventMessage(message, maxTextChars) {
 }
 
 function wantsFirmwareWork(text) {
-  return CARDPUTER_FIRMWARE_WORK_RE.test(String(text || ""));
+  const value = String(text || "");
+  return CARDPUTER_FIRMWARE_WORK_RE.test(value) ||
+    (/убери|убрать|добавь|добавить|замени|поменяй|измени|remove|add|replace|change/iu.test(value) &&
+     /главн.{0,10}экран|индикатор|интерфейс|шторк|home screen|indicator|interface|notification sheet/iu.test(value));
 }
 
 function requestedFirmwareVersion(text) {
@@ -3926,10 +3930,12 @@ class BridgeRuntime {
     };
     const rules = [
       "You are the Cardputer firmware release agent for this one job only.",
+      "This is server-owned OpenClaw firmware execution. Implement using the repository and wrappers below. No desktop Codex chat, chat binding, or desktop handoff is required. Historical holds for completed local jobs do not apply to this new job.",
       "Use the language of request_language for user-facing replies. English by default; Russian only when request_language is Russian.",
       "Implement the requested firmware change in the repo. Background-color requests are only smoke tests; the same route must handle real features such as calculator, alarm, stopwatch, Tamagotchi, or utility screens.",
       "Keep the implementation scoped and production-grade. Follow existing firmware UI/code patterns and avoid unrelated refactors.",
       "Before editing, inspect the relevant files. Use the server repo path from job_session_contract.repo.",
+      "Fetch origin main and fast-forward a clean checkout before editing. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
       "Bump APP_VERSION in both platformio.ini and src/main_parts/001_main.cpp.inc.",
       "SAFETY GATE: treat firmware publishing as fail-closed. If any required safety check is missing, ambiguous, or failed, stop and report the blocker; do not publish, do not append ota.apply, and do not claim success.",
       "Before build/publish, review git diff for unrelated changes, destructive storage operations, hardcoded secrets, disabled TLS/auth, bootloader/partition/OTA-slot changes, rollback/boot-guard changes, watchdog-disabling loops, boot-blocking network loops, or unbounded memory allocations.",
@@ -4549,9 +4555,6 @@ class BridgeRuntime {
   }
 
   async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
-    // Full-context route is authoritative for G0 and development. Do not fork a
-    // clean firmware job or launch a second direct-model answer in parallel.
-    if (inputMode === "voice" || wantsFirmwareWork(transcript)) return null;
     if (wantsFirmwareWork(transcript)) {
       const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
       const routeTopic = await this.createFirmwareJobTopicForDevice(device, transcript);
@@ -4577,10 +4580,10 @@ class BridgeRuntime {
       });
       const replyText = textLooksRussian(transcript)
         ? (
-          `Firmware-задача принята. Я запустил чистую внутреннюю job-сессию и буду присылать обновления в Cardputer.`
+          `Задача принята. OpenClaw подготовит прошивку и пришлёт результат на устройство.`
         )
         : (
-          `Firmware task accepted. I started a clean internal job session and will keep updates in Cardputer.`
+          `Request accepted. OpenClaw will prepare the firmware and send the result to your device.`
         );
       const replyMessage = await this.appendAssistantReply({
         topicKey: dashboardTopic.topic_key,
@@ -4600,6 +4603,9 @@ class BridgeRuntime {
         })
       };
     }
+    // Ordinary voice keeps the existing conversation and tools, without a
+    // second direct-model answer. Firmware work above has exactly one owner.
+    if (inputMode === "voice") return null;
     if (!this.fastLaneEnabled(inputMode)) {
       return null;
     }
@@ -6067,12 +6073,13 @@ async function main() {
       console.info(`[voice-raw] uploaded device=${device.device_id} turn=${turnId || "-"} bytes=${uploadedBytes} sample=${sampleRate} type=${contentType || "-"} reply_audio=${wantsReplyAudio ? "1" : "0"}`);
       const audioBytesRaw = await readFile(rawUploadPath);
       await rm(rawUploadPath, { force: true });
-      const audioBytes =
+      let audioBytes =
         contentType === "application/octet-stream" || contentType === "audio/pcm" || contentType === "audio/l16"
           ? Buffer.concat([createWavHeader(audioBytesRaw.length, sampleRate), audioBytesRaw])
           : audioBytesRaw;
 
       try {
+        audioBytes = decodeVoiceUpload(audioBytes, config.maxUploadBytes);
         const transcript = await transcribeDeviceAudio(config, {
           audioBytes,
           filename: "cardputer.wav",

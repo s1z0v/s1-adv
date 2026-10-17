@@ -10,6 +10,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
+  if (handleVoiceNoticeKey(key, keys)) return;
   if (handleAssistantMenuKey(key,keys)) return;
   if (isAssistantUi() && gLauncherVisible) { handleLauncherKey(key,keys); return; }
   if (gChatCommandsVisible) {

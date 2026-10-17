@@ -92,19 +92,6 @@
   if (reply.isEmpty()) {
     reply = shortText;
   }
-  String audioUrl;
-  String audioPath;
-  String audioTitle;
-  String audioSha;
-  uint32_t audioSize = 0;
-  if (resp["audio"].is<JsonObject>()) {
-    JsonObject audio = resp["audio"].as<JsonObject>();
-    audioUrl = audio["url"] | "";
-    audioPath = audio["path"] | "";
-    audioTitle = audio["title"] | "";
-    audioSha = audio["sha256"] | "";
-    audioSize = audio["size"] | 0;
-  }
   logf("[VOICE] transcript=%s", transcript.c_str());
   logf("[VOICE] reply=%s", reply.c_str());
   if (!transcript.isEmpty()) {
@@ -121,7 +108,7 @@
     setFaceMode(FaceMode::Thinking);
     setStatus("AI Agent working...", 0);
     M5Cardputer.Speaker.tone(1047,90);
-    if (isAssistantUi()) setUiMode(UiMode::ChatFull);
+    showVoiceNotice(transcript, true);
     // A transport acknowledgement is not an assistant answer and never TTS.
     return true;
   }
@@ -130,12 +117,8 @@
   if (replySeq > gInboxLastSeq) gInboxLastSeq = replySeq;
   if (!reply.isEmpty()) {
     appendAssistantReply(reply);
-    if (!downloadAndPlayResponseAudio(audioUrl, audioPath, audioSha, audioSize, audioTitle, reply) &&
-        !requestAndPlayTts(reply)) {
-      logf("[VOICE] TTS request failed");
-      setFaceMode(FaceMode::Idle);
-      setStatus("Reply text only", 1200);
-    }
+    showVoiceNotice(reply, false);
+    gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
   } else {
     setFaceMode(FaceMode::Idle);
     setStatus("No reply", 1200);
