@@ -22,7 +22,7 @@ uint32_t clockMs=1000, gBlinkEndMs=0;
 uint32_t millis() { return clockMs; }
 float gEyeLookX=0, gEyeLookY=0;
 bool gScreensaverActive=false;
-struct { uint8_t eyeSkin=0; bool screensaverClockOnWake=false; } gDeviceSettings;
+struct { uint8_t eyeSkin=0; bool screensaverClockOnWake=false; bool clockTwelveHour=true; } gDeviceSettings;
 template<typename T> T clampValue(T x,T lo,T hi) { return max(lo,min(x,hi)); }
 uint16_t rgb565_local(int r,int g,int b) { return ((r>>3)<<11)|((g>>2)<<5)|(b>>3); }
 struct Ellipse { int x,y,rx,ry; uint16_t color; };
@@ -65,12 +65,13 @@ struct Canvas {
     drawLine(x,y,x+w-1,y,c);drawLine(x,y+h-1,x+w-1,y+h-1,c);
     drawLine(x,y,x,y+h-1,c);drawLine(x+w-1,y,x+w-1,y+h-1,c);
   }
-  // Clock text stays in the unchanged firmware path; these no-ops are not visual proof of fonts.
+  // Text rasterization is outside this geometry driver; preview fonts separately.
   void fillRoundRect(int,int,int,int,int,uint16_t) { ++calls; }
   void drawRoundRect(int,int,int,int,int,uint16_t) { ++calls; }
   void setFont(int*) {}
   void setTextColor(uint16_t,uint16_t) {}
   void setCursor(int,int) {}
+  int textWidth(const String& text) { return static_cast<int>(text.size()*6); }
   void print(const String&) {}
   void save(const std::string& file) {
     FILE* f=std::fopen(file.c_str(),"wb");assert(f);std::fprintf(f,"P6\n240 135\n255\n");

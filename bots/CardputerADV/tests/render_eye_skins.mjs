@@ -11,7 +11,7 @@ const source = readFileSync(path.join(root, 'src/main_parts/050_main.cpp.inc'), 
 const prefix = source.slice(0, source.indexOf('void renderOmniEyePair('));
 if (!prefix.includes('drawSmoothUncannyEye')) throw Error('Missing actual renderer');
 const harness = readFileSync(path.join(root, 'tests/eye_skin_canvas.h'), 'utf8');
-const cpp = harness.replace('// ACTUAL_FIRMWARE_RENDERER', prefix);
+const cpp = `#include "${path.join(root,'src/clock_display.h')}"\n` + harness.replace('// ACTUAL_FIRMWARE_RENDERER', prefix);
 writeFileSync(path.join(out, 'render.cpp'), cpp);
 execFileSync('c++', ['-std=c++17', '-O2', '-Wall', '-Wextra', path.join(out, 'render.cpp'), '-o', path.join(out, 'render')], {stdio:'inherit'});
 execFileSync(path.join(out, 'render'), [out], {stdio:'inherit'});
