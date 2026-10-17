@@ -350,11 +350,16 @@ void applyLauncherSelection() {
   gLauncherLastSub[gLauncherSelection] = gLauncherSubSelection;
   const LauncherSubItem& item = kLauncherGroups[gLauncherSelection].items[gLauncherSubSelection];
   UiMode target = item.mode;
-  if (target == UiMode::Home && !item.startRealtime && gRealtimeActive) {
-    closeRealtimeSession("pulse menu");
+  if (!item.startRealtime) {
+    gPendingRealtimeStart = false;
+    gRealtimeScreenVisible = false;
+    if (gRealtimeActive || gRealtimeExclusiveMode) closeRealtimeSession("app menu");
   }
-  setUiMode(target);
+  setUiMode(item.startRealtime ? UiMode::Face : target);
   // Idempotent open, not Ctrl+R toggle: reopening must not commit/stop audio.
-  if (item.startRealtime && !gRealtimeActive) startRealtimeSession(true);
+  if (item.startRealtime) {
+    gRealtimeScreenVisible = true;
+    if (!gRealtimeActive) startRealtimeSession(true);
+  }
   syncLauncherToMode(target);
 }

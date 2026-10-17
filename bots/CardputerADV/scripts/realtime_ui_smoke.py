@@ -47,6 +47,7 @@ constexpr uint16_t rgb565_local(int,int,int) {{ return 0; }}
 {declarations}
 int gLauncherSelection=0,gLauncherSubSelection=0,gLauncherLastSub[7]={{}};
 bool gRealtimeActive=false,gRecording=false,gRealtimeRecording=false,allowStart=true;
+bool gRealtimeScreenVisible=false,gPendingRealtimeStart=false,gRealtimeExclusiveMode=false;
 int starts=0,closes=0; uint32_t clockMs=100;
 uint8_t gVoiceLevel8=0; mic_input_meter::State gMicInputMeter;
 uint32_t millis(){{return clockMs;}}
@@ -61,12 +62,14 @@ int main() {{
  assert(kLauncherGroups[0].count==6 && kLauncherGroups[0].items[0].startRealtime);
  assert(kLauncherGroups[0].items[5].mode==UiMode::Hero);
  applyLauncherSelection();assert(starts==1 && closes==0 && gLauncherSubSelection==0);
- applyLauncherSelection();assert(starts==1 && closes==0); // repeated open is safe
+ applyLauncherSelection();assert(starts==1 && closes==0 && current==UiMode::Face && gRealtimeScreenVisible);
  gLauncherSubSelection=1;applyLauncherSelection();assert(!gRealtimeActive && closes==1 && gLauncherSubSelection==1);
  gLauncherSubSelection=0;allowStart=false;applyLauncherSelection();assert(!gRealtimeActive && gLauncherSubSelection==1);
  for(int g=0;g<7;++g)for(int s=0;s<kLauncherGroups[g].count;++s){{
   const auto item=kLauncherGroups[g].items[s];if(item.startRealtime)continue;
+  gRealtimeActive=true;gRealtimeScreenVisible=true;gPendingRealtimeStart=true;
   gLauncherSelection=g;gLauncherSubSelection=s;applyLauncherSelection();assert(current==item.mode);
+  assert(!gRealtimeActive && !gRealtimeScreenVisible && !gPendingRealtimeStart);
  }}
  int16_t loud[720];std::fill(loud,loud+720,-32768);
  updateVoiceLevelFromSamples(loud,720);assert(!gMicInputMeter.seen); // speaker PCM ignored
