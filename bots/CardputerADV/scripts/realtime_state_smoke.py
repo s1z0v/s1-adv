@@ -292,7 +292,8 @@ def test_firmware_wiring() -> None:
     for removed in ("UiMode::Contexts", "fetchRemoteTopicCatalog", "createRemoteTopic", "topic.next", "topic.prev", "topic.open"):
         assert removed not in all_parts
     assert 'type == "auth_error"' in events
-    assert 'setStatus("Realtime retrying...")' in events
+    assert "gRealtimeWs.pollConnected()" in realtime
+    assert "gRealtimeWs.loop()" not in realtime
     assert "gRealtimeWs.setReconnectInterval(750)" in events
 
 

@@ -8,6 +8,10 @@ Realtime uses the large animal eyes with explicit CONNECT, LISTEN, THINK, SPEAK,
 READY and ERROR states. The microphone label and input meter reflect recording;
 the last transcript/reply and persistent error reason use a separate status line.
 A pending Realtime start prevents a new background inbox request from overtaking it.
+TLS connection and upgrade request writes run in a worker; header reads remain
+incremental on the UI task. The HTTPS Host header omits the default port, fixing
+ingress 503 responses. Escape, Ctrl+V and menus also remain available during
+ordinary microphone recording.
 
 OTA accepts a strictly newer numeric version. A stale manifest cannot downgrade
 a USB-flashed build. A clean updater that skips or fails an update now starts

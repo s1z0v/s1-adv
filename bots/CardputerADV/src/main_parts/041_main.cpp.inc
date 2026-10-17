@@ -315,6 +315,7 @@ void resetRealtimeTurnState() {
 
 void closeRealtimeSession(const String& reason) {
   gPendingRealtimeStart=false;
+  ++gRealtimeDialGeneration; // Cancelled workers dispose their sockets on completion.
   const bool wasActive = gRealtimeActive;
   const bool wasConnected = gRealtimeConnected;
   if (gRealtimeRecording) {

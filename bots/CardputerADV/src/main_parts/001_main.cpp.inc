@@ -40,6 +40,7 @@
 #include "smartlamp_gl2_protocol.h"
 #include "tcl112ac_encoder.h"
 #include "transport_security.h"
+#include "realtime_socket.h"
 
 extern "C" {
 #include "libb64/cdecode.h"

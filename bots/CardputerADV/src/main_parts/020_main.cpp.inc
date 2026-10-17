@@ -201,7 +201,7 @@ bool autoInboxPollAllowed() {
   return gWifiReady && !gHubHost.isEmpty() && !gOtaApplyInProgress && !gTransferUiActive &&
          passiveUi && !gLauncherVisible &&
          !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive &&
-         !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
+         !gRealtimeDialBusy && !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
          gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty() &&
          gInputBuffer.isEmpty();

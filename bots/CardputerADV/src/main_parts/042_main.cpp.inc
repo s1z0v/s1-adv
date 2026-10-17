@@ -418,27 +418,10 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
     case WStype_DISCONNECTED: {
       logf("[RT] disconnect reason=%.*s",static_cast<int>(min<size_t>(length,96)),
            payload ? reinterpret_cast<const char*>(payload) : "");
-      const bool wasReady = gRealtimeConnected;
       gRealtimeConnected = false;
       gRealtimeAuthPending = false;
       gRealtimeAuthDueMs = 0;
       if (gRealtimeActive) {
-        // A short-lived TLS/upgrade failure must not eject the user from the
-        // mode. WebSocketsClient will reconnect; keep the pending start until
-        // the bounded connect watchdog expires. Explicit auth/protocol errors
-        // are handled above and clear gRealtimeActive before this callback.
-        const uint32_t now = millis();
-        const bool stillConnecting = !wasReady && !gRealtimeRecording &&
-                                     gRealtimeSessionStartedMs != 0 &&
-                                     now - gRealtimeSessionStartedMs <= 15000U;
-        if (stillConnecting) {
-          appendRuntimeLog("RT", "connect interrupted; retrying", true);
-          setStatus("Realtime retrying...");
-          logf("[RT] ws connect interrupted; retrying elapsed_ms=%u reason_bytes=%u",
-               static_cast<unsigned>(now - gRealtimeSessionStartedMs),
-               static_cast<unsigned>(length));
-          break;
-        }
         bool wasSmoke = gRealtimeSmokeActive;
         logf("[RT] ws disconnected active=1");
         failRealtimeSession("Disconnected. Ctrl+R retry");
@@ -503,7 +486,7 @@ void startRealtimeSession(bool startAfterReady) {
   gRealtimeScreenVisible = true;
   gRealtimeUiError = "";
   gRealtimeUiTranscript = "";
-  if (gInboxHttpBusy || gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr) {
+  if (gInboxHttpBusy || gRealtimeDialBusy || gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr) {
     gPendingRealtimeStart = true;
     gPendingRealtimeAutoStart = startAfterReady;
     setStatus("Waiting for network...", 900);
@@ -545,6 +528,10 @@ void startRealtimeSession(bool startAfterReady) {
   gRealtimeWs.onEvent(realtimeWsEvent);
   gRealtimeWs.setReconnectInterval(750);
   gRealtimeWs.enableHeartbeat(15000, 3000, 2);
+  if (!beginRealtimeDial()) {
+    failRealtimeSession("Connection worker unavailable");
+    return;
+  }
   setStatus("Realtime connecting...");
   render(); // Show MIC OFF / CONNECT before the first TLS handshake.
   appendRuntimeLog("RT", "connect host=" + gHubHost + ":" + String(gHubPort), false);

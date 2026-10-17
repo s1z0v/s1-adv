@@ -31,6 +31,7 @@ std::deque<String> gPendingTextTurns;
 bool gAssistantPendingVisible=false,gSubmitting=false,gThinking=false;
 void* gTextTurnTaskHandle=nullptr;
 void* gCompletedTextTurn=nullptr;
+bool gRealtimeDialBusy=false;
 bool gInboxHttpBusy=false,gPendingRealtimeStart=false,gPendingRealtimeAutoStart=false;
 bool gChatCommandsVisible=false,gLauncherVisible=false,gRealtimeActive=false,gRealtimeExclusiveMode=false;
 bool gRealtimeScreenVisible=false,gRealtimeConnected=false,gRealtimeRecording=false;
@@ -57,6 +58,7 @@ void saveDeviceSettings(){++saved;}
 const char* eyeSkinName(uint8_t){return "skin";}
 '''
 code+='\n'+function('064_main.cpp.inc','bool isAssistantUi()')
+code+='\n'+function('064_main.cpp.inc','String makeRealtimeUpgradeRequest(')
 code+='\n'+function('064_main.cpp.inc','bool handleAssistantMenuKey(')
 code+='\n'+function('064_main.cpp.inc','const char* realtimeStageLabel()')
 code+='\n'+function('064_main.cpp.inc','void servicePendingRealtimeStart()')
@@ -64,6 +66,12 @@ code+='\n'+function('064_main.cpp.inc','void runChatCommand(uint8_t index)')
 code+='\n'+function('044_main.cpp.inc','void submitInput()')
 code+=r'''
 int main(){
+ String request=makeRealtimeUpgradeRequest("bridge.example.com",443,"/realtime","nonce","X-Device-Id: test");
+ assert(request.find("Host: bridge.example.com\r\n")!=std::string::npos);
+ assert(request.find("Host: bridge.example.com:443")==std::string::npos);
+ assert(request.find("X-Device-Id: test\r\nUser-Agent:")!=std::string::npos);
+ request=makeRealtimeUpgradeRequest("bridge.example.com",8443,"/realtime","nonce","");
+ assert(request.find("Host: bridge.example.com:8443\r\n")!=std::string::npos);
  // The app launcher remains reachable from Home and while the mic is busy.
  Keyboard_Class::KeysState keys;keys.tab=true;
  assert(handleAssistantMenuKey('\t',keys) && gLauncherVisible && !gChatCommandsVisible);

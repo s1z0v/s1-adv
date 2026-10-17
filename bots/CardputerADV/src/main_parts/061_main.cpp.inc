@@ -315,6 +315,7 @@ void loop() {
   // other subsystem. This lets automated smoke tests and rt.close recover a
   // session without a physical reset.
   handleHostSerialInput();
+  serviceRealtimeDialCompletion();
   if (gRealtimeExclusiveMode) {
     serviceRealtimeExclusiveLoop(loopStartMs);
     return;

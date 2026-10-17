@@ -161,7 +161,7 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
 
 Preferences gPrefs;
 WebSocketsClient gWs;
-WebSocketsClient gRealtimeWs;
+RealtimeSocket gRealtimeWs;
 DNSServer gSetupDns;
 WebServer gSetupServer(80);
 String gSetupPortalPassword;

@@ -11,6 +11,97 @@ bool isAssistantUi() {
          gUiMode == UiMode::ChatFull || gUiMode == UiMode::Face || gUiMode == UiMode::Hero;
 }
 
+String makeRealtimeUpgradeRequest(const String& host,uint16_t port,const String& path,
+                                  const String& key,const String& extraHeaders) {
+  String request;
+  request.reserve(512+extraHeaders.length());
+  request="GET "+path+" HTTP/1.1\r\nHost: "+host;
+  // The public ingress routes the authority as received. A redundant :443
+  // reaches its unavailable fallback; use the canonical HTTPS authority.
+  if (port!=443) request+=":"+String(port);
+  request+="\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ";
+  request+=key+"\r\n";
+  if (!extraHeaders.isEmpty()) request+=extraHeaders+"\r\n";
+  request+="User-Agent: S1-ADV\r\n\r\n";
+  return request;
+}
+
+RealtimeDialResult* performRealtimeDial(void* arg) {
+  std::unique_ptr<RealtimeDialRequest> request(static_cast<RealtimeDialRequest*>(arg));
+  std::unique_ptr<RealtimeDialResult> result(new RealtimeDialResult());
+  if (!result) return nullptr;
+  result->generation=request->generation;
+  result->key=request->key;
+  std::unique_ptr<WiFiClientSecure> socket(new WiFiClientSecure());
+  if (!socket || WiFi.status()!=WL_CONNECTED) {
+    result->error="Wi-Fi unavailable";
+  } else {
+    socket->setCACert(kTlsRootCaPem);
+    socket->setHandshakeTimeout(5);
+    if (!socket->connect(request->host.c_str(),request->port,2500)) {
+      char detail[96]={};
+      const int code=socket->lastError(detail,sizeof(detail));
+      result->error="TLS connect failed "+String(code);
+    } else {
+      socket->setNoDelay(true);
+      const size_t length=request->request.length();
+      if (socket->write(reinterpret_cast<const uint8_t*>(request->request.c_str()),length)!=length)
+        result->error="Upgrade request send failed";
+      else result->socket=std::move(socket);
+    }
+  }
+  return result.release(); // Failed sockets and request strings die before task deletion.
+}
+
+void realtimeDialTask(void* arg) {
+  RealtimeDialResult* result=performRealtimeDial(arg);
+  portENTER_CRITICAL(&gRealtimeDialMux);
+  gRealtimeDialResult=result;
+  gRealtimeDialAllocationFailed=result==nullptr;
+  portEXIT_CRITICAL(&gRealtimeDialMux);
+  vTaskDelete(nullptr);
+}
+
+bool beginRealtimeDial() {
+  std::unique_ptr<RealtimeDialRequest> request(new RealtimeDialRequest());
+  if (!request) return false;
+  request->host=gHubHost;
+  request->port=gHubPort;
+  request->key=gRealtimeWs.newHandshakeKey();
+  request->request=makeRealtimeUpgradeRequest(gHubHost,gHubPort,kRealtimeWsPath,
+                                               request->key,gRealtimeExtraHeaders);
+  request->generation=++gRealtimeDialGeneration;
+  gRealtimeDialBusy=true;
+  RealtimeDialRequest* raw=request.release();
+  if (xTaskCreate(realtimeDialTask,"rt-connect",12288,raw,1,nullptr)!=pdPASS) {
+    delete raw;gRealtimeDialBusy=false;return false;
+  }
+  return true;
+}
+
+void serviceRealtimeDialCompletion() {
+  RealtimeDialResult* completed=nullptr;
+  bool allocationFailed=false;
+  portENTER_CRITICAL(&gRealtimeDialMux);
+  completed=gRealtimeDialResult;gRealtimeDialResult=nullptr;
+  allocationFailed=gRealtimeDialAllocationFailed;gRealtimeDialAllocationFailed=false;
+  portEXIT_CRITICAL(&gRealtimeDialMux);
+  if (!completed && !allocationFailed) return;
+  gRealtimeDialBusy=false;
+  if (allocationFailed) {
+    if (gRealtimeActive) failRealtimeSession("Not enough memory for connection");
+    return;
+  }
+  std::unique_ptr<RealtimeDialResult> result(completed);
+  if (!gRealtimeActive || result->generation!=gRealtimeDialGeneration) return;
+  if (!result->error.isEmpty() || !result->socket) {
+    failRealtimeSession(result->error.isEmpty() ? String("Connection failed") : result->error);
+    return;
+  }
+  gRealtimeWs.adopt(result->socket.release(),result->key);
+  logf("[RT] TLS worker ready; awaiting upgrade");
+}
+
 // Tab always opens the app launcher. Assistant commands have their own chord.
 bool handleAssistantMenuKey(char key,const Keyboard_Class::KeysState& keys) {
   if (!isAssistantUi()) return false;
@@ -82,7 +173,7 @@ void renderRealtimeEyesUi() {
 }
 
 void servicePendingRealtimeStart() {
-  if (!gPendingRealtimeStart || gInboxHttpBusy || gTextTurnTaskHandle || gCompletedTextTurn ||
+  if (!gPendingRealtimeStart || gInboxHttpBusy || gRealtimeDialBusy || gTextTurnTaskHandle || gCompletedTextTurn ||
       gSubmitting || !gPendingTextTurns.empty()) return;
   gPendingRealtimeStart = false;
   if (isAssistantUi()) startRealtimeSession(gPendingRealtimeAutoStart);

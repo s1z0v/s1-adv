@@ -76,7 +76,7 @@ void serviceRealtimeVoice() {
     setFaceMode(FaceMode::Error);
     return;
   }
-  gRealtimeWs.loop();
+  if (!gRealtimeDialBusy) gRealtimeWs.pollConnected();
   now = millis();
   if (gRealtimeAuthPending &&
       static_cast<int32_t>(now - gRealtimeAuthDueMs) >= 0) {

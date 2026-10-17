@@ -320,7 +320,7 @@ void textTurnTask(void* arg) {
 }
 
 void maybeStartNextTextTurn() {
-  if (gInboxHttpBusy || gRealtimeExclusiveMode || gUiMode == UiMode::Nes) return;
+  if (gInboxHttpBusy || gRealtimeDialBusy || gRealtimeExclusiveMode || gUiMode == UiMode::Nes) return;
   if (gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr || !gActiveTextTurn.isEmpty()) {
     return;
   }

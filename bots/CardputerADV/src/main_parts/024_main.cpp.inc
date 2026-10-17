@@ -203,7 +203,8 @@ void serviceDeferredDeviceActions() {
 
 void servicePendingOtaAction() {
   if ((!gPendingOtaCheckAction && !gPendingOtaApplyAction) || millis() < gPendingOtaActionAfterMs ||
-      gPlaybackActive || gRecording || gSubmitting || gThinking || gOtaApplyInProgress) {
+      gPlaybackActive || gRecording || gSubmitting || gThinking || gOtaApplyInProgress ||
+      gInboxHttpBusy || gRealtimeDialBusy || gTextTurnTaskHandle) {
     return;
   }
   bool shouldCheck = gPendingOtaCheckAction;
