@@ -121,7 +121,7 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
         }
         output.close();
         result->ok = payload->generation == gVoiceReplySpeechGeneration && result->bytes > 0 &&
-                     !(result->bytes & 1) && (expected < 0 || result->bytes == static_cast<size_t>(expected));
+                     !(result->bytes & 1) && (expected < 0 ? !http.connected() : result->bytes == static_cast<size_t>(expected));
       }
     }
     http.end();

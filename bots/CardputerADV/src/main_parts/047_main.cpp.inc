@@ -2023,6 +2023,7 @@ bool handleGlobalEscape() {
     return true;
   }
   if (gChatCommandsVisible) { gChatCommandsVisible=false; return true; }
+  if (gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty()) dismissVoiceNotice();
   gPendingRealtimeStart=false;
   gRealtimeScreenVisible=false;
   bool changed = false;

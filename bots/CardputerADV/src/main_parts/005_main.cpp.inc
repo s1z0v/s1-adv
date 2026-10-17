@@ -27,6 +27,8 @@ void cancelRecordingDiscard();
 bool gChatCommandsVisible = false;
 bool gVoiceNoticeVisible = false;
 bool gVoiceNoticePending = false;
+bool gInboxLastFromAssistant = false;
+uint32_t gVoiceReplyNotifyUntilMs = 0;
 String gVoiceNoticeText;
 uint32_t gVoiceNoticeShownMs = 0;
 String gQueuedVoiceReplySpeech;

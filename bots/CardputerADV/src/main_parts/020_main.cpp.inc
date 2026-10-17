@@ -44,6 +44,7 @@ bool handleInboxHistoryItem(JsonObject item, bool forcePlay, bool assistantOnly 
     }
   }
   gInboxLastText = text;
+  gInboxLastFromAssistant = senderKind == "assistant";
   gInboxLastKind = kind;
   gInboxLastSender = senderName.isEmpty() ? senderKind : senderName;
   gInboxLastVoiceUrl = "";
@@ -140,9 +141,11 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
   doc.clear();
   body = "";
   if (found) {
-    if (voiceReplyWasPending && !gVoiceReplyPending) {
+    const bool voiceReplyArrived = voiceReplyWasPending && !gVoiceReplyPending;
+    if (voiceReplyArrived || (quiet && !forcePlay && gInboxLastFromAssistant)) {
       showVoiceNotice(gInboxLastText, false);
-      gQueuedVoiceReplySpeech = cleanReplyForDevice(gInboxLastText);
+      if (voiceReplyArrived || static_cast<int32_t>(gVoiceReplyNotifyUntilMs - millis()) > 0)
+        gQueuedVoiceReplySpeech = cleanReplyForDevice(gInboxLastText);
       M5Cardputer.Speaker.tone(1319,90);
       setStatus("AI Agent replied",4000);
     }

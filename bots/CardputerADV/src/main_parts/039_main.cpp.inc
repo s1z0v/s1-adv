@@ -72,6 +72,7 @@
   }
 
   DynamicJsonDocument resp(4096);
+  gVoiceReplyNotifyUntilMs = millis() + 600000U;
   auto err = deserializeJson(resp, response);
   if (err) {
     pushError("Could not parse voice reply.");
