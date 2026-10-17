@@ -51,7 +51,7 @@ void serviceRealtimeVoice() {
   }
   uint32_t now = millis();
   if (!gRealtimeConnected && gRealtimeSessionStartedMs != 0 &&
-      now - gRealtimeSessionStartedMs > 15000) {
+      now - gRealtimeSessionStartedMs > 30000) {
     logf("[RT] connect timeout active=%d free=%u largest=%u",
          static_cast<int>(gRealtimeActive),
          static_cast<unsigned>(ESP.getFreeHeap()),
@@ -77,6 +77,10 @@ void serviceRealtimeVoice() {
     return;
   }
   if (!gRealtimeDialBusy) gRealtimeWs.pollConnected();
+  if (gRealtimeVadStopPending) {
+    gRealtimeVadStopPending=false;
+    stopRealtimeRecordingForVad();
+  }
   now = millis();
   if (gRealtimeAuthPending &&
       static_cast<int32_t>(now - gRealtimeAuthDueMs) >= 0) {

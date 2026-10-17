@@ -44,7 +44,11 @@ enum Status {WSC_NOT_CONNECTED,WSC_HEADER,WSC_CONNECTED};
 inline std::vector<String> lines;
 class WebSocketsClient {
  protected:
-  struct Client {WiFiClientSecure* ssl=nullptr;WiFiClientSecure* tcp=nullptr;String cKey;Status status=WSC_NOT_CONNECTED;} _client;
+  struct Client {
+   WiFiClientSecure* ssl=nullptr;WiFiClientSecure* tcp=nullptr;String cKey;Status status=WSC_NOT_CONNECTED;
+   struct {unsigned opCode=2;size_t payloadLen=1448;} cWsHeaderDecode;
+   unsigned cWsRXsize=4,pongTimeoutCount=0;
+  } _client;
   uint32_t _lastHeaderSent=0;
   String base64_encode(uint8_t*,size_t){return "nonce";}
   void clientDisconnect(Client* c,const char*){++disconnected;delete c->tcp;c->tcp=nullptr;c->ssl=nullptr;c->status=WSC_NOT_CONNECTED;}
@@ -59,6 +63,8 @@ class WebSocketsClient {
 #include <cassert>
 int main(){
  RealtimeSocket socket;
+ assert(socket.receiveOpcode()==2 && socket.receiveLength()==1448);
+ assert(socket.receiveHeaderBytes()==4 && socket.heartbeatTimeouts()==0);
  socket.pollConnected();assert(baseLoops==0);
  auto* tls=new WiFiClientSecure();socket.adopt(tls,"nonce");
  tls->feed("HTTP/1.1 101 Switch");socket.pollConnected();
@@ -119,4 +125,8 @@ worker=function('RealtimeDialResult* performRealtimeDial(')
 for banned in ['setUiMode','setStatus','logf(','vTaskDelete','gCanvas','gRealtimeWs.']:
     assert banned not in worker,banned
 assert 'setCACert(kTlsRootCaPem)' in worker and 'setInsecure' not in worker
+callback=(parts/'042_main.cpp.inc').read_text().split('if (type == "speech.stopped")')[1].split('if (type == "realtime.thinking")')[0]
+assert 'gRealtimeVadStopPending = true' in callback and 'stopRealtimeRecordingForVad()' not in callback
+service=(parts/'043_main.cpp.inc').read_text()
+assert service.index('gRealtimeWs.pollConnected()') < service.index('stopRealtimeRecordingForVad()') < service.index('serviceRealtimeRecording(true)')
 print('PASS actual Realtime reader: partial headers, timeout, disconnect; cancelled/failed/successful socket ownership; verified TLS worker')

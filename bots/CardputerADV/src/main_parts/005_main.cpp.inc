@@ -84,6 +84,7 @@ bool gRealtimeActive = false;
 bool gRealtimeConnected = false;
 bool gRealtimeStartAfterReady = false;
 bool gRealtimeRecording = false;
+bool gRealtimeVadStopPending = false;
 bool gRealtimeAwaiting = false;
 bool gRealtimeGotAudio = false;
 bool gRealtimeHandsFreeActive = false;

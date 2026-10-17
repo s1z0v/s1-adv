@@ -10,6 +10,10 @@ class RealtimeSocket : public WebSocketsClient {
     for (auto& byte:nonce) byte=static_cast<uint8_t>(esp_random());
     return base64_encode(nonce,sizeof(nonce));
   }
+  unsigned receiveOpcode() const { return _client.cWsHeaderDecode.opCode; }
+  size_t receiveLength() const { return _client.cWsHeaderDecode.payloadLen; }
+  unsigned receiveHeaderBytes() const { return _client.cWsRXsize; }
+  unsigned heartbeatTimeouts() const { return _client.pongTimeoutCount; }
   void adopt(WiFiClientSecure* socket,const String& key) {
     _client.ssl=socket; _client.tcp=socket; _client.cKey=key;
     _client.status=WSC_HEADER; _lastHeaderSent=millis(); headerLine_="";

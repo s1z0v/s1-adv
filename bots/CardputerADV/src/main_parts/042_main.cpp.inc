@@ -299,7 +299,9 @@ void handleRealtimeJson(const JsonDocument& doc) {
   }
   if (type == "speech.stopped") {
     if (gRealtimeRecording) {
-      stopRealtimeRecordingForVad();
+      // Drain/stop I2S only after the WebSocket parser has released this
+      // message and its JSON buffer. That path can also send final mic frames.
+      gRealtimeVadStopPending = true;
     } else {
       setStatus("Realtime heard", 500);
     }
@@ -416,6 +418,9 @@ void handleRealtimeJson(const JsonDocument& doc) {
 void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED: {
+      logf("[RT] rx disconnect opcode=%u payload=%u header=%u heartbeat_timeouts=%u",
+           gRealtimeWs.receiveOpcode(),static_cast<unsigned>(gRealtimeWs.receiveLength()),
+           gRealtimeWs.receiveHeaderBytes(),gRealtimeWs.heartbeatTimeouts());
       logf("[RT] disconnect reason=%.*s",static_cast<int>(min<size_t>(length,96)),
            payload ? reinterpret_cast<const char*>(payload) : "");
       gRealtimeConnected = false;
