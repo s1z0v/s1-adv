@@ -317,6 +317,7 @@ bool startNesGame(int index) {
   gNesRomFile=SD.open(gNesGames[index].path,"r");
   if(gNesRomFile)gNesRomFile.setBufferSize(4096);
   if(!gNesRomFile || !s1_nes_open_stream(readNesRom,&gNesRomFile,gNesGames[index].bytes)) {
+    logf("[NES] load failed heap=%u largest=%u io=%u",ESP.getFreeHeap(),static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),static_cast<unsigned>(s1_nes_io_bytes()));
     stopNesGame();gNesMessage="Cannot load ROM (format / memory)";return false;
   }
   initSpeaker();gNesFrameNumber=0;gNesStartedMs=millis();gNesNextFrameUs=micros();

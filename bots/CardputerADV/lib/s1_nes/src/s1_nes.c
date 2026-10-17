@@ -144,7 +144,7 @@ rominfo_t *rom_load(const char *filename, ppu_t *ppu) {
   r->mapper_number=(image[6]>>4)|(image[7]&0xF0);
   r->mirror=(image[6]&1)?MIRROR_VERT:MIRROR_HORIZ;
   if (image_reader) {
-    prg_cache_count=r->rom_banks*2; if(prg_cache_count>12)prg_cache_count=12;
+    prg_cache_count=r->rom_banks*2; if(prg_cache_count>10)prg_cache_count=10;
     for(int i=0;i<prg_cache_count;++i) { prg_cache[i]=NOFRENDO_MALLOC(8192); if(!prg_cache[i]) { rom_free(&r); return NULL; } }
     r->rom=prg_cache[0];
     r->vrom=image[5]?NOFRENDO_MALLOC(8192):NULL;
