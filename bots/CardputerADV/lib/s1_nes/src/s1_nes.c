@@ -17,9 +17,7 @@ volatile int nofrendo_ticks;
 const rgb_t gui_pal[GUI_TOTALCOLORS] = {{0,0,0}};
 static nes_t *machine;
 static bitmap_t *frame;
-static uint8_t *viewport;
-static uint8_t expanded_row[256];
-static int expanded_y=-1;
+static uint8_t *viewport[2];
 static nesinput_t pad = { INP_JOYPAD0, 0 };
 static const uint8_t *image;
 static size_t image_size, allocated;
@@ -169,15 +167,16 @@ extern void nes_step_frame(bool draw);
 extern void input_reset(void);
 void s1_nes_close(void) {
   if(machine) nes_destroy(&machine);
-  bmp_destroy(&frame); NOFRENDO_FREE(viewport); expanded_y=-1; image=NULL; image_size=0; image_reader=NULL; image_context=NULL; pad.data=0; input_reset();
+  bmp_destroy(&frame); NOFRENDO_FREE(viewport[0]); NOFRENDO_FREE(viewport[1]); image=NULL; image_size=0; image_reader=NULL; image_context=NULL; pad.data=0; input_reset();
 }
 static bool open_image(void) {
   image_io_ok=true; image_io_bytes=0;prg_clock=0;
   memset(prg_cache,0,sizeof(prg_cache));memset(prg_ids,0xFF,sizeof(prg_ids));memset(prg_age,0,sizeof(prg_age));
   memset(prg_window_ids,0xFF,sizeof(prg_window_ids)); memset(chr_window_ids,0xFF,sizeof(chr_window_ids));
   if (!valid_image()) { s1_nes_close(); return false; }
-  viewport=NOFRENDO_MALLOC(128*120);
-  if(!viewport){s1_nes_close();return false;}
+  viewport[0]=NOFRENDO_MALLOC(256*60);
+  viewport[1]=NOFRENDO_MALLOC(256*60);
+  if(!viewport[0] || !viewport[1]){s1_nes_close();return false;}
   frame=bmp_create_scanline(256,240,8);
   if(!frame) { s1_nes_close(); return false; }
   machine=nes_create();
@@ -201,18 +200,15 @@ bool s1_nes_open_stream(s1_nes_reader reader, void *context, size_t size) {
 }
 void s1_nes_frame(uint8_t buttons, bool draw, int16_t *audio, int samples) {
   if(!machine) return;
-  pad.data=buttons; expanded_y=-1; nes_step_frame(draw);
+  pad.data=buttons; nes_step_frame(draw);
   if(audio && samples>0) apu_process(audio,samples);
 }
 void s1_nes_capture_scanline(int y) {
-  if(!viewport || !frame || y<0 || y>=240 || !(y&1))return;
-  for(int x=0;x<128;++x)viewport[(y/2)*128+x]=frame->line[y][x*2];
+  if(!viewport[0] || !viewport[1] || !frame || y<0 || y>=240 || !(y&1))return;
+  const int row=y/2;memcpy(viewport[row/60]+(row%60)*256,frame->line[y],256);
 }
 const uint8_t *s1_nes_row(int y) {
-  if(!viewport || y<0 || y>=240)return NULL;
-  if(expanded_y!=y/2){
-    expanded_y=y/2;for(int x=0;x<256;++x)expanded_row[x]=viewport[expanded_y*128+x/2];
-  }
-  return expanded_row;
+  if(!viewport[0] || !viewport[1] || y<0 || y>=240)return NULL;
+  const int row=y/2;return viewport[row/60]+(row%60)*256;
 }
 uint16_t s1_nes_color(uint8_t i) { return colors[i & 63]; }

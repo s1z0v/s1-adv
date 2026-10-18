@@ -5,13 +5,17 @@ Put your own `.nes` files in `/nes` on the SD card, then open **NES** from the
 app menu. Choose a file with W/S or arrows and press Enter.
 
 Controls: WASD/arrows move, Z is A, X is B, Enter is Start, Space is Select.
-Escape returns to the game list; Escape again returns Home.
+Enter is Start and never exits a running game. Escape returns to the game list;
+Escape again returns Home. F switches between classic 4:3 (180×135) and
+full-width (240×135) display without restarting the game.
 
 On macOS/Linux, files can also be copied over USB without removing the card:
 
 ```sh
 python3 scripts/install_nes_roms.py --port /dev/cu.usbmodem101 /path/to/game.nes
 ```
+
+A failed SD read pauses the game with an error message until Escape is pressed.
 
 The installer verifies SHA-256 on the device before committing each file.
 Different existing files are preserved with a `.previous.<timestamp>` suffix.
@@ -27,7 +31,7 @@ formats are rejected. This is not a claim that every NES title is compatible.
 
 Cardputer ADV has limited RAM and no PSRAM in the tested device. ROMs stay on
 SD; an adaptive PRG bank cache and CHR window avoid loading a whole cartridge.
-The PPU executes every scanline and captures a 128×120 viewport. Chat, voice,
+The PPU executes every scanline and captures a 256×120 viewport at the full horizontal resolution. Chat, voice,
 network polling and Realtime pause during gameplay. Exiting frees emulator
 allocations and restores the assistant and Wi-Fi. Firmware/OTA partitions are
 unchanged, and adding games to SD does not increase the OTA image size.

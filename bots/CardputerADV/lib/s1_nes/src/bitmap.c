@@ -102,7 +102,7 @@ bitmap_t *bmp_create(int width, int height, int overdraw)
     return bitmap;
 }
 
-/* PPU scratch row; the host captures its 128x120 output after each odd line. */
+/* PPU scratch row; the host captures 256x120 pixels after each odd line. */
 bitmap_t *bmp_create_scanline(int width,int height,int overdraw)
 {
    bitmap_t *b=NOFRENDO_MALLOC(sizeof(bitmap_t)+sizeof(uint8*)*height);

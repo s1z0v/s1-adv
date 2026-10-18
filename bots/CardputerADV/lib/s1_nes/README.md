@@ -17,7 +17,7 @@ headers without extended bank counts/submappers. ROMs are read from SD through
 a bounded callback. No game is linked into the device firmware. See
 [SD installation and controls](../../../../docs/NES.md).
 
-A scratch scanline and 128x120 captured viewport replace a large contiguous
+A scratch scanline and two 15 KiB capture blocks (256x120 pixels) replace a large contiguous
 framebuffer. All PPU scanlines still execute. A cache holds at most ten
 8 KiB PRG banks and pins currently mapped CPU windows. CHR has an 8 KiB window.
 Small cartridges allocate fewer banks. The allocator has a 144 KiB ceiling;
