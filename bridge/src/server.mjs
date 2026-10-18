@@ -3533,6 +3533,7 @@ class BridgeRuntime {
 	    this.bootstrapPromise = null;
     this.pendingMirrors = new Map();
     this.suppressedMirrors = new Map();
+    this.deviceFirmwareReports = new Map();
     this.lastSessionTopicSyncMs = 0;
     this.startedAtMs = Date.now();
 	  }
@@ -4557,6 +4558,17 @@ class BridgeRuntime {
     return message;
   }
 
+  recordDeviceFirmware(device, params) {
+    const version=String(params.get('firmware_version')||'');
+    const git=String(params.get('firmware_git')||'');
+    if(!/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/u.test(version) || !/^(?:[a-f0-9]{7,40}|local)$/u.test(git)) return;
+    const previous=this.deviceFirmwareReports.get(device.device_id);
+    const report={version,git,reported_at:new Date().toISOString()};
+    this.deviceFirmwareReports.set(device.device_id,report);
+    if(previous?.version!==version || previous?.git!==git)
+      console.info(`[device] firmware device=${device.device_id} version=${version} git=${git}`);
+  }
+
   firmwareClarificationTopic(topic, text) {
     if(!/^(?:yes|yep|yeah|ok|okay|sure|go ahead|please do|no|да|ага|верно|именно|делай|нет)(?:\s|[.!?,]|$)/iu.test(String(text||'').trim())) return null;
     const last=this.store.getHistory(topic.topic_key,0,12).items
@@ -5331,7 +5343,8 @@ class BridgeRuntime {
         limit: topicPreviewLimit
       }),
       recent_topic_history: this.buildRecentHistoryForPrompt(topicKey, recentHistoryOverrides),
-      firmware: this.buildFirmwarePromptContext()
+      firmware: this.buildFirmwarePromptContext(),
+      device_firmware: this.deviceFirmwareReports.get(device.device_id) || null
     };
     const shortReplyWords = Math.max(8, Number(this.config.deviceTurnContext?.shortReplyWords) || 15);
     const voiceReplyMaxSeconds = Math.max(5, Number(this.config.deviceTurnContext?.voiceReplyMaxSeconds) || 25);
@@ -5824,6 +5837,7 @@ async function main() {
         ? {
             ok: true,
             upstream_connected: runtime.upstream.connected,
+            device_firmware: runtime.deviceFirmwareReports.get(device.device_id) || null,
             ...buildConnectPayload(config, req)
           }
         : { ok: true });
@@ -6499,6 +6513,7 @@ async function main() {
     }
 
     if (req.method === "GET" && url.pathname === "/api/cardputer/device-events/pending") {
+      runtime.recordDeviceFirmware(device,url.searchParams);
       const limit = Math.max(1, Math.min(10, Number(url.searchParams.get("limit") || 5)));
       const requestedTopicKey = String(url.searchParams.get("topic_key") || "").trim();
       const primaryTopicKey = runtime.primaryCardputerTopicForDevice(device)?.topic_key || "";

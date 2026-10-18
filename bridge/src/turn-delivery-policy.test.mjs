@@ -68,6 +68,17 @@ test('Cardputer execution context never needs a desktop chat or Mac checkout',()
  assert.doesNotMatch(source,/existing OpenClaw\/Codex execution environment/);
 });
 
+test('authenticated runtime firmware reports distinguish a device boot from a published image',()=>{
+ const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
+ const code=source.slice(source.indexOf('  recordDeviceFirmware('),source.indexOf('  firmwareClarificationTopic(')).trim();
+ const record=new Function(`return function ${code}`)();
+ const runtime={deviceFirmwareReports:new Map()},device={device_id:'test'};
+ record.call(runtime,device,new URLSearchParams({firmware_version:'0.2.159-dev',firmware_git:'a'.repeat(40)}));
+ assert.equal(runtime.deviceFirmwareReports.get('test').version,'0.2.159-dev');
+ record.call(runtime,device,new URLSearchParams({firmware_version:'bad\nvalue',firmware_git:'secret'}));
+ assert.equal(runtime.deviceFirmwareReports.size,1);assert.equal(runtime.deviceFirmwareReports.get('test').git,'a'.repeat(40));
+});
+
 test('voice upload can return a pending receipt without waiting for the full agent turn',()=>{
  assert.equal(voiceReplyWaitMs('1000',65000),1000);
  assert.equal(voiceReplyWaitMs(undefined,65000),10000);
