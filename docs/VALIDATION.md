@@ -15,6 +15,25 @@ No installer or background process follows those links automatically. Private
 overrides and manually installed Russian files remain available; updates do
 not delete files already on SD.
 
+All 74 boundary, 12 installer/release/lifecycle and 3 upstream tests pass, as
+do the three integration smokes and dependency audit. Plugin Inspector against
+OpenClaw 2026.10.4 reports zero API issues. The actual package has 31 files,
+4,519,592 compressed bytes, and only the three English WAVs. All three optional
+Russian URLs were downloaded and matched their original checksums.
+
+ClawHub published `bridge-v0.3.1`, source `d13d260`, under the displayed name
+**ESP32 S1-ADV**, with an aggregate automated scan of **Clean**. Its artifact
+SHA-256 is `963fb261b41db3ccc77bfac4aedbb80310ff7b4517d524e4d4b70e185a5c6270`.
+Both bridge and firmware CI jobs passed for that source. Existing package/runtime
+IDs were retained so installs and private configuration keep their identity.
+
+Native ClawHub upgrade on the isolated OpenClaw 2026.10.4 / Node 26.1.0 profile
+passed. All 31 installed files matched the qualified source. The authenticated
+default manifest and downloads contained three complete English WAVs with
+matching checksums; built-in Russian URLs returned 404. Ordinary upstream and
+delivery readiness remained true. Manually installed language assets are covered
+separately by the host tests. Physical SD writing/playback is not claimed here.
+
 ## Focus audio delivery, plugin 0.3.0, 2026-10-19
 
 The optional library contains six English/Russian PCM16 mono 16 kHz WAV cues,

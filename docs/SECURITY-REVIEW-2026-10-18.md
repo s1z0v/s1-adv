@@ -7,6 +7,14 @@ regressions. It is not an independent penetration test or a safety guarantee.
 
 ## Registry review status
 
+Update, 2026-10-19: `openclaw-s1-adv@0.3.1`, displayed as **ESP32 S1-ADV**,
+was published from `d13d260` with an English-only default audio library.
+Its [automated audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.1)
+reports **Clean**. Artifact SHA-256:
+`963fb261b41db3ccc77bfac4aedbb80310ff7b4517d524e4d4b70e185a5c6270`.
+Russian audio is optional and is never fetched automatically. The release
+does not add agent, process or OTA permissions; their existing disclosure applies.
+
 Update, 2026-10-19: `openclaw-s1-adv@0.3.0`, source `abcd59e`, was published
 with six optional public Focus audio cues. Its
 [automated audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.0)
