@@ -34,8 +34,8 @@ the server task continues. The Home clock stays READY during background work.
 Replies appear in the same window or inline when chat is already open.
 The clock screen shows READY with its decorative animated bars when the
 microphone is off. REC and the live input meter appear after recording starts.
-A small striped battery gauge and percentage sit below READY; amber and red
-indicate low charge. Unknown telemetry displays --%.
+A compact battery gauge with five broad diagonal strokes and a percentage sits
+below READY; amber and red indicate low charge. Unknown telemetry displays --%.
 
 The interface and default assistant replies are English, including replies to
 Russian input. Explicit requests such as "Reply in Russian" are respected.

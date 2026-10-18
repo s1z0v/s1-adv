@@ -152,9 +152,13 @@ void drawHomeBatteryStatus(int32_t rawLevel) {
   const uint16_t dim=rgb565_local(23,48,59),edge=rgb565_local(28,65,77);
   d.drawRoundRect(154,125,34,6,1,edge);
   d.fillRect(188,127,2,2,edge);
-  const int lit=known ? (level*8+99)/100 : 0;
-  for(int i=0;i<8;++i)
-    d.drawLine(156+i*4,129,158+i*4,126,i<lit ? accent : dim);
+  // Five broad diagonal strokes stay inside the original compact outline.
+  constexpr int strokes=5;
+  const int lit=known ? (level*strokes+99)/100 : 0;
+  for(int i=0;i<strokes;++i) {
+    for(int row=0;row<4;++row)
+      d.drawFastHLine(156+i*6+(3-row)*2/3,126+row,4,i<lit ? accent : dim);
+  }
   char percent[5];
   if(known) snprintf(percent,sizeof(percent),"%d%%",level);
   else snprintf(percent,sizeof(percent),"--%%");
