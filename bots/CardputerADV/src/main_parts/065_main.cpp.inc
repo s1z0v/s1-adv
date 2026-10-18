@@ -128,6 +128,7 @@ void renderVoiceNotice() {
 struct VoiceSpeechPayload {
   String url, token, body, path;
   fs::FS* fs = nullptr;
+  size_t maxBytes = 4 * 1024 * 1024;
   uint32_t generation = 0;
 };
 struct VoiceSpeechResult {
@@ -169,8 +170,8 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
       const uint32_t rate = http.header("X-Audio-Sample-Rate").toInt();
       if (rate >= 8000 && rate <= 48000) result->sampleRate = rate;
       const int expected = http.getSize();
-      constexpr size_t maxBytes = 4 * 1024 * 1024;
-      if (expected <= static_cast<int>(maxBytes)) {
+      const size_t maxBytes=payload->maxBytes;
+      if (expected > 0 && expected <= static_cast<int>(maxBytes)) {
         File output = payload->fs->open(payload->path, "w");
         WiFiClient* stream = http.getStreamPtr();
         const uint32_t start = millis();
@@ -182,13 +183,15 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
           size_t chunk = min<size_t>(4096, min<size_t>(available, maxBytes - result->bytes));
           if (expected >= 0) chunk = min<size_t>(chunk, expected - result->bytes);
           const int got = stream->read(buffer.get(), chunk);
-          if (got <= 0 || output.write(buffer.get(), got) != static_cast<size_t>(got)) break;
+          if (got <= 0 || writeRecordedBytes(output,buffer.get(),got) != static_cast<size_t>(got)) break;
           result->bytes += got;
           delay(1);
         }
+        output.flush();
+        const bool stored=output.size()==result->bytes;
         output.close();
         result->ok = payload->generation == gVoiceReplySpeechGeneration && result->bytes > 0 &&
-                     !(result->bytes & 1) && (expected < 0 ? !http.connected() : result->bytes == static_cast<size_t>(expected));
+                     stored && !(result->bytes & 1) && result->bytes == static_cast<size_t>(expected);
       }
     }
     http.end();
@@ -210,6 +213,20 @@ bool voiceReplyFeedbackReady() {
   return gCanvasSpriteActive && !M5Cardputer.Speaker.isPlaying();
 }
 
+fs::FS* voiceReplyStorage(size_t& maxBytes) {
+  maxBytes=4*1024*1024;
+  if(gLittleFsReady) {
+    const uint64_t total=LittleFS.totalBytes(),used=LittleFS.usedBytes();
+    const uint64_t free=total>used?total-used:0;
+    constexpr size_t reserve=64*1024;
+    if(free>=reserve+256*1024 && ensureVoiceStorageOn(LittleFS)) {
+      maxBytes=min<uint64_t>(maxBytes,free-reserve);
+      return &LittleFS;
+    }
+  }
+  return activeVoiceFs();
+}
+
 void serviceVoiceReplySpeech() {
   VoiceSpeechResult* completed = nullptr;
   portENTER_CRITICAL(&gVoiceSpeechMux);
@@ -222,7 +239,7 @@ void serviceVoiceReplySpeech() {
     initSpeaker();
     const bool current = result->generation == gVoiceReplySpeechGeneration;
     const bool play = result->ok && current && !gRecording && !gRealtimeActive && !gPlaybackActive;
-    bool started = play && startPlaybackStreamFromRawPcmFile(result->path, result->sampleRate, result->bytes, "voice reply");
+    bool started = play && startPlaybackStreamFromRawPcmFile(result->path, result->sampleRate, result->bytes, "voice reply",result->fs);
     if (!started && result->fs) fsRemove(*result->fs, result->path);
     logf("[VOICE_TTS] code=%d bytes=%u playback=%d current=%d", result->code,
          static_cast<unsigned>(result->bytes), started, current);
@@ -241,7 +258,7 @@ void serviceVoiceReplySpeech() {
   gLastRenderMs=millis();
   std::unique_ptr<VoiceSpeechPayload> payload(new (std::nothrow) VoiceSpeechPayload());
   if (!payload) { gQueuedVoiceReplySpeech = ""; return; }
-  payload->fs = activeVoiceFs();
+  payload->fs = voiceReplyStorage(payload->maxBytes);
   if (!payload->fs || !gWifiReady) { gQueuedVoiceReplySpeech = ""; return; }
   payload->url = hubBaseUrl() + kDeviceTtsPath; payload->token = gDeviceToken;
   payload->generation = ++gVoiceReplySpeechGeneration;
@@ -255,12 +272,16 @@ void serviceVoiceReplySpeech() {
   M5Cardputer.Speaker.end();
   if (tlsHandshakeNeedsCanvas())
     gVoiceSpeechCanvasReleased = releaseUiCanvasForNetwork("speech memory");
+  const bool flashStorage=payload->fs==&LittleFS;
+  const size_t storageLimit=payload->maxBytes;
   VoiceSpeechPayload* raw = payload.release();
   if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 12288, raw, 1, nullptr) != pdPASS) {
     delete raw; gVoiceReplySpeechBusy = false;
     if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }
     initSpeaker(); setStatus("Reply text ready; voice memory low", 2500);
-  } else logf("[VOICE_TTS] background start generation=%u", static_cast<unsigned>(gVoiceReplySpeechGeneration));
+  } else logf("[VOICE_TTS] background start generation=%u storage=%s limit=%u",
+      static_cast<unsigned>(gVoiceReplySpeechGeneration),flashStorage?"flash":"sd",
+      static_cast<unsigned>(storageLimit));
 }
 struct VoiceDialPayload { String host; uint16_t port=443; bool tls=true; uint32_t generation=0; };
 struct VoiceDialResult { std::unique_ptr<WiFiClient> socket; uint32_t generation=0; };

@@ -18,6 +18,12 @@ display, long replies, unread-card retention and painting before the tone. The
 earlier voice transport, storage, Realtime and Home update/battery checks remain.
 REC, THINK, eyes, battery and update artwork are unchanged.
 
+Temporary reply speech prefers the existing internal LittleFS space, with a
+capacity check and a 64 KiB reserve. Playback and cleanup use that same filesystem.
+This avoids the intermittent SD write failure observed during a repeated native
+speech check. Original microphone recordings remain on SD. Reply downloads use
+bounded writes and must match the expected even PCM byte count before playback.
+
 For native diagnostics, `voice.notice.test.clock <text>` displays that text on
 Clock and exercises the ordinary reply-speech worker. It sends no user turn to
 the agent. A live G0 recording still requires a separate device/bridge check.

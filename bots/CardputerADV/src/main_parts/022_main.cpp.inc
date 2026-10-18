@@ -1,5 +1,6 @@
-bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, size_t audioLen, const String& diag) {
-  fs::FS* fs = activeVoiceFs();
+bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, size_t audioLen,
+                                     const String& diag, fs::FS* storage = nullptr) {
+  fs::FS* fs = storage ? storage : activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {
     setStatus("Voice file missing", 1200);
     return false;
@@ -11,6 +12,7 @@ bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, 
     return false;
   }
   gPlaybackStreamPath = path;
+  gPlaybackStreamFs = fs;
   gPlaybackStreamRemainingBytes = audioLen;
   gPlaybackStreamTotalBytes = audioLen;
   gPlaybackStreamSampleRate = sampleRate;
@@ -59,6 +61,7 @@ bool startPlaybackStreamFromWavFile(const String& path, const String& diag) {
   }
   gPlaybackStreamFile = file;
   gPlaybackStreamPath = path;
+  gPlaybackStreamFs = fs;
   gPlaybackStreamRemainingBytes = info.dataBytes;
   gPlaybackStreamTotalBytes = info.dataBytes;
   gPlaybackStreamSampleRate = info.sampleRate;

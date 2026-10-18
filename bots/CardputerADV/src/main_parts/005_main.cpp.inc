@@ -198,6 +198,7 @@ uint8_t gRealtimeBinaryMicFrame[kRealtimeWsHeaderReserve +
 wifi_ps_type_t gRealtimePreviousWifiSleep = WIFI_PS_NONE;
 File gPlaybackStreamFile;
 String gPlaybackStreamPath;
+fs::FS* gPlaybackStreamFs = nullptr;
 uint32_t gPlaybackStreamSampleRate = 0;
 size_t gPlaybackStreamRemainingBytes = 0;
 size_t gPlaybackStreamTotalBytes = 0;
