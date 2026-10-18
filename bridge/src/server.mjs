@@ -3629,11 +3629,20 @@ class BridgeRuntime {
       }
     }
     console.info(`[topics] creating upstream session key=${topic.session_key}`);
-    await this.upstream.rpc("sessions.create", {
+    const params = {
       key: topic.session_key,
       agentId: agentIdForSession(topic.session_key),
       label: topic.display_title || topic.title || `Topic ${topic.thread_id || ""}`.trim()
-    });
+    };
+    try {
+      await this.upstream.rpc("sessions.create", params);
+    } catch (error) {
+      if (!String(error.message || error).toLowerCase().includes("label already in use")) throw error;
+      // Labels are cosmetic and can be unique per agent on older Gateways.
+      // Keep the exact requested session; never adopt another session by label.
+      const { label, ...unlabeled } = params;
+      await this.upstream.rpc("sessions.create", unlabeled);
+    }
   }
 
   assetsAudioRootDir() {

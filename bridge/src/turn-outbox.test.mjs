@@ -41,6 +41,27 @@ async function fixture(run) {
   }
 }
 
+test('session label collision creates only the exact requested session and never masks other errors', async () => fixture(async f => {
+  const topic = { ...f.runtime.store.getTopic(f.topicKey), session_key: 'agent:main:isolated-new-cardputer' };
+  const calls=[];
+  f.runtime.upstream.rpc=async(method,params)=>{
+    calls.push({method,params});
+    if(method==='sessions.get')throw Error('session not found');
+    assert.equal(method,'sessions.create');
+    if(params.label)throw Error('label already in use: Cardputer');
+    return {key:params.key};
+  };
+  await f.runtime.ensureUpstreamSessionForTopic(topic);
+  assert.deepEqual(calls.map(call=>call.method),['sessions.get','sessions.create','sessions.create']);
+  for(const call of calls)assert.equal(call.params.key,topic.session_key);
+  assert.equal(Object.hasOwn(calls.at(-1).params,'label'),false);
+  assert.equal(f.sends.length,0);
+  let denied=0;
+  f.runtime.upstream.rpc=async()=>{denied++;throw Error('permission denied');};
+  await assert.rejects(f.runtime.ensureUpstreamSessionForTopic(topic,{forceCreate:true}),/permission denied/);
+  assert.equal(denied,1);
+}));
+
 test('actual runtime queues B durably until A has an exact terminal receipt, not just final text', async () => fixture(async f => {
   const first = await f.send('lane-a'); const second = await f.send('lane-b');
   assert.equal(f.sends.length,1); assert.equal(second.delivery_state,'queued');
