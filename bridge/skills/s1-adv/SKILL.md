@@ -48,6 +48,10 @@ authorization, try automatic entry/reset where supported, then verify actual
 boot/source and a device reply. Report code tests, package/native install, model
 round trip and hardware acceptance separately.
 
+After setup, use the bundled `s1-adv-firmware` skill for feature requests and
+verified OTA releases from an ordinary OpenClaw chat. The owner can describe a
+change there or through the Cardputer; no desktop chat binding is needed.
+
 ## Security defaults
 
 Use one device identity per bridge instance and fresh private runtime directories

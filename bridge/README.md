@@ -60,15 +60,15 @@ install with `--accept-capabilities`; local archives/paths can also require
 Install the published plugin on your intended OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.2
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.3
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.2` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.3` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.2.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.3.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply
@@ -150,7 +150,41 @@ permissions. An unconfigured workflow returns a clear unavailable response,
 not a promise that work started. The build and provisioning may contain secrets;
 never attach a personal candidate or config to a public release.
 
+## Ask your OpenClaw agent to change firmware
+
+Two agent skills are bundled: **s1-adv** for setup and diagnosis, and
+**s1-adv-firmware** for implementing features and publishing verified OTA updates.
+After the optional firmware workflow is configured, use an ordinary OpenClaw
+chat: "Use s1-adv-firmware. Add [my feature] to my Cardputer ADV, test it, build
+and publish an OTA update. I will confirm installation on the device."
+The agent uses your private paths and fork. A skill does not grant permissions
+or require any desktop chat binding. See the
+[firmware request guide](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md#ask-openclaw-for-a-new-firmware-feature).
+
 ## Review and verification
+
+This is executable host code, **not a sandbox**. The bridge child inherits the
+Gateway user's OS access and environment. A restricted chat agent limits that
+agent's tools; it does not restrict the bridge process's file or environment
+access. Use a dedicated OS account/container where stronger isolation is needed.
+
+Credential and network boundaries:
+
+- The private Gateway token authenticates to your configured loopback WS or
+  verified WSS Gateway. The device receives a separate device token, not that key.
+- Selected OpenAI STT/TTS/Realtime paths use `OPENAI_API_KEY` and send their
+  audio/text to OpenAI's HTTPS endpoints. Optional Gemini STT uses its configured
+  provider key. These paths can incur provider charges.
+- Optional OpenAI WIF reads only the explicitly configured subject-token file
+  or environment value and exchanges it at `https://auth.openai.com/oauth/token`.
+  Realtime is off in a fresh installation.
+- The legacy direct fast lane is off by default. Its optional Codex OAuth mode
+  can read **and refresh** the selected host auth profile. Review its path and
+  identity before enabling it; avoid competing credential writers. Ordinary
+  OpenClaw chat delegates model authentication to the Gateway instead.
+- Optional firmware commands execute reviewed local tools against your chosen
+  checkout. Skills do not grant these permissions. Keep all configuration and
+  provisioning outside the package, and never share a provisioned image.
 
 There are no install/postinstall scripts or automatic root/model downloads.
 The artifact allowlist excludes private config, state, recordings and dependency

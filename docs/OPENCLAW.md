@@ -25,16 +25,16 @@ API declaration is not proof that every newer or older Gateway works.
 ## Install from ClawHub
 
 The community preview is **ESP32 S1-ADV**, distributed as
-[openclaw-s1-adv 0.3.2](https://clawhub.ai/plugins/openclaw-s1-adv).
+[openclaw-s1-adv 0.3.3](https://clawhub.ai/plugins/openclaw-s1-adv).
 On a current OpenClaw installation:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.2
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.3
 ```
 
 The package includes local process execution and optional firmware
 source/build/publish/OTA capabilities. Inspect
-the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.2)
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.3)
 and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
@@ -43,10 +43,10 @@ remains off until separately provisioned. Setup below is still required.
 ## Alternative: install from reviewed source
 
 ```bash
-git clone --branch bridge-v0.3.2 https://github.com/srg0/s1-adv.git
+git clone --branch bridge-v0.3.3 https://github.com/srg0/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.2.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.3.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
@@ -187,6 +187,29 @@ For voice/text requests that modify firmware, provision the
 It requires your writable fork, Python/PlatformIO, private provisioning and
 appropriate agent tool/exec permissions. These rights are not enabled by basic
 plugin installation. The bridge checks capability before accepting such work.
+
+## Ask OpenClaw for a new firmware feature
+
+The plugin bundles two skills: `s1-adv` for setup/diagnosis and
+`s1-adv-firmware` for source changes, builds and verified OTA releases.
+OpenClaw discovers them from the enabled plugin's `skills` directory. They are
+instructions for your agent, not additional permissions or a separate server.
+
+After provisioning firmware automation, write in your ordinary OpenClaw chat:
+
+```text
+Use the s1-adv-firmware skill for my Cardputer ADV. Add [describe the change].
+Run the relevant checks, bump the version, build the reviewed source, push it
+to my configured fork and publish a verified OTA update. Tell me when it is
+ready. I will confirm installation on the Cardputer.
+```
+
+You can also request a change by keyboard or push-to-talk on the Cardputer.
+Device requests receive the bridge's acknowledgement and delivery/status flow.
+In an ordinary OpenClaw chat the agent reports its progress in that chat; the
+device's OTA check discovers the published candidate. A desktop Codex chat,
+Telegram topic or maintainer account is not required. A skill alone cannot make
+an unconfigured model, missing build tools or unavailable push rights work.
 
 ## Give this to your OpenClaw agent
 
