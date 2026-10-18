@@ -97,6 +97,7 @@ void startRecording() {
     }
   }
 
+  const uint32_t storageReadyMs = millis();
   beginVoiceWifiPerformance();
   beginVoiceRequestUi();
   startMic();
@@ -113,8 +114,11 @@ void startRecording() {
   render();
   // No TLS during capture: it borrows the display buffer and its idle socket
   // can expire before a longer recording is released. Dial only for upload.
-  logf("[VOICE] recording started mode=%s init_ms=%u canvas=%d", gRecordingToFile ? "file" : "ram",
-       static_cast<unsigned>(millis() - captureRequestedMs), gCanvasSpriteActive);
+  logf("[VOICE] recording started mode=%s init_ms=%u sd_ms=%u mic_ms=%u frame_ms=%u canvas=%d",
+       gRecordingToFile ? "file" : "ram", static_cast<unsigned>(millis() - captureRequestedMs),
+       static_cast<unsigned>(storageReadyMs - captureRequestedMs),
+       static_cast<unsigned>(gRecordStartMs - storageReadyMs),
+       static_cast<unsigned>(millis() - gRecordStartMs), gCanvasSpriteActive);
 }
 
 void writeWavHeader(uint8_t* h, uint32_t dataSize, uint32_t sampleRate) {

@@ -132,6 +132,50 @@ bool writeVoiceSmokePcm(fs::FS& fs, const String& path, size_t sampleCount) {
   return true;
 }
 
+String gLastVoiceCaptureCheck = "not run";
+// USB-only hardware diagnostic. Exercise the real mic, SD writer and REC
+// renderer, then discard only this test capture. Never submit an agent turn.
+bool runVoiceCaptureCheck(uint32_t seconds) {
+  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gVoiceDialBusy ||
+      gInboxHttpBusy || gVoiceReplySpeechBusy || gRealtimeActive || M5.BtnA.isPressed()) {
+    logf("[CAPTURE_CHECK] busy"); return false;
+  }
+  const uint32_t requestedMs = millis();
+  startRecording();
+  if (!gRecording || !gRecordingToFile) {
+    if (gRecording) cancelRecordingDiscard();
+    return false;
+  }
+  const uint32_t initMs = millis() - requestedMs;
+  const uint32_t startedMs = gRecordStartMs;
+  uint32_t lastServiceMs = millis(), maxGapMs = 0, frames = 0;
+  bool keptCanvas = gCanvasSpriteActive;
+  while (gRecording && millis() - startedMs < seconds * 1000U) {
+    const uint32_t now = millis();
+    maxGapMs = max<uint32_t>(maxGapMs, now - lastServiceMs);
+    lastServiceMs = now;
+    serviceRecordingToFile();
+    if (now - gLastRenderMs >= kBusyRenderIntervalMs) {
+      render(); gLastRenderMs = millis(); ++frames;
+    }
+    keptCanvas = keptCanvas && gCanvasSpriteActive;
+    yield(); delay(1);
+  }
+  if (gRecording) drainRecordingToFile();
+  const uint32_t elapsedMs = millis() - startedMs;
+  const uint32_t audioMs = gActiveRecordBytes * 1000ULL / (kMicSampleRate * 2U);
+  const bool ok = gRecording && !gRecordFileWriteFailed && keptCanvas &&
+      audioMs + 250U >= seconds * 1000U && frames >= seconds * 5U && maxGapMs < 128U;
+  if (gRecording) cancelRecordingDiscard();
+  dismissVoiceNotice();
+  setFaceMode(FaceMode::Idle); setStatus("Capture check done", 1500);
+  gLastVoiceCaptureCheck = String("[CAPTURE_CHECK] ok=") + (ok ? "1" : "0") +
+      " init=" + String(initMs) + " elapsed=" + String(elapsedMs) + " audio=" + String(audioMs) +
+      " gap=" + String(maxGapMs) + " frames=" + String(frames);
+  logf("%s", gLastVoiceCaptureCheck.c_str());
+  return ok;
+}
+
 bool runVoiceStorageCheck() {
   if (gRecording || gSubmitting || gThinking || gPlaybackActive || gVoiceDialBusy ||
       gInboxHttpBusy || gVoiceReplySpeechBusy || gRealtimeActive) {
@@ -889,6 +933,16 @@ bool handleHostSerialCommand(String line) {
   }
   if (cmd == "voice.storage.test") {
     runVoiceStorageCheck();
+    return true;
+  }
+  if (cmd == "voice.capture.check" || cmd.startsWith("voice.capture.check ")) {
+    const uint32_t seconds = cmd == "voice.capture.check" ? 5U :
+        clampValue<uint32_t>(cmd.substring(20).toInt(), 1U, 20U);
+    runVoiceCaptureCheck(seconds);
+    return true;
+  }
+  if (cmd == "voice.capture.status") {
+    logf("%s", gLastVoiceCaptureCheck.c_str());
     return true;
   }
   if (cmd == "voice.notice.test" || line.startsWith("voice.notice.test.clock ")) {
