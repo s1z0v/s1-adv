@@ -21,7 +21,7 @@ The agent runs on your computer or server; the Cardputer runs this firmware.
 S1-ADV is experimental firmware built on Arduino/FreeRTOS, with an included
 OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover details.
 
-[Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+[Install the OpenClaw plugin on ClawHub](https://clawhub.ai/srg0/plugins/openclaw-s1-adv) · [Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## What you can do
 
@@ -79,7 +79,7 @@ The community bridge is published in
 [ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv). On a current OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.1
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.2
 ```
 
 Review its native security/capability report, then follow the

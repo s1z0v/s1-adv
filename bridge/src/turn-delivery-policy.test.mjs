@@ -20,7 +20,7 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
  let capable=true;
  const route=new Function('wantsFirmwareWork','languageNameForText','firmwareCapability',`const CARDPUTER_FIRMWARE_REPO='',CARDPUTER_FIRMWARE_BUILD_BIN='',CARDPUTER_FIRMWARE_PUBLISH_BIN='',CARDPUTER_FIRMWARE_SMOKE_BIN='';return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage,async()=>({ready:capable,reason:'Firmware automation is not configured.'}));
  let jobs=0,sends=0,replies=0;
- const runtime={firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
+ const runtime={firmwareJobStatusForDevice:()=>({state:'building'}),firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
   sendText:async v=>{++sends;assert.equal(v.topicKey,'job');assert.equal(v.waitForUpstream,false);return {seq:1};},
   appendDeviceText:async()=>{},buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {seq:7};},buildTurnResponse:async()=>({ok:true})};
  const result=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'убери индикатор с главного экрана',inputMode:'voice'});

@@ -25,16 +25,16 @@ API declaration is not proof that every newer or older Gateway works.
 ## Install from ClawHub
 
 The community preview is **ESP32 S1-ADV**, distributed as
-[openclaw-s1-adv 0.3.1](https://clawhub.ai/plugins/openclaw-s1-adv).
+[openclaw-s1-adv 0.3.2](https://clawhub.ai/plugins/openclaw-s1-adv).
 On a current OpenClaw installation:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.1
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.2
 ```
 
 The package includes local process execution and optional firmware
 source/build/publish/OTA capabilities. Inspect
-the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.1)
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.2)
 and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
@@ -43,10 +43,10 @@ remains off until separately provisioned. Setup below is still required.
 ## Alternative: install from reviewed source
 
 ```bash
-git clone --branch bridge-v0.3.1 https://github.com/srg0/s1-adv.git
+git clone --branch bridge-v0.3.2 https://github.com/srg0/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.1.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.2.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
@@ -150,6 +150,29 @@ Use [the USB guide](FLASHING.md) to build for ESP32-S3 with 8 MB flash. The priv
 `firmware.env` has the matching device ID, token and topic; keep it outside Git.
 The device setup portal can supply Wi-Fi and bridge settings. Then verify a
 keyboard response, followed by ordinary push-to-talk if speech is configured.
+
+## Upgrade an existing bridge
+
+Installing the plugin does not move an existing standalone service into it.
+First record the running service, selected agent/session, private paths, device
+identity, token and current OTA manifest. Keep a private rollback copy. Stop one
+listener before starting the replacement; two bridge writers must never share
+one state directory. Do not run `init` to replace an existing device key.
+
+Read the [delivery cutover guide](../bridge/TURN-OUTBOX.md) before reusing old
+state. Older releases may lack run identities entirely, so an empty list of
+unresolved run IDs is not proof that their earlier work completed. Preserve that
+history and recordings. If exact completion cannot be established, use the
+guide's isolated-state, distinct-session cutover and record the unknown outcomes;
+do not automatically replay those actions.
+
+Review storage usage against the new admission budget, speech credentials and
+optional firmware wrappers. Keep provider keys in private host configuration.
+The plugin requires a loopback listener: a proxy on another host needs a
+reviewed private tunnel or a local proxy restricted to that exact trusted host.
+Preserve WebSocket upgrades and prevent access to internal routes. Finally run
+doctor, check the existing OTA bytes, send a uniquely identified real request and
+verify its own reply and terminal receipt. Confirm the result on the Cardputer.
 
 ## Optional speech and firmware automation
 

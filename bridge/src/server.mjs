@@ -1,4 +1,5 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
+import { startFirmwareJob, updateFirmwareJob, publicFirmwareJob, firmwareJobDeliveryUncertain } from "./firmware-job-status.mjs";
 import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
 import { PrivateStorageBudget } from "./storage-budget.mjs";
 import { loadFocusAudioBundle } from "./focus-audio.mjs";
@@ -4655,6 +4656,14 @@ class BridgeRuntime {
     return message;
   }
 
+  firmwareJobStatusForDevice(device) {
+    const job = Object.values(this.store.state.topics)
+      .map(topic => topic.firmware_job)
+      .filter(job => job?.device_id === device.device_id)
+      .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))[0];
+    return publicFirmwareJob(job);
+  }
+
   recordDeviceFirmware(device, params) {
     const version=String(params.get('firmware_version')||'');
     const git=String(params.get('firmware_git')||'');
@@ -4741,7 +4750,8 @@ class BridgeRuntime {
           replyMessage,
           includeAudio: false
         }), status: "accepted", pending: true, after_seq: replyMessage.seq,
-        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key }
+        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key,
+        firmware_job: this.firmwareJobStatusForDevice(device) }
       };
     }
     // Ordinary voice keeps the existing conversation and tools, without a
@@ -5187,6 +5197,15 @@ class BridgeRuntime {
       }
     }
     const appended = this.store.appendMessage(topic.topic_key, normalized);
+    const job = topic.firmware_job;
+    const receipt = job && this.store.getIdempotent(topic.topic_key, job.request_id);
+    if (job && receipt && assistantReplyMatchesTurn(appended, {
+      runId: receipt.upstream_run_id, clientMsgId: job.request_id
+    })) {
+      topic.firmware_job = updateFirmwareJob(job, { message: raw,
+        text: String(appended.content?.text || ""),
+        manifest: readJsonFileSyncSafe(this.firmwareManifestPath(), null) });
+    }
     let media = null;
     if (appended.content.kind === "voice") {
       try {
@@ -5688,6 +5707,10 @@ class BridgeRuntime {
     this.store.setIdempotent(entry.topic_key, entry.client_msg_id, ack);
     const message = this.store.getHistory(entry.topic_key, 0, 100000).items.find(item => item.id === ack.message_id);
     if (message) message.source.upstream_run_id = entry.run_id;
+    const topic = this.store.getTopic(entry.topic_key);
+    if (topic?.firmware_job?.request_id === entry.client_msg_id &&
+        ["uncertain", "held"].includes(entry.phase))
+      topic.firmware_job = firmwareJobDeliveryUncertain(topic.firmware_job);
   }
 
   async recordOutboxFailure(entry) {
@@ -5699,6 +5722,9 @@ class BridgeRuntime {
     const existing = history.find(message => assistantReplyMatchesTurn(message, { runId: entry.run_id,
       clientMsgId: entry.client_msg_id }) && isMeaningfulAssistantReplyText(message.content?.text));
     if (existing || entry.failure_message_id) return existing || null;
+    if (topic.firmware_job?.request_id === entry.client_msg_id) {
+      topic.firmware_job = { ...topic.firmware_job, state: "failed", updated_at: nowIso() };
+    }
     const failure = await this.appendAssistantReply({ topicKey: entry.topic_key,
       text: "The request failed on the server. No completed answer was received. Check this request before submitting it again.",
       clientMsgId: entry.client_msg_id, source: "cardputer_turn_failed", upstreamRunId: entry.run_id, terminalError: true });
@@ -5744,6 +5770,10 @@ class BridgeRuntime {
     const thinking = voiceThinking(text, inputMode);
     if (thinking) params.thinking = thinking;
     this.turnOutbox.assertCapacity(topic.session_key, params);
+    if (topic.topic_key.startsWith("local:cardputer-firmware-job:")) {
+      topic.firmware_job = startFirmwareJob(device.device_id, clientMsgId, Date.now(),
+        readJsonFileSyncSafe(this.firmwareManifestPath(), null));
+    }
     const message = this.store.appendMessage(topicKey, {
       id: makeId("msg"),
       created_at: nowIso(),
@@ -6764,6 +6794,7 @@ async function main() {
       json(res, 200, {
         type: "device_events_pending",
         device_id: device.device_id,
+        firmware_job: runtime.firmwareJobStatusForDevice(device),
         items
       });
       return;

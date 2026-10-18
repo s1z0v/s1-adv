@@ -1,5 +1,7 @@
 # ESP32 S1-ADV
 
+![S1-ADV: voice, AI and firmware on a real M5Stack Cardputer ADV](https://raw.githubusercontent.com/srg0/s1-adv/d13d260a6da91636924c2a0286bf1f8955701709/docs/assets/s1-adv-hero.jpg)
+
 A community OpenClaw plugin and standalone Node.js bridge for the ESP32-S3 based
 M5Stack Cardputer ADV. Connect the handheld to your own AI agent for authenticated
 text/voice chat, device events and optional firmware build/OTA workflows with
@@ -14,6 +16,28 @@ subscription is included. Full guide:
 One device identity per instance is enforced. Use separate private storage for
 other devices. Ordinary chat can use an agent with all host tools denied;
 firmware-building rights are separate and explicitly provisioned.
+
+## A pocket interface for your own AI agent
+
+Keep your OpenClaw agent on your own server and carry its keyboard, microphone
+and speaker in your pocket. ESP32 S1-ADV connects the ESP32-S3 Cardputer ADV to
+that agent through an authenticated HTTP/WebSocket service.
+
+- **Text and push-to-talk voice:** send questions and tool requests, receive
+  replies in chat and Inbox, and add spoken responses with your configured STT/TTS.
+- **Optional self-updating firmware:** ask your explicitly authorized agent for
+  a change, build and verify its source, then deliver a candidate over Wi-Fi OTA.
+  The user confirms installation on the device. Build status and update notices
+  keep the handheld informed; these rights are off until you provision them.
+- **Self-hosted service:** a private device token, your HTTPS address and your
+  existing agent/provider configuration. No shared cloud bridge or included AI account.
+- **Useful offline hardware:** S1-ADV firmware also includes a Focus timer,
+  notes, clocks and SD audio. Three English Focus cues are included in this plugin;
+  extra languages remain optional downloads.
+
+Works with **M5Stack Cardputer ADV, ESP32-S3, 8 MB flash**. Other ESP32 boards
+need a compatible firmware port; installing this plugin alone does not add one.
+Realtime voice needs separate provider setup and remains experimental.
 
 ## Plugin setup
 
@@ -33,12 +57,18 @@ If your release requests explicit noninteractive consent, repeat that reviewed
 install with `--accept-capabilities`; local archives/paths can also require
 `--force` for source acknowledgement. Do not treat `--yes` as capability consent.
 
-From a reviewed clone of `srg0/s1-adv` (tag `bridge-v0.3.1` for this release):
+Install the published plugin on your intended OpenClaw host:
+
+```bash
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.2
+```
+
+Or install a reviewed source archive (tag `bridge-v0.3.2` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.1.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.2.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply

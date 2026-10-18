@@ -1,6 +1,6 @@
 {
   "name": "openclaw-s1-adv",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "private": false,
   "type": "module",
   "scripts": {
@@ -27,7 +27,7 @@
   "engines": {
     "node": ">=22"
   },
-  "description": "ESP32-S3 AI companion for M5Stack Cardputer ADV: OpenClaw text and voice chat, Focus audio on SD, and optional firmware build and OTA updates.",
+  "description": "Self-hosted ESP32-S3 AI agent bridge for M5Stack Cardputer ADV: OpenClaw text and voice chat, device status, and optional self-updating firmware with reviewed build and OTA delivery.",
   "license": "MIT",
   "author": "Sergey Sizov",
   "repository": {
@@ -84,6 +84,12 @@
     "ai-assistant",
     "openclaw",
     "voice",
-    "ota"
+    "ota",
+    "self-hosted",
+    "firmware-automation",
+    "self-updating",
+    "iot",
+    "ai-agent",
+    "websocket"
   ]
 }

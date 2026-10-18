@@ -41,6 +41,42 @@ async function fixture(run) {
   }
 }
 
+test('firmware status survives durable acceptance and only its owned reply updates it', async () => fixture(async f => {
+  const key = 'local:cardputer-firmware-job:status-test';
+  const topic = { ...f.runtime.store.getTopic(f.topicKey), topic_key:key,
+    session_key:'agent:main:cardputer-firmware:status-test' };
+  f.runtime.store.state.topics[key] = topic;
+  f.runtime.store.state.devices[f.device.device_id].topics.push(key);
+  f.runtime.config.firmware.rootDir = path.join(f.config.stateDir,'firmware');
+  const ack = await f.send('status-request', f.runtime, key);
+  assert.equal(f.runtime.firmwareJobStatusForDevice(f.device).state,'building');
+  const persisted = JSON.parse(await readFile(path.join(f.config.stateDir,'state.json'),'utf8'));
+  assert.equal(persisted.topics[key].firmware_job.request_id,'status-request');
+  await f.runtime.ingestUpstreamMessage(topic,{role:'assistant',timestamp:Date.now(),
+    content:[{type:'text',text:'Unrelated final answer'}],__openclaw:{id:'unrelated-status',runId:'another-run'}});
+  assert.equal(f.runtime.firmwareJobStatusForDevice(f.device).state,'building');
+  await f.runtime.ingestUpstreamMessage(topic,{role:'assistant',timestamp:Date.now(),
+    stopReason:'stop',content:[{type:'text',text:'Please clarify the change.'}],
+    __openclaw:{id:'owned-status',runId:ack.upstream_run_id}});
+  assert.equal(f.runtime.firmwareJobStatusForDevice(f.device).state,'attention');
+  assert.equal(f.runtime.turnOutbox.entries()[0].phase,'inflight', 'a status update is not terminal proof');
+  assert.equal(f.runtime.firmwareJobStatusForDevice({device_id:'another-device'}).state,'idle');
+  f.finish(ack);
+}));
+
+test('uncertain firmware dispatch remains visible and is never resent', async () => fixture(async f => {
+  const key='local:cardputer-firmware-job:uncertain-status';
+  const topic={...f.runtime.store.getTopic(f.topicKey),topic_key:key,session_key:'agent:main:firmware-uncertain'};
+  f.runtime.store.state.topics[key]=topic;
+  f.runtime.store.state.devices[f.device.device_id].topics.push(key);
+  f.runtime.config.firmware.rootDir=path.join(f.config.stateDir,'firmware');
+  f.setDispatch(async()=>{throw Error('RPC connection lost');});
+  await assert.rejects(f.send('uncertain-status',f.runtime,key),/RPC connection lost/);
+  await until(()=>f.runtime.firmwareJobStatusForDevice(f.device).state==='uncertain');
+  await f.send('uncertain-status',f.runtime,key);
+  assert.equal(f.sends.length,1);
+}));
+
 test('session label collision creates only the exact requested session and never masks other errors', async () => fixture(async f => {
   const topic = { ...f.runtime.store.getTopic(f.topicKey), session_key: 'agent:main:isolated-new-cardputer' };
   const calls=[];
