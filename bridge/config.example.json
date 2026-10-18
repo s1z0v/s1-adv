@@ -96,6 +96,9 @@
     "sttLocalThreads": 4,
     "ttsFallbackProvider": "espeak"
   },
+  "firmwareAutomation": {
+    "enabled": false
+  },
   "fastLane": {
     "enabled": false
   },

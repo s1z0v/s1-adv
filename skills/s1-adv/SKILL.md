@@ -1,27 +1,49 @@
 ---
 name: s1-adv
-description: Help set up or troubleshoot the M5Stack Cardputer ADV firmware and standalone bridge for an existing OpenClaw gateway.
+description: Install, configure and diagnose the S1-ADV Cardputer ADV OpenClaw plugin or standalone bridge, with optional private firmware automation.
 ---
 
-# S1-ADV Cardputer ADV setup
+# S1-ADV Cardputer setup
 
-Use the checked-out source at https://github.com/srg0/s1-adv.
-Read README.md, docs/OPENCLAW.md, docs/FLASHING.md and docs/TROUBLESHOOTING.md.
+Source and full setup guide:
+https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md
+Read the packaged README first. Check the installed OpenClaw version, actual
+configuration/profile, selected agent, workspace and device-reachable HTTPS URL.
 
-Inspect the installed gateway version, actual workspace and session routing.
-Use the bridge/ Node service; the skill alone provides no network adapter.
-Preserve existing agent/channel settings and use a dedicated Cardputer session.
-Store gateway and device tokens only in private local files. Keep provider
-credentials and OAuth stores on the gateway host. Never print them or copy
-rotating OAuth profiles to a second writer.
+Prefer the native plugin installer for bridge/ from a reviewed source or release.
+Use `openclaw s1-adv init` to inspect the plan, then apply within the user's
+authorized setup request. A dedicated restricted cardputer agent must exist
+before applying its route. An explicit --agent main selects the existing private
+agent with that agent's permissions; do not silently grant it to shared devices.
+Use enable/doctor for plugin settings and separate HTTP/upstream/provider checks.
+A Gateway restart is a distinct operation on the intended profile; preserve
+other agents/channels and do not reset or import unrelated state.
 
-Configure the device's bridge host, port, ID, token and topic to match the local
-bridge config. Remote access needs verified TLS. Build using scripts/cardputer.py
-for ESP32-S3 and 8 MB flash. Never use a 2 MB legacy partition layout or flash
-an app-only firmware.bin at 0x0.
+The plugin hosts a local authenticated service, normally 127.0.0.1:31889. It needs
+a verified TLS proxy reachable by the Cardputer. Keep the raw Gateway private.
+Store gateway/device tokens only in private local files. Never print them or put
+provider credentials on the device. Preserve the generated identity. If pairing
+is required, approve only that exact bridge request. Do not duplicate rotating
+OAuth profiles into a second credential writer.
 
-Run the synthetic bridge smoke and security tests, authenticated topics/history
-checks and one actual device text round trip. Add STT/TTS only after text works.
-Realtime provider setup is optional and remains disabled unless requested.
-Report separate evidence for build, flash, boot and actual device reply.
-Do not claim successful installation from a healthy HTTP endpoint alone.
+Text comes first. A healthy HTTP endpoint or connected upstream is not a model
+reply. Verify an actual typed round trip. Local speech requires the documented
+Whisper/model, FFmpeg and eSpeak setup; test recognition and playback separately.
+Do not infer audio-provider access from a text-model login. Keep Realtime off
+until ordinary chat/voice works and separate provider configuration is complete.
+
+For firmware work, first provision the optional reviewed build/publish/smoke
+wrappers against the user's own writable fork and explicit branch/remote, with a
+Python/PlatformIO environment and private device provisioning. Read/edit/exec/git
+permissions remain controlled by the host owner; the setup does not bypass them.
+Do not promise firmware execution when capability checks report unavailable.
+Review and commit source before build, build one clean exact commit, push that
+commit, publish, then verify authenticated served manifest/file size and SHA.
+Preserve release locks and dirty work; never reset/switch another checkout to
+make a build pass. Personal firmware candidates may embed credentials.
+
+Build/flash with the repository's scripts/cardputer.py for ESP32-S3 / 8 MB flash.
+Never flash an app-only firmware.bin at 0x0. Use the USB guide and existing owner
+authorization, try automatic entry/reset where supported, then verify actual
+boot/source and a device reply. Report code tests, package/native install, model
+round trip and hardware acceptance separately.

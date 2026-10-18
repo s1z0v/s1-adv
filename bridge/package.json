@@ -1,7 +1,7 @@
 {
-  "name": "s1-adv-bridge",
-  "version": "0.1.0",
-  "private": true,
+  "name": "openclaw-s1-adv",
+  "version": "0.2.0",
+  "private": false,
   "type": "module",
   "scripts": {
     "start": "node src/server.mjs",
@@ -14,13 +14,62 @@
     "gate:security": "node src/security-model-gate.mjs",
     "publish:firmware": "node scripts/publish-firmware.mjs",
     "enqueue:ota-install": "node scripts/enqueue-ota-install.mjs",
-    "test:upstream": "node --test src/upstream-client.test.mjs"
+    "test:upstream": "node --test src/upstream-client.test.mjs",
+    "test:install": "node --test src/install.test.mjs src/plugin-service.test.mjs src/firmware-automation.test.mjs",
+    "setup": "node scripts/setup.mjs",
+    "check:package": "node scripts/check-package.mjs"
   },
   "dependencies": {
     "busboy": "^1.6.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "json5": "2.2.3"
   },
   "engines": {
     "node": ">=22"
+  },
+  "description": "Authenticated Cardputer ADV bridge and optional OpenClaw firmware workflow",
+  "license": "MIT",
+  "author": "Sergey Sizov",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/srg0/s1-adv.git",
+    "directory": "bridge"
+  },
+  "homepage": "https://github.com/srg0/s1-adv",
+  "bugs": {
+    "url": "https://github.com/srg0/s1-adv/issues"
+  },
+  "files": [
+    "index.mjs",
+    "openclaw.plugin.json",
+    "src/**/*.mjs",
+    "!src/**/*.test.mjs",
+    "!src/*smoke*.mjs",
+    "!src/mock-upstream.mjs",
+    "!src/fixtures.mjs",
+    "!src/security-model-gate.mjs",
+    "scripts/setup.mjs",
+    "scripts/publish-firmware.mjs",
+    "scripts/firmware-*.mjs",
+    "config.example.json",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "CREDITS.md"
+  ],
+  "openclaw": {
+    "extensions": [
+      "./index.mjs"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.7.2-beta.1",
+      "minGatewayVersion": "2026.7.2-beta.1"
+    },
+    "build": {
+      "openclawVersion": "2026.7.2-beta.1"
+    }
+  },
+  "bin": {
+    "s1-adv-setup": "./scripts/setup.mjs"
   }
 }

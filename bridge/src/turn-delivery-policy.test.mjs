@@ -17,11 +17,12 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
  assert(!classifier('What is the battery percentage?'));
  assert(!classifier('Какая погода сегодня?'));
  const method=source.slice(source.indexOf('async tryFastLaneTurn('),source.indexOf('async runFirmwareWorkJob(')).trim();
- const route=new Function('wantsFirmwareWork','languageNameForText',`return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage);
+ let capable=true;
+ const route=new Function('wantsFirmwareWork','languageNameForText','firmwareCapability',`const CARDPUTER_FIRMWARE_REPO='',CARDPUTER_FIRMWARE_BUILD_BIN='',CARDPUTER_FIRMWARE_PUBLISH_BIN='',CARDPUTER_FIRMWARE_SMOKE_BIN='';return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage,async()=>({ready:capable,reason:'Firmware automation is not configured.'}));
  let jobs=0,sends=0,replies=0;
  const runtime={firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
   sendText:async v=>{++sends;assert.equal(v.topicKey,'job');assert.equal(v.waitForUpstream,false);return {seq:1};},
-  buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {seq:7};},buildTurnResponse:async()=>({ok:true})};
+  appendDeviceText:async()=>{},buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {seq:7};},buildTurnResponse:async()=>({ok:true})};
  const result=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'убери индикатор с главного экрана',inputMode:'voice'});
  assert.equal(result.response.ok,true);assert.deepEqual([jobs,sends,replies],[1,1,1]);
  assert.equal(result.response.pending,true);assert.equal(result.response.status,'accepted');
@@ -31,6 +32,10 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
  runtime.firmwareClarificationTopic=()=>({topic_key:'job'});
  await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'yes',inputMode:'text'});
  assert.deepEqual([jobs,sends,replies],[1,2,2]);
+ capable=false;
+ const unavailable=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'Build firmware',inputMode:'voice'});
+ assert.equal(unavailable.response.status,'unavailable');assert.equal(unavailable.response.pending,false);
+ assert.equal(unavailable.response.ok,false);assert.deepEqual([jobs,sends,replies],[1,2,3]);
 });
 
 test('a confirmation resumes the firmware job that asked, without a new owner',()=>{

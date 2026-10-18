@@ -1,0 +1,75 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, writeFile, stat, access, rm } from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import { planInstall, applyInstall, gatewayToken, doctor, enablePlugin } from "./install.mjs";
+
+test("preview writes nothing; apply isolates private configuration and repeat preserves identity", async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "s1-install-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const gatewayConfig = path.join(root, "openclaw.json");
+  const original = '// JSON5 is accepted by OpenClaw\n{ gateway: { port:18789, auth:{ token:"${TEST_GATEWAY_TOKEN}" } }, agents:{list:[{id:"cardputer"}]}, channels:{privateExample:{secret:"not-to-be-copied"}} }';
+  await writeFile(gatewayConfig, original);
+  process.env.TEST_GATEWAY_TOKEN = "fixture-gateway-token-private";
+  t.after(() => delete process.env.TEST_GATEWAY_TOKEN);
+  const options = { gatewayConfig, publicUrl: "https://bridge.example.com", stateDir: path.join(root,"private") };
+  const plan = await planInstall(options);
+  assert.equal(plan.summary.agentExists, true);
+  assert.doesNotMatch(JSON.stringify(plan.summary), /fixture-gateway|not-to-be-copied/);
+  await assert.rejects(access(plan.stateDir));
+  const result = await applyInstall(plan);
+  assert.equal(result.applied, true);
+  const bytes = await readFile(plan.configPath,"utf8");
+  const config = JSON.parse(bytes);
+  assert.equal(config.firmwareAutomation.enabled,false);
+  assert.equal(config.devices[0].device_token.length,64);
+  assert.equal(config.topics[0].session_key,"agent:cardputer:cardputer");
+  assert.doesNotMatch(bytes,/not-to-be-copied|privateExample/);
+  for (const name of ["config.json","firmware.env","openclaw-plugin-config.json"])
+    assert.equal((await stat(path.join(plan.stateDir,name))).mode & 0o777,0o600);
+  assert.equal((await stat(plan.stateDir)).mode & 0o777,0o700);
+  assert.equal((await applyInstall(await planInstall(options))).applied,false);
+  assert.equal(await readFile(plan.configPath,"utf8"),bytes);
+  assert.equal(await readFile(gatewayConfig,"utf8"),original);
+  const offline = await doctor(plan.configPath,{probe:false});
+  assert.equal(offline.textReady,false); // Config validity is not a live round trip.
+  assert.equal(offline.firmwareCapability.ready,false);
+});
+
+test("unsafe URLs, missing credentials and ambiguous agent IDs fail without leaking values", async t => {
+  const root=await mkdtemp(path.join(os.tmpdir(),"s1-install-"));t.after(()=>rm(root,{recursive:true,force:true}));
+  const gatewayConfig=path.join(root,"openclaw.json");
+  await writeFile(gatewayConfig,JSON.stringify({gateway:{auth:{token:"fixture-token-private"}}}));
+  for(const publicUrl of ["http://bridge.example","https://secret:pass@bridge.example","https://bridge.example/path"])
+    await assert.rejects(planInstall({gatewayConfig,publicUrl}),/HTTPS origin/);
+  await assert.rejects(planInstall({gatewayConfig,gatewayUrl:"ws://remote.example:18789"}),/loopback/);
+  await assert.rejects(planInstall({gatewayConfig,agent:"main;echo"}),/Invalid agent/);
+  const missingAgent = await planInstall({gatewayConfig});
+  assert.equal(missingAgent.summary.agentExists,false);
+  await assert.rejects(applyInstall(missingAgent),/agent does not exist/);
+  await writeFile(gatewayConfig,JSON.stringify({gateway:{auth:{token:{source:"file",id:"secret"}}}}));
+  await assert.rejects(planInstall({gatewayConfig}),/token unavailable/);
+  assert.equal(gatewayToken({gateway:{auth:{token:{source:"env",id:"VALUE"}}}},{VALUE:"token"}),"token");
+});
+
+test("enable previews and targets only the intended host profile and plugin membership", async t => {
+  const root=await mkdtemp(path.join(os.tmpdir(),"s1-enable-"));t.after(()=>rm(root,{recursive:true,force:true}));
+  const upstream=path.join(root,"upstream.json"),host=path.join(root,"host.json");
+  await writeFile(upstream,JSON.stringify({gateway:{auth:{token:"fixture-upstream-token-private"}}}));
+  const original=JSON.stringify({plugins:{allow:["existing"],entries:{existing:{enabled:true}}},channels:{private:{enabled:true}}});
+  await writeFile(host,original,{mode:0o600});
+  const plan=await planInstall({gatewayConfig:upstream,stateDir:path.join(root,"bridge"),agent:"main"});
+  await applyInstall(plan);
+  let calls=[];
+  const runCommand=(program,args,options)=>{calls.push({program,args,options});return {status:0};};
+  const preview=await enablePlugin(plan.configPath,{gatewayConfigPath:host,runCommand});
+  assert.equal(preview.dryRun,true);assert.equal(calls.length,0);
+  assert.deepEqual(JSON.parse(preview.operations[0][3]),["existing","s1-adv"]);
+  const result=await enablePlugin(plan.configPath,{apply:true,gatewayConfigPath:host,runCommand});
+  assert.equal(calls.length,2);
+  for(const call of calls){assert.equal(call.program,"openclaw");assert.equal(call.options.env.OPENCLAW_CONFIG_PATH,host);assert.match(call.args[2],/^plugins\.(allow|entries\.s1-adv)$/);}
+  assert.equal(await readFile(result.backup,"utf8"),original);
+  assert.equal((await stat(result.backup)).mode&0o777,0o600);
+  assert.equal(await readFile(host,"utf8"),original);
+});

@@ -47,9 +47,10 @@ keyboard / mic / speaker       Node.js on your host                  your agent
 ```
 
 The repository includes both sides: [firmware](bots/CardputerADV) and
-[bridge](bridge). The bridge is a standalone companion service. The included
-[OpenClaw skill](skills/s1-adv) gives your agent the setup instructions;
-it does not install or start the bridge by itself.
+[bridge](bridge). Install it as an OpenClaw plugin with setup/doctor commands,
+or run the same bridge as a standalone service. The included
+[setup skill](skills/s1-adv) guides your agent through the reviewed configuration;
+no personal server settings or model account are bundled.
 
 ## What you need
 
@@ -83,10 +84,11 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-Current source is `0.2.161-dev`: app menu on Tab, assistant commands on Ctrl+K,
-visible Realtime connection/microphone states, one configured chat and an SD
-NES game library and a compact, broad-stroke Home battery gauge. See
-[controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.161.md).
+The exact source version is defined in
+[platformio.ini](bots/CardputerADV/platformio.ini). The UI includes an app menu,
+assistant commands, visible Realtime microphone states, one configured chat,
+an SD game library and a compact Home battery gauge. See
+[controls](docs/CONTROLS.md) and [validation](docs/VALIDATION.md).
 The public security fixes are retained. Public builds have not yet been tested
 on a freshly provisioned physical device.
 

@@ -1,4 +1,5 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
+import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
 import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -330,10 +331,10 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
     firmware_repo: CARDPUTER_FIRMWARE_REPO,
     bridge_repo: path.join(CARDPUTER_FIRMWARE_REPO,"bridge"),
     build_command: CARDPUTER_FIRMWARE_BUILD_BIN,
-    server_firmware_repo: "/root/.openclaw/workspace/repos/cardputer-firmware",
-    server_build_wrapper: "/root/.openclaw/workspace/bin/cardputer_adv_pio.sh",
-    server_publish_wrapper: "/root/.openclaw/workspace/bin/cardputer_publish_firmware.sh",
-    publish_route: "build, commit, publish OTA through your configured bridge firmware manifest"
+    server_firmware_repo: CARDPUTER_FIRMWARE_REPO,
+    server_build_wrapper: CARDPUTER_FIRMWARE_BUILD_BIN,
+    server_publish_wrapper: CARDPUTER_FIRMWARE_PUBLISH_BIN,
+    publish_route: "review, commit source, build, push source, publish OTA, verify manifest and image"
   },
   implemented_features: [
     "Pomodoro/focus timer: start, pause, resume, reset, set focus duration, breaks, cycles, autostart, metronome, BPM",
@@ -354,10 +355,10 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
   behavior_rules: [
     "If the user asks to run an implemented feature, execute it with supported device_actions when possible.",
     "If the user asks to run a feature that is absent, say it is not in the current firmware and ask whether to develop and publish it.",
-    "If the user confirms developing an absent feature, treat it as firmware work: create a concise implementation task for the firmware repo, build with the wrapper, commit, publish an OTA candidate, and report the version.",
+    "If the user confirms developing an absent feature, treat it as firmware work: inspect and edit the configured checkout, commit reviewed source, build that commit, push it, publish an OTA candidate, verify it, and report the version.",
     "Do not claim a firmware feature exists unless it appears in implemented_features or the current manifest/release notes.",
     "For firmware analysis/build/release requests, use the dedicated Cardputer Firmware topic/session with repo path, branch/runbook, build command, OTA publish route, and verification expectations.",
-    "Use exactly one firmware build at a time. On the live server, prefer /root/.openclaw/workspace/bin/cardputer_adv_pio.sh because it provides the correct environment and lock.",
+    "Use exactly one firmware build at a time with the configured job_session_contract.build_wrapper, which provides private provisioning and the release lock.",
     "Never run parallel PlatformIO builds against the same CardputerADV .pio/build directory; use the wrapper/lock or an isolated build dir."
   ]
 };
@@ -3627,7 +3628,14 @@ class BridgeRuntime {
 	    return `${base}/api/cardputer/firmware/file/${filename}`;
 	  }
 
+  firmwareWorkflowPaths() {
+    return firmwareWorkflowPaths(this.config, { repoDir: CARDPUTER_FIRMWARE_REPO,
+      build: CARDPUTER_FIRMWARE_BUILD_BIN, publish: CARDPUTER_FIRMWARE_PUBLISH_BIN,
+      smoke: CARDPUTER_FIRMWARE_SMOKE_BIN });
+  }
+
   buildFirmwarePromptContext() {
+    const workflow = this.firmwareWorkflowPaths();
     const manifest = readJsonFileSyncSafe(this.firmwareManifestPath(), null);
     return {
       context_version: CARDPUTER_FIRMWARE_CONTEXT_VERSION,
@@ -3642,7 +3650,12 @@ class BridgeRuntime {
             notes: String(manifest.notes || "")
           }
         : null,
-      capabilities: CARDPUTER_FIRMWARE_CAPABILITIES,
+      capabilities: { ...CARDPUTER_FIRMWARE_CAPABILITIES, hardware: {
+        ...CARDPUTER_FIRMWARE_CAPABILITIES.hardware,
+        firmware_repo: workflow.repoDir, bridge_repo: path.join(workflow.repoDir, "bridge"),
+        build_command: workflow.build, server_firmware_repo: workflow.repoDir,
+        server_build_wrapper: workflow.build, server_publish_wrapper: workflow.publish
+      } },
       supported_device_actions: {
         catalog_version: DEVICE_ACTION_CATALOG_VERSION,
         types: DEVICE_ACTION_CATALOG.map((action) => action.type)
@@ -3873,6 +3886,7 @@ class BridgeRuntime {
   }
 
   buildFirmwareJobUpstreamText({ device, sourceTopic, jobTopic, text, inputMode = "text", clientMsgId = "" }) {
+    const workflow = this.firmwareWorkflowPaths();
     const language = languageNameForText(text);
     const immediateInstall = wantsImmediateFirmwareInstall(text);
     const firmware = this.buildFirmwarePromptContext();
@@ -3907,11 +3921,13 @@ class BridgeRuntime {
         purpose: "Disposable short-lived firmware implementation session. Do not rely on older Cardputer Firmware topic history.",
         architecture:
           "Cardputer -> bridge firmware-route -> fresh OpenClaw job session -> firmware repo patch/build/commit/publish -> bridge OTA manifest -> device inbox event -> spoken reply -> ota.check/ota.apply.",
-        repo: CARDPUTER_FIRMWARE_REPO,
-        app_dir: CARDPUTER_FIRMWARE_APP_DIR,
-        build_wrapper: CARDPUTER_FIRMWARE_BUILD_BIN,
-        publish_wrapper: CARDPUTER_FIRMWARE_PUBLISH_BIN,
-        smoke_wrapper: CARDPUTER_FIRMWARE_SMOKE_BIN,
+        repo: workflow.repoDir,
+        branch: workflow.branch,
+        push_remote: workflow.pushRemote,
+        app_dir: path.join(workflow.repoDir, "bots/CardputerADV"),
+        build_wrapper: workflow.build,
+        publish_wrapper: workflow.publish,
+        smoke_wrapper: workflow.smoke,
         safety_gate: {
           mode: "fail_closed",
           app_slot_limit_bytes: 3145728,
@@ -3939,14 +3955,14 @@ class BridgeRuntime {
       "Implement the requested firmware change in the repo. Background-color requests are only smoke tests; the same route must handle real features such as calculator, alarm, stopwatch, Tamagotchi, or utility screens.",
       "Keep the implementation scoped and production-grade. Follow existing firmware UI/code patterns and avoid unrelated refactors.",
       "Before editing, inspect the relevant files. Use the server repo path from job_session_contract.repo.",
-      "Fetch origin main and fast-forward a clean checkout before editing. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
+      "Fetch job_session_contract.push_remote and job_session_contract.branch, then fast-forward that exact clean checkout before editing. Stop if the checkout is on another branch; do not switch or reset it. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
       "Bump APP_VERSION in both platformio.ini and src/main_parts/001_main.cpp.inc.",
       "SAFETY GATE: treat firmware publishing as fail-closed. If any required safety check is missing, ambiguous, or failed, stop and report the blocker; do not publish, do not append ota.apply, and do not claim success.",
       "Before build/publish, review git diff for unrelated changes, destructive storage operations, hardcoded secrets, disabled TLS/auth, bootloader/partition/OTA-slot changes, rollback/boot-guard changes, watchdog-disabling loops, boot-blocking network loops, or unbounded memory allocations.",
       "Do not modify partition tables, bootloader, OTA slot layout, rollback/boot guard, credential handling, TLS verification, or storage migration/wipe behavior unless the user explicitly requested that exact area and you can explain the safety impact.",
       "Verify the produced firmware.bin is below the app slot limit from job_session_contract.safety_gate.app_slot_limit_bytes with reasonable headroom. If the image is too large or close enough to threaten OTA reliability, stop and report it instead of publishing.",
+      "After review, commit source locally BEFORE building, so the binary embeds the exact source SHA. Build that clean commit, then push it only after the build passes. Never publish an unpushed or changed candidate.",
       "Build exactly once at a time with job_session_contract.build_wrapper. Do not run parallel PlatformIO builds against the same .pio directory.",
-      "Commit and push the firmware change on the current branch after a successful build.",
       "Publish the OTA candidate with job_session_contract.publish_wrapper and verify it with job_session_contract.smoke_wrapper or an equivalent manifest/file sha smoke.",
       "When publishing succeeds, send one concise final assistant message in this job topic. It must be suitable for spoken playback on the device.",
       immediateInstall
@@ -4585,6 +4601,18 @@ class BridgeRuntime {
   async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
     const continuation=this.firmwareClarificationTopic(topic,transcript);
     if (wantsFirmwareWork(transcript) || continuation) {
+      const capability = await firmwareCapability(this.config, {
+        CARDPUTER_FIRMWARE_REPO, CARDPUTER_FIRMWARE_BUILD_BIN,
+        CARDPUTER_FIRMWARE_PUBLISH_BIN, CARDPUTER_FIRMWARE_SMOKE_BIN
+      });
+      if (!capability.ready) {
+        await this.appendDeviceText({ device, topicKey: topic.topic_key, text: transcript, clientMsgId });
+        const replyMessage = await this.appendAssistantReply({ topicKey: topic.topic_key,
+          text: capability.reason, clientMsgId, source: "cardputer_firmware_unavailable" });
+        return { response: { ...await this.buildTurnResponse({ req, topic, transcript,
+          replyText: capability.reason, replyMessage, includeAudio: false }),
+          ok: false, status: "unavailable", pending: false } };
+      }
       const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
       const routeTopic = continuation || await this.createFirmwareJobTopicForDevice(device, transcript);
       console.info(
