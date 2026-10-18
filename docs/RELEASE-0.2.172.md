@@ -20,6 +20,11 @@ menus; chat history, error feedback and voice capture remain available. Active
 Pomodoro and break status retain their priority. UI warning/focus yellow uses
 the warm orange accent, while the clock remains white.
 
+Pomodoro explicitly powers the linked lamp on before selecting the focus or
+break preset, including when the desired preset is already selected. Two
+idempotent ON packets respect GL2's command-rate limit. Manual overrides still
+suspend automation; ending a phase cancels pending power-on commands.
+
 Host regression checks and an ESP32-S3, 8 MB build validate the source. Physical
 screen, HTTPS memory headroom, log upload and release-discovery acceptance must
 be checked on this build before treating it as hardware-verified.

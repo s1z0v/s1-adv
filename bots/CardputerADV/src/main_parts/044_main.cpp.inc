@@ -372,7 +372,10 @@ void serviceFocusLamp() {
   if(sent){gSmartLampUdp.write(reinterpret_cast<const uint8_t*>(packet.c_str()),packet.length());sent=gSmartLampUdp.endPacket()==1;}
   if(!sent){gFocusLampLink.cancel();setStatus("Focus lamp: link lost",1200);return;}
   gSmartLamp.lastCommandMs=millis();
-  logf("[FOCUS_LAMP] step command=%d expected=%d target=%d",command,gFocusLampLink.expected+1,gFocusLampLink.target+1);
+  if(command==1) {
+    gSmartLamp.power=true; // Commanded state; GL_ONL does not report power.
+    logf("[FOCUS_LAMP] power_on sent target=%d",gFocusLampLink.target+1);
+  } else logf("[FOCUS_LAMP] step command=%d expected=%d target=%d",command,gFocusLampLink.expected+1,gFocusLampLink.target+1);
 }
 
 void submitInput() {

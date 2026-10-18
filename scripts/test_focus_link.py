@@ -65,8 +65,10 @@ int main(){
  tick+=100000;updateFocusTimer();assert(gFocus.remainingSec==paused);focusStartOrResume();tick+=1000;updateFocusTimer();assert(gFocus.remainingSec==paused-1);
  using focus_lamp::Phase;focus_lamp::Link lamp;lamp.observe(5,1000);
  lamp.setPhase(Phase::Focus,true,1,5,true,1000);assert(lamp.original==5&&lamp.target==1);
+ for(int i=0;i<2;++i){tick+=600;assert(lamp.command(tick,true,false)==1);}
  for(int current=5;current>1;--current){tick+=600;assert(lamp.command(tick,true,false)==4);assert(lamp.command(tick,true,false)==-1);lamp.observe(current-1,tick+100);}
  lamp.setPhase(Phase::Break,true,1,5,true,tick);assert(lamp.target==5);
+ for(int i=0;i<2;++i){tick+=600;assert(lamp.command(tick,true,false)==1);}
  for(int current=1;current<5;++current){tick+=600;assert(lamp.command(tick,true,false)==5);lamp.observe(current+1,tick+100);}
  lamp.setPhase(Phase::Idle,true,1,5,true,tick);lamp.observe(5,tick);assert(!lamp.active);
  lamp.setPhase(Phase::Focus,true,1,5,true,tick);assert(lamp.active);assert(lamp.command(tick+600,false,false)==-1&&lamp.suspended);
@@ -74,8 +76,36 @@ int main(){
  lamp.observe(8,tick+1300);assert(!lamp.active&&lamp.suspended); // Manual override is never undone.
  focus_lamp::Link offline;offline.observe(5,tick);offline.setPhase(Phase::Focus,true,1,5,false,tick);assert(offline.suspended);
  offline.setPhase(Phase::Focus,true,1,5,true,tick+1000);assert(!offline.active); // No reconnect surprise.
- focus_lamp::Link timeout;timeout.observe(5,tick);timeout.setPhase(Phase::Focus,true,1,5,true,tick);assert(timeout.command(tick+600,true,false)==4);
- assert(timeout.command(tick+3200,true,false)==-1&&!timeout.active&&timeout.suspended);
+ focus_lamp::Link timeout;timeout.observe(5,tick);timeout.setPhase(Phase::Focus,true,1,5,true,tick);
+ assert(timeout.command(tick+600,true,false)==1);assert(timeout.command(tick+1200,true,false)==1);
+ assert(timeout.command(tick+1800,true,false)==4);
+ assert(timeout.command(tick+4400,true,false)==-1&&!timeout.active&&timeout.suspended);
+ // Model stock GL2: preset steps are ignored while powered off. Drop the
+ // first ON datagram, including when the desired preset is already selected.
+ for(bool alreadySelected:{false,true}) {
+  focus_lamp::Link off;int preset=alreadySelected?1:5;bool powered=false;int onPackets=0;
+  off.observe(preset,1000);off.setPhase(Phase::Focus,true,1,5,true,1000);
+  for(uint32_t t=1000;t<=10000;t+=100){
+   const int cmd=off.command(t,true,false);
+   if(cmd==1){if(++onPackets>1)powered=true;}
+   else if(powered&&cmd==4)--preset;else if(powered&&cmd==5)++preset;
+   off.observe(preset,t);
+  }
+  assert(powered&&preset==1&&onPackets==2);
+  powered=false; // Manual switch-off within a phase is not fought.
+  for(uint32_t t=10100;t<=12000;t+=100)assert(off.command(t,true,false)==-1);
+  off.setPhase(Phase::Break,true,1,5,true,12000);
+  for(uint32_t t=12000;t<=20000;t+=100){
+   const int cmd=off.command(t,true,false);
+   if(cmd==1)powered=true;else if(powered&&cmd==4)--preset;else if(powered&&cmd==5)++preset;
+   off.observe(preset,t);
+  }
+  assert(powered&&preset==5);
+ }
+ focus_lamp::Link stopped;stopped.observe(1,1000);stopped.setPhase(Phase::Focus,true,1,5,true,1000);
+ stopped.setPhase(Phase::Idle,true,1,5,true,1100);assert(stopped.command(2000,true,false)==-1);
+ focus_lamp::Link resumed;resumed.observe(1,1000);resumed.setPhase(Phase::Break,true,1,5,true,1000);
+ assert(resumed.active&&resumed.command(2000,true,false)==1);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-focus-link-') as d:
