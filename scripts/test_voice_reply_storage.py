@@ -33,8 +33,9 @@ struct String:std::string {
  bool endsWith(String s)const{return size()>=s.size()&&compare(size()-s.size(),s.size(),s)==0;}
 };
 namespace fs {struct FS;}
+bool speakerStopped=true;
 struct File {fs::FS* backend=nullptr;bool valid=false;
- explicit operator bool()const{return valid;}void close(){valid=false;}};
+ explicit operator bool()const{return valid;}void close(){assert(speakerStopped);valid=false;}};
 namespace fs {struct FS {
  uint64_t total=2*1024*1024,used=100*1024;std::map<std::string,size_t> files;
  uint64_t totalBytes(){return total;}uint64_t usedBytes(){return used;}
@@ -50,7 +51,7 @@ bool gPlaybackStreaming=false,gPlaybackStreamRawPcm=false,gPlaybackActive=false;
 size_t gPlaybackStreamRemainingBytes=0,gPlaybackStreamTotalBytes=0,gPlaybackStreamNextBuffer=0;
 uint32_t gPlaybackStreamSampleRate=0,gPlaybackStartedMs=0,gPlaybackDurationMs=0,gPlaybackLastProgressMs=0;
 void* gDynamicPlaybackBuffer=nullptr;
-struct {struct {void stop(){}} Speaker;} M5Cardputer;
+struct {struct {void stop(){speakerStopped=true;}} Speaker;} M5Cardputer;
 void resetPlaybackAnalyzer(){}void pulseButtonPress(){}void setStatus(String,int){}
 void setVoiceDiag(String){}enum class FaceMode{Speaking};void setFaceMode(FaceMode){}
 uint32_t millis(){return 100;}
@@ -70,7 +71,7 @@ int main(){
  LittleFS.files[reply]=80000;SD.files[reply]=123;SD.files[original]=749612;
  assert(startPlaybackStreamFromRawPcmFile(reply,24000,80000,"reply",&LittleFS));
  assert(gPlaybackStreamFile.backend==&LittleFS&&gPlaybackStreamFs==&LittleFS);
- stopPlaybackStream();assert(!LittleFS.files.count(reply)&&SD.files[reply]==123);
+ speakerStopped=false;stopPlaybackStream();assert(!LittleFS.files.count(reply)&&SD.files[reply]==123);
  assert(!gPlaybackStreamFs&&!gPlaybackStreaming);
  assert(startPlaybackStreamFromRawPcmFile(original,16000,749612,"recording"));
  assert(gPlaybackStreamFile.backend==&SD);stopPlaybackStream();assert(SD.files[original]==749612);

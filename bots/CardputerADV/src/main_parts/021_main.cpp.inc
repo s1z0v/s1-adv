@@ -204,6 +204,7 @@ bool downloadAndPlayResponseAudio(const String& url, const String& localPath, co
 }
 
 void stopPlaybackStream() {
+  M5Cardputer.Speaker.stop(); // Release queued audio before closing/freeing its backing storage.
   if (gPlaybackStreamFile) {
     gPlaybackStreamFile.close();
   }
@@ -227,5 +228,4 @@ void stopPlaybackStream() {
     free(gDynamicPlaybackBuffer);
     gDynamicPlaybackBuffer = nullptr;
   }
-  M5Cardputer.Speaker.stop();
 }
