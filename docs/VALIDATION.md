@@ -16,7 +16,10 @@ installer in an isolated profile. OpenClaw `2026.7.2-beta.1` and Node `22.23.0`
 loaded the plugin and started its bridge. Setup/enable/doctor and the real
 upstream connection were exercised. A real text response returned HTTP 200
 in 34.036 s. The first cold turn exceeded the HTTP wait but later appeared in
-the durable event queue; this is not a low-latency guarantee.
+the durable event queue; this is not a low-latency guarantee. The final native
+package also returned a real text answer with a 205,782-byte spoken-reply WAV
+in 101.444 s; its authenticated download matched SHA-256, appeared in the
+asset manifest and had the required current-session ownership metadata.
 
 A synthetic 66,256-byte WAV went through local Whisper and the actual agent.
 The pending receipt arrived in 19.598 s; its later assistant answer appeared

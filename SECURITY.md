@@ -19,5 +19,7 @@ The maintainer's bounded [plugin review and fixes](docs/SECURITY-REVIEW-2026-10-
 and [earlier review](docs/SECURITY-REVIEW.md) record
 confirmed findings, fixes, verification and remaining trust boundaries.
 See [architecture](docs/ARCHITECTURE.md) and [setup](docs/OPENCLAW.md).
-For a vulnerability, use GitHub private reporting if available or contact the
-maintainer privately. Do not post credentials or exploit details in public.
+For a vulnerability, use the private reporting flow on the repository
+[Security tab](https://github.com/srg0/s1-adv/security). Private vulnerability
+reporting, dependency analysis and secret push protection are enabled. Do not
+post credentials or exploit details in public.

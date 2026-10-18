@@ -37,10 +37,10 @@ function otaRace(useLiveRuntimeFence) {
 
 function authSpoof(useTrustedLastHopFence) {
   const buckets = new Map();
-  const config = { security: { trustedProxyAddresses: ["217.216.33.46"] } };
+  const config = { security: { trustedProxyAddresses: ["192.0.2.10"] } };
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const req = {
-      socket: { remoteAddress: "217.216.33.46" },
+      socket: { remoteAddress: "192.0.2.10" },
       headers: { "x-forwarded-for": `198.51.100.${attempt + 1}, 203.0.113.9` }
     };
     const key = useTrustedLastHopFence ? requestClientIp(req, config) : legacyClientIp(req);
@@ -127,11 +127,11 @@ function deterministicFuzz() {
       now += (seed % 5000) + 1;
     } else if (operation === 6) {
       const req = {
-        socket: { remoteAddress: "217.216.33.46" },
+        socket: { remoteAddress: "192.0.2.10" },
         headers: { "x-forwarded-for": `198.51.100.${seed % 250}, 203.0.113.${(seed >>> 8) % 250}` }
       };
       assert.match(
-        requestClientIp(req, { security: { trustedProxyAddresses: ["217.216.33.46"] } }),
+        requestClientIp(req, { security: { trustedProxyAddresses: ["192.0.2.10"] } }),
         /^203\.0\.113\./u
       );
     }

@@ -1024,7 +1024,7 @@ async function streamRequestToFile(req, filePath, maxBytes) {
     if (!writer.destroyed) {
       writer.destroy();
     }
-    await once(writer, "close").catch(() => {});
+    if (!writer.closed) await once(writer, "close").catch(() => {});
     await rm(filePath, { force: true }).catch(() => {});
     throw error;
   }
@@ -1087,6 +1087,9 @@ async function readMultipartUpload(req, config, { toFilePath = null } = {}) {
           writer.on("finish", resolveWriter);
           writer.on("error", rejectWriter);
         });
+        // The body may still be arriving when the filesystem fails.
+        // Keep rejection handled until the parser's close handler joins it.
+        writerDone.catch(() => {});
       }
       stream.on("limit", () => {
         limited = true;
