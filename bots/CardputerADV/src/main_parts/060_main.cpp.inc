@@ -213,12 +213,12 @@ void renderSmartLampUi() {
   d.drawString(gSmartLamp.power ? "ON" : "OFF", 44, 66);
   d.setFont(&fonts::Font0);
   d.setTextColor(amber, panel);
-  d.drawString("PRESET " + String(gSmartLamp.effect), 44, 99);
+  d.drawString("PRESET " + String(gSmartLamp.effect + 1), 44, 99);
   d.setTextDatum(top_left);
 
   const char* labels[kSmartLampControlCount] = {"PRESET", "BRIGHT", "SPEED", "SCALE"};
   const int values[kSmartLampControlCount] = {
-      gSmartLamp.effect, gSmartLamp.brightness, gSmartLamp.speed, gSmartLamp.scale};
+      gSmartLamp.effect + 1, gSmartLamp.brightness, gSmartLamp.speed, gSmartLamp.scale};
   const int maximum[kSmartLampControlCount] = {
       gSmartLamp.presetsLearned ? max<int>(1, gSmartLamp.presets.count - 1) : 39, 255, 255, 255};
   for (uint8_t i = 0; i < kSmartLampControlCount; ++i) {
