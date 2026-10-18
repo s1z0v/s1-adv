@@ -32,6 +32,8 @@ const topicBySession = new Map(TOPICS.map((topic) => [topic.session_key, topic])
 const state = {
   messages: Object.fromEntries(TOPICS.map((topic) => [topic.session_key, []])),
   subscribers: new Map(),
+  runs: new Map(),
+  activeSessions: new Map(),
   lastSend: null
 };
 
@@ -268,8 +270,19 @@ wss.on("connection", (ws) => {
       );
       return;
     }
+    if (frame.method === "agent.wait") {
+      const run = state.runs.get(frame.params.runId);
+      ws.send(JSON.stringify({type:"res",id:frame.id,ok:true,payload:run?.endedAt
+        ? {runId:frame.params.runId,status:"ok",endedAt:run.endedAt}
+        : {runId:frame.params.runId,status:"timeout"}}));
+      return;
+    }
     if (frame.method === "sessions.send") {
       const key = frame.params.key;
+      if (process.env.MOCK_UPSTREAM_REQUIRE_SERIAL === "1" && state.activeSessions.has(key)) {
+        ws.send(JSON.stringify({type:"res",id:frame.id,ok:false,error:{message:"overlapping Gateway dispatch would remap the run"}}));
+        return;
+      }
       const visibleText = stripTelegramEnvelope(parseVisibleText([{ type: "text", text: frame.params.message }]));
       state.lastSend = {
         key,
@@ -281,6 +294,8 @@ wss.on("connection", (ws) => {
         ws.send(JSON.stringify({ type:"res",id:frame.id,ok:false,error:{message:"deliberate dispatch failure"} }));
         return;
       }
+      state.runs.set(frame.params.idempotencyKey, {});
+      state.activeSessions.set(key, frame.params.idempotencyKey);
       const message = {
         role: "user",
         content: [{ type: "text", text: frame.params.message }],
@@ -300,6 +315,8 @@ wss.on("connection", (ws) => {
           },
           `assistant_${frame.params.idempotencyKey || Date.now()}`
         );
+        state.runs.get(frame.params.idempotencyKey).endedAt = Date.now();
+        if (state.activeSessions.get(key) === frame.params.idempotencyKey) state.activeSessions.delete(key);
       }, Math.max(0, Math.min(5000, Number(REPLY_DELAYS[visibleText] ?? 30))));
       ws.send(
         JSON.stringify({

@@ -116,6 +116,7 @@ export class StateStore {
     this.config = config;
     this.filePath = path.join(config.stateDir, "state.json");
     this.state = initialState(config);
+    this.saveTail = Promise.resolve();
   }
 
   async load() {
@@ -209,8 +210,15 @@ export class StateStore {
   }
 
   async save() {
-    this.compact();
-    await writeJsonAtomic(this.filePath, this.state);
+    // Concurrent ACKs and terminal receipts must not rename an older snapshot
+    // over a newer durable outbox state. Capture state when each write runs.
+    const write = async () => {
+      this.compact();
+      await writeJsonAtomic(this.filePath, this.state);
+    };
+    const saved = this.saveTail.then(write, write);
+    this.saveTail = saved.catch(() => {});
+    await saved;
   }
 
   compact() {

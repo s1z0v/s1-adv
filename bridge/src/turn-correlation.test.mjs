@@ -20,6 +20,7 @@ async function withRuntime(run) {
   await runtime.store.load();
   const requests = [];
   runtime.upstream.rpc = async (method, params) => {
+    if (method === 'agent.wait') return { runId:params.runId,status:'timeout' };
     assert.equal(method, 'sessions.send'); requests.push(params);
     return { runId: params.idempotencyKey };
   };
@@ -36,7 +37,7 @@ async function withRuntime(run) {
   };
   const wait = (ack, started = Date.now()) => runtime.waitForAssistantReply(topic.topic_key, ack.seq, 1000, 50, started, ack);
   try { await run({ runtime, config, requests, device, topic, send, deliver, wait }); }
-  finally { await new Promise(resolve => setImmediate(resolve)); await rm(dir, { recursive: true, force: true }); }
+  finally { runtime.turnOutbox.close(); await new Promise(resolve => setImmediate(resolve)); await rm(dir, { recursive: true, force: true }); }
 }
 
 test('overlapping turns in one session return their own actual gateway run reply', async () => withRuntime(async ({ send, deliver, wait }) => {
@@ -92,7 +93,7 @@ test('actual opaque gateway receipt run ID is persisted and matched', async () =
 
 test('RPC timeout retains request ownership for a late reply and idempotent retry', async () => withRuntime(async ({ runtime, send, deliver, wait, topic }) => {
   let sends = 0;
-  runtime.upstream.rpc = async () => { ++sends; throw Error('upstream timeout for sessions.send'); };
+  runtime.upstream.rpc = async method => { if (method === 'agent.wait') return {status:'timeout'}; ++sends; throw Error('upstream timeout for sessions.send'); };
   await assert.rejects(send('rpc-timeout'), /upstream timeout/);
   const ack = runtime.store.getIdempotent(topic.topic_key, 'rpc-timeout');
   await deliver(ack, 'Actually executed after RPC timeout');
@@ -113,9 +114,9 @@ test('gateway history message ID fallback deduplicates a restart replay', async 
 test('an in-flight idempotent retry follows the eventual opaque gateway receipt', async () => withRuntime(async ({ runtime, send, deliver, wait }) => {
   let release; let sends = 0;
   const dispatched = new Promise(resolve => {
-    runtime.upstream.rpc = () => new Promise(complete => {
-      ++sends; release = complete; resolve();
-    });
+    runtime.upstream.rpc = (method,params) => method === 'agent.wait'
+      ? Promise.resolve({runId:params.runId,status:'timeout'})
+      : new Promise(complete => { ++sends; release = complete; resolve(); });
   });
   const sending = send('pending-opaque');
   await dispatched;
@@ -209,7 +210,7 @@ test('HTTP text timeout is pending and a late A cannot become the next B respons
   config.topics = [{topic_key:'cardputer:main',session_key:'agent:main:telegram:group:-1001234567890:topic:323',title:'Correlation test',thread_id:323}];
   config.devices = [{...config.devices[0],device_token:token,topics:['cardputer:main'],default_topic_key:'cardputer:main'}];
   config.telegram = {enabled:false};config.fastLane = {enabled:false};config.deviceTurnContext = {enabled:false};
-  config.omnibotShim = {...config.omnibotShim,enabled:true,turnWaitMs:1500,turnPollMs:50};
+  config.omnibotShim = {...config.omnibotShim,enabled:true,turnWaitMs:2000,turnPollMs:50};
   const configPath = path.join(dir,'config.json');await writeFile(configPath,JSON.stringify(config),{mode:0o600});
   const children=[];let log='';
   const start = (file, extra) => {
@@ -220,7 +221,7 @@ test('HTTP text timeout is pending and a late A cannot become the next B respons
   const post=(id,message,reply_audio=false)=>fetch(base+'/api/device-text-turn',{method:'POST',headers,body:JSON.stringify({client_msg_id:id,message,reply_audio})});
   try {
     start('src/mock-upstream.mjs',{MOCK_UPSTREAM_PORT:String(upstreamPort),MOCK_UPSTREAM_TOKEN:config.upstream.token,
-      MOCK_UPSTREAM_REPLY_DELAYS:JSON.stringify({CORRELATION_ALPHA:2200,CORRELATION_BRAVO:1000}),MOCK_UPSTREAM_FAIL_MESSAGE:'CORRELATION_DISPATCH_FAIL'});
+      MOCK_UPSTREAM_REPLY_DELAYS:JSON.stringify({CORRELATION_ALPHA:2700,CORRELATION_BRAVO:100}),MOCK_UPSTREAM_REQUIRE_SERIAL:"1",MOCK_UPSTREAM_FAIL_MESSAGE:'CORRELATION_DISPATCH_FAIL'});
     start('src/server.mjs',{CARDPUTER_BRIDGE_CONFIG:configPath});
     let ready=false;
     for(let i=0;i<100;++i){
@@ -238,6 +239,15 @@ test('HTTP text timeout is pending and a late A cannot become the next B respons
     assert.equal(second.reply,'Echo: CORRELATION_BRAVO');
     const retryResponse=await post('http-alpha','CORRELATION_ALPHA');const retry=await retryResponse.json();
     assert.equal(retryResponse.status,200);assert.equal(retry.reply,'Echo: CORRELATION_ALPHA');assert.notEqual(retry.reply_seq,second.reply_seq);
+    // A visible final can precede the Gateway terminal receipt. Do not use a
+    // guessed time delay to make the next turn eligible for dispatch.
+    let drained=false;
+    for(let i=0;i<100;++i){
+      const disk=JSON.parse(await readFile(path.join(config.stateDir,'state.json'),'utf8'));
+      if(disk.turn_outbox.entries.find(e=>e.client_msg_id==='http-bravo')?.phase==='terminal'){drained=true;break;}
+      await delay(30);
+    }
+    assert(drained,'BRAVO terminal receipt was not persisted');
     const failedResponse=await post('http-failed','CORRELATION_DISPATCH_FAIL');const failed=await failedResponse.json();
     assert.equal(failedResponse.status,503);assert.notEqual(failed.pending,true);assert.match(failed.error,/dispatch failure/);
   } finally {
