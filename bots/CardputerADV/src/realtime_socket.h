@@ -45,7 +45,16 @@ class RealtimeSocket : public WebSocketsClient {
         clientDisconnect(&_client,"Upgrade response timeout");
       return;
     }
-    if (_client.status==WSC_CONNECTED) WebSocketsClient::loop();
+    if (_client.status==WSC_CONNECTED) {
+      // The library consumes one frame per loop. PCM plus text can arrive
+      // faster than the display loop, so drain a bounded burst before yielding.
+      const uint32_t started=millis();
+      for (unsigned frame=0;frame<8;++frame) {
+        WebSocketsClient::loop();
+        if (!_client.tcp || _client.status!=WSC_CONNECTED ||
+            !_client.tcp->available() || millis()-started>=4U) break;
+      }
+    }
   }
  private:
   String headerLine_;

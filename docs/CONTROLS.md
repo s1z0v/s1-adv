@@ -34,3 +34,7 @@ microphone is off. REC and the live input meter appear after recording starts.
 The interface and default assistant replies are English, including replies to
 Russian input. Explicit requests such as "Reply in Russian" are respected.
 Russian keyboard input and Cyrillic rendering remain available. See [NES games](NES.md) for SD game installation.
+
+Realtime uses full-screen eyes with compact phase and microphone badges.
+Hands-free listening resumes after each spoken reply. Ctrl+R starts or stops
+Realtime; Esc ends the session, Tab opens apps and Ctrl+K opens commands.

@@ -138,36 +138,35 @@ const char* realtimeStageLabel() {
 void renderRealtimeEyesUi() {
   renderUncannyEyesUi();
   auto& d=gCanvas;
-  const char* stage=realtimeStageLabel();
   const bool error=!gRealtimeUiError.isEmpty();
   const bool micOn=gRealtimeRecording && gRealtimeActive && gRealtimeConnected && !error;
-  const uint16_t bg=rgb565_local(3,7,13);
-  const uint16_t muted=rgb565_local(140,160,180);
+  const bool preparing=gPendingRealtimeStart || gRealtimeRestartAfterPlayback ||
+      (gRealtimeActive && !gRealtimeConnected);
+  const char* stage=!error && preparing ? "PREPARE" : realtimeStageLabel();
+  const uint16_t bg=rgb565_local(3,7,13),muted=rgb565_local(140,160,180);
   const uint16_t accent=error ? rgb565_local(255,96,64) :
       micOn ? rgb565_local(96,255,160) : rgb565_local(96,208,255);
-  d.fillRect(0,0,240,22,bg);
-  d.setFont(&fonts::Font2); d.setTextSize(1);
-  d.setTextColor(accent,bg); d.setCursor(8,3); d.print(stage);
-  d.setFont(&fonts::Font0);
-  d.setCursor(178,8); d.print(micOn ? "MIC ON" : "MIC OFF");
-  // Input only: quiet speech/disabled microphone cannot animate a fake meter.
+  d.setFont(&fonts::Font0);d.setTextSize(1);
+  // Small floating badges retain the complete eye renderer and its full height.
+  const int stageWidth=d.textWidth(stage)+23;
+  d.fillRoundRect(6,4,stageWidth,15,6,bg);
+  d.fillCircle(13,11,2,accent);
+  d.setTextColor(accent,bg);d.setCursor(20,8);d.print(stage);
+  d.fillRoundRect(178,4,56,15,6,bg);
+  d.setTextColor(micOn?accent:muted,bg);d.setCursor(184,8);
+  d.print(micOn?"MIC ON":"MIC OFF");
   const uint8_t level=gMicInputMeter.visibleLevel(micOn,millis());
-  const int16_t height=static_cast<uint16_t>(level)*70/255;
-  d.fillRect(235,30,4,70,rgb565_local(20,32,43));
-  if (height>0) d.fillRect(235,100-height,4,height,accent);
-  String detail;
-  if (error) detail=gRealtimeUiError;
-  else if (gPendingRealtimeStart) detail="Waiting for current request...";
-  else if (!gRealtimeConnected && gRealtimeActive) detail="Connecting securely...";
-  else if (!gRealtimeUiTranscript.isEmpty()) detail=gRealtimeUiTranscript;
-  else if (micOn) detail="Speak now. Input meter >";
-  else if (gRealtimeAwaiting) detail="Waiting for reply...";
-  else detail="Ctrl+R to start / stop";
-  d.fillRect(0,110,240,25,bg);
-  d.setTextColor(accent,bg); d.setCursor(6,113);
-  d.print(fitCurrentFontToWidth(detail,228));
-  d.setTextColor(muted,bg); d.setCursor(6,128);
-  d.print("Tab menu  Ctrl+K commands  Esc end");
+  if(micOn && level){
+    for(int i=0;i<3;++i){
+      const int height=static_cast<unsigned>(level)*(i==1?10:7)/255;
+      if(height)d.fillRect(222+i*4,16-height,2,height,accent);
+    }
+  }
+  if(error){
+    d.fillRoundRect(12,113,216,18,5,bg);
+    d.setTextColor(accent,bg);d.setCursor(18,118);
+    d.print(fitCurrentFontToWidth(gRealtimeUiError,204));
+  }
   d.setFont(&fonts::Font2);
 }
 

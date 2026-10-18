@@ -24,6 +24,7 @@ inline uint32_t clockMs=0;
 inline uint32_t millis(){return clockMs;}
 inline uint32_t esp_random(){return 42;}
 inline unsigned destroyed=0,disconnected=0,baseLoops=0;
+inline unsigned perFrameMs=0;
 class WiFiClientSecure {
  public:
   bool online=true;std::deque<char> input;
@@ -54,7 +55,7 @@ class WebSocketsClient {
   void clientDisconnect(Client* c,const char*){++disconnected;delete c->tcp;c->tcp=nullptr;c->ssl=nullptr;c->status=WSC_NOT_CONNECTED;}
   void handleHeader(Client* c,String* line){lines.push_back(*line);if(line->empty())c->status=WSC_CONNECTED;}
  public:
-  void loop(){++baseLoops;}
+  void loop(){++baseLoops;if(_client.tcp&&_client.tcp->available())_client.tcp->read();clockMs+=perFrameMs;}
   void disconnect(){if(_client.tcp)clientDisconnect(&_client,"stop");}
 };
 ''')
@@ -73,8 +74,12 @@ int main(){
  socket.pollConnected();assert(lines.size()==3);
  assert(lines[0]=="HTTP/1.1 101 Switching Protocols" && lines.back().empty());
  socket.pollConnected();assert(baseLoops==1);
+ tls->feed("123456789012");socket.pollConnected();assert(baseLoops==9 && tls->available()==4);
+ tls->input.clear();tls->feed("abcdefghij");perFrameMs=2;unsigned before=baseLoops;
+ socket.pollConnected();assert(baseLoops==before+2 && tls->available()==8);
+ perFrameMs=0;tls->input.clear();unsigned closedLoops=baseLoops;
  socket.disconnect();assert(destroyed==1 && disconnected==1);
- socket.pollConnected();assert(baseLoops==1);
+ socket.pollConnected();assert(baseLoops==closedLoops);clockMs=0;
  auto* stale=new WiFiClientSecure();socket.adopt(stale,"nonce");
  clockMs=8001;socket.pollConnected();assert(disconnected==2 && destroyed==2);
  auto* lost=new WiFiClientSecure();socket.adopt(lost,"nonce");

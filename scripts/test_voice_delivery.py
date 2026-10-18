@@ -27,7 +27,14 @@ uint32_t gRealtimeLastAudioDeltaMs=0,gRealtimePlaybackProgressMs=0,gRealtimeAudi
 uint32_t gRealtimePlaybackStartMs=0,gRealtimeLatencyOriginMs=0,gRealtimeFirstAudioDeltaMs=0,gRealtimeReplyBytes=0;
 constexpr size_t kRealtimePlaybackRingBytes=16384;
 uint8_t gPlaybackStreamBuffers[2][2048];
-int scheduled=0,failed=0,playing=0;
+bool gRealtimeRecording=false,gRealtimeRestartAfterPlayback=false;
+uint32_t gRealtimeNextListenMs=0;
+constexpr uint32_t kRealtimeListenRestartDelayMs=120;
+constexpr int MALLOC_CAP_8BIT=0;
+struct {unsigned getFreeHeap(){return 100000;}} ESP;
+unsigned heap_caps_get_largest_free_block(int){return 32000;}
+int started=0,failed=0,playing=0;
+void startRealtimeRecording(){++started;gRealtimeRecording=true;gRealtimeAudioComplete=false;gRealtimeResponseComplete=false;}
 enum class FaceMode {Idle,Speaking,Error};
 void setFaceMode(FaceMode){}
 void setStatus(const char*,int=0){}
@@ -35,30 +42,49 @@ void setVoiceDiag(const char*){}
 void appendRuntimeLog(const char*,const char*,bool){}
 void logf(const char*,...){}
 void failRealtimeSession(const char*){++failed;gRealtimeActive=false;}
-void scheduleRealtimeListenAfterPlayback(){if(gRealtimeResponseComplete&&!gRealtimePlaybackActive)++scheduled;}
+
 size_t readRealtimePlaybackRing(uint8_t*,size_t n){gRealtimePlaybackBufferedBytes-=n;return n;}
 void updatePlaybackAnalyzerFromSamples(const int16_t*,size_t,uint32_t){}
 struct SpeakerStub {size_t isPlaying(int){return playing;} bool playRaw(const int16_t*,size_t,uint32_t,bool,int,int,bool){playing=1;return true;}};
 struct {SpeakerStub Speaker;} M5Cardputer;
 '''
+code+='\n'+function('041_main.cpp.inc','void scheduleRealtimeListenAfterPlayback()')
+code+='\n'+function('041_main.cpp.inc','void serviceRealtimeListenRestart(')
 code+='\n'+function('041_main.cpp.inc','void serviceRealtimePlayback()')
 code+=f'\n#include "{root}/bots/CardputerADV/src/clock_display.h"\n'
 code+=r'''
 int main(){
  // The real function used to return at its prebuffer gate, leaving busy set.
  serviceRealtimePlayback();
- assert(!gRealtimePlaybackActive&&!gPlaybackActive&&!gRealtimePlaybackFeeding&&scheduled==1&&failed==0);
+ assert(!gRealtimePlaybackActive&&!gPlaybackActive&&!gRealtimePlaybackFeeding&&gRealtimeRestartAfterPlayback==1&&failed==0);
  // A speaker that still owns DMA data must finish before we restart the mic.
- playing=1;gRealtimePlaybackActive=true;gPlaybackActive=true;scheduled=0;
- serviceRealtimePlayback();assert(gRealtimePlaybackActive&&scheduled==0);
- playing=0;serviceRealtimePlayback();assert(!gRealtimePlaybackActive&&scheduled==1);
+ playing=1;gRealtimePlaybackActive=true;gPlaybackActive=true;gRealtimeRestartAfterPlayback=0;
+ serviceRealtimePlayback();assert(gRealtimePlaybackActive&&gRealtimeRestartAfterPlayback==0);
+ playing=0;serviceRealtimePlayback();assert(!gRealtimePlaybackActive&&gRealtimeRestartAfterPlayback==1);
  // A short final block must play, then drain, without waiting for a prebuffer.
- gRealtimePlaybackBufferedBytes=2;gRealtimePlaybackActive=true;gPlaybackActive=true;scheduled=0;
- serviceRealtimePlayback();assert(playing==1&&gRealtimePlaybackBufferedBytes==0&&scheduled==0);
- playing=0;serviceRealtimePlayback();assert(!gRealtimePlaybackActive&&scheduled==1);
+ gRealtimePlaybackBufferedBytes=2;gRealtimePlaybackActive=true;gPlaybackActive=true;gRealtimeRestartAfterPlayback=0;
+ serviceRealtimePlayback();assert(playing==1&&gRealtimePlaybackBufferedBytes==0&&gRealtimeRestartAfterPlayback==0);
+ playing=0;serviceRealtimePlayback();assert(!gRealtimePlaybackActive&&gRealtimeRestartAfterPlayback==1);
  // Missing response.done stays pending; it must never arm hands-free early.
- gRealtimeResponseComplete=false;gRealtimePlaybackActive=true;gPlaybackActive=true;scheduled=0;
- serviceRealtimePlayback();assert(!gPlaybackActive&&scheduled==0);
+ gRealtimeResponseComplete=false;gRealtimePlaybackActive=true;gPlaybackActive=true;gRealtimeRestartAfterPlayback=0;
+ serviceRealtimePlayback();assert(!gPlaybackActive&&gRealtimeRestartAfterPlayback==0);
+ // Repeated drain service must not move the restart deadline on every loop.
+ for(int turn=0;turn<3;++turn){
+  gRealtimeRecording=false;gRealtimeRestartAfterPlayback=false;
+  gRealtimeAudioComplete=true;gRealtimeResponseComplete=true;gRealtimeHandsFreeActive=true;
+  gPlaybackActive=false;gRealtimePlaybackActive=false;nowMs+=1000;
+  serviceRealtimePlayback();uint32_t deadline=gRealtimeNextListenMs;int before=started;
+  for(int tick=0;tick<120;++tick){serviceRealtimePlayback();serviceRealtimeListenRestart(nowMs++);assert(started==before);assert(gRealtimeNextListenMs==deadline);}
+  serviceRealtimePlayback();serviceRealtimeListenRestart(nowMs);assert(started==before+1&&gRealtimeRecording);
+ }
+ // Manual commit cannot silently re-enable hands-free capture.
+ gRealtimeRecording=false;gRealtimeRestartAfterPlayback=false;gRealtimeHandsFreeActive=false;
+ gRealtimeAudioComplete=true;gRealtimeResponseComplete=true;serviceRealtimePlayback();
+ serviceRealtimeListenRestart(nowMs+1000);assert(!gRealtimeRecording&&!gRealtimeRestartAfterPlayback);
+ // Restart deadlines remain valid across the 32-bit millisecond wrap.
+ gRealtimeHandsFreeActive=true;nowMs=0xfffffff0U;scheduleRealtimeListenAfterPlayback();
+ int before=started;serviceRealtimeListenRestart(0xffffffffU);assert(started==before);
+ serviceRealtimeListenRestart(gRealtimeNextListenMs);assert(started==before+1);
  char b[12];
  clock_display::format(b,sizeof(b),0,5,true,true);assert(!strcmp(b,"12:05 AM"));
  clock_display::format(b,sizeof(b),12,0,true,true);assert(!strcmp(b,"12:00 PM"));

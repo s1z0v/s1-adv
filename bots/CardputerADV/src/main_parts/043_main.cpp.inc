@@ -94,16 +94,7 @@ void serviceRealtimeVoice() {
   serviceRealtimeAudioSmoke();
   serviceRealtimeRecording(true);
   serviceRealtimePlayback();
-  if (gRealtimeRestartAfterPlayback && gRealtimeHandsFreeActive &&
-      gRealtimeActive && gRealtimeConnected && !gRealtimeRecording &&
-      !gRealtimeAwaiting && !gPlaybackActive &&
-      (gRealtimeNextListenMs == 0 || now >= gRealtimeNextListenMs)) {
-    gRealtimeRestartAfterPlayback = false;
-    logf("[RT] auto restart listening free=%u largest=%u",
-         static_cast<unsigned>(ESP.getFreeHeap()),
-         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-    startRealtimeRecording();
-  }
+  serviceRealtimeListenRestart(millis());
 }
 
 bool writeVoiceSmokePcm(fs::FS& fs, const String& path, size_t sampleCount) {

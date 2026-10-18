@@ -136,11 +136,25 @@ size_t readRealtimePlaybackRing(uint8_t* data, size_t length) {
 
 void scheduleRealtimeListenAfterPlayback() {
   if (!gRealtimeResponseComplete || gRealtimePlaybackActive ||
+      gRealtimeRecording || gRealtimeRestartAfterPlayback ||
       !gRealtimeHandsFreeActive || !gRealtimeActive || !gRealtimeConnected) {
     return;
   }
   gRealtimeRestartAfterPlayback = true;
   gRealtimeNextListenMs = millis() + kRealtimeListenRestartDelayMs;
+}
+
+void serviceRealtimeListenRestart(uint32_t now) {
+  if (gRealtimeRestartAfterPlayback && gRealtimeHandsFreeActive &&
+      gRealtimeActive && gRealtimeConnected && !gRealtimeRecording &&
+      !gRealtimeAwaiting && !gPlaybackActive &&
+      (gRealtimeNextListenMs == 0 || static_cast<int32_t>(now - gRealtimeNextListenMs) >= 0)) {
+    gRealtimeRestartAfterPlayback = false;
+    logf("[RT] auto restart listening free=%u largest=%u",
+         static_cast<unsigned>(ESP.getFreeHeap()),
+         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+    startRealtimeRecording();
+  }
 }
 
 void serviceRealtimePlayback() {

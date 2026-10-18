@@ -451,7 +451,8 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
       break;
     }
     case WStype_TEXT: {
-      logf("[RT] ws text bytes=%u", static_cast<unsigned>(length));
+      // Text deltas arrive alongside PCM. Opening/flushing an SD log for every
+      // frame delays socket draining and can strand heartbeat pong behind audio.
       if (realtimePayloadContains(payload, length, "\"type\":\"audio.delta\"") ||
           realtimePayloadContains(payload, length, "\"type\":\"response.output_audio.delta\"")) {
         handleRealtimeAudioDeltaPayload(payload, length);
