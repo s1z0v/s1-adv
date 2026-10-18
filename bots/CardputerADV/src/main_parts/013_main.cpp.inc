@@ -56,7 +56,7 @@ int32_t drawEmojiFromSd(lgfx::LGFXBase* gfx, int32_t x, int32_t y, uint32_t code
 
 void configureEmojiRendering() {
   M5Cardputer.Display.setEmojiCallback(drawEmojiFromSd);
-  gCanvas.setEmojiCallback(drawEmojiFromSd);
+  gCanvasBuffer.setEmojiCallback(drawEmojiFromSd);
 }
 
 void scanEmojiAssets() {

@@ -110,18 +110,11 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
     setVoiceDiag("voice: transcript ok");
   }
   if (resp["pending"] | false) {
-    gVoiceReplyPending = true;
-    gAssistantPendingVisible = false;
-    gVoiceReplyAfterSeq = resp["after_seq"] | 0;
-    const uint32_t receiptSeq=resp["reply_seq"] | 0;
-    if(receiptSeq>gInboxLastSeq) gInboxLastSeq=receiptSeq;
-    gVoiceReplyPendingMs = millis();
-    gLastInboxAutoPollMs = 0;
-    pushSystem("Request accepted. Reply will arrive in chat.");
-    setFaceMode(FaceMode::Idle);
-    setStatus("Request accepted", 1500);
-    showVoiceNotice(transcript, true);
-    if (gCanvasSpriteActive) M5Cardputer.Speaker.tone(1047,90);
+    if (resp["firmware_job"].is<JsonObject>())
+      applyFirmwareJobState(resp["firmware_job"]["state"] | "idle",
+                            resp["firmware_job"]["request_id"] | "");
+    acceptPendingAssistantRequest(transcript, reply, resp["after_seq"] | 0,
+                                  resp["reply_seq"] | 0);
     // A transport acknowledgement is not an assistant answer and never TTS.
     return true;
   }
@@ -129,9 +122,9 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
   gAssistantPendingVisible = false;
   setFaceMode(FaceMode::Idle);
   const uint32_t replySeq = resp["reply_seq"] | 0;
-  if (replySeq > gInboxLastSeq) gInboxLastSeq = replySeq;
   if (!reply.isEmpty()) {
     appendAssistantReply(reply);
+    if (replySeq > gInboxLastSeq) gInboxLastSeq = replySeq;
     showVoiceNotice(reply, false);
     gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
   } else {

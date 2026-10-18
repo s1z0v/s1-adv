@@ -2019,6 +2019,9 @@ bool handleKeyRushKey(char key, const Keyboard_Class::KeysState& keys) {
 }
 
 bool handleGlobalEscape() {
+  gG0VoicePending = false;
+  gPendingOtaCheckAction = gPendingOtaApplyAction = false;
+  if (gInboxHttpBusy) gInboxCancelRequested = true;
   if(handleVoiceRequestEscape()) return true;
   if (gChatCommandsVisible) { gChatCommandsVisible=false; return true; }
   if (gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty()) dismissVoiceNotice();

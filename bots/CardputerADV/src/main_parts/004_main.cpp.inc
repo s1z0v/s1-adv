@@ -167,7 +167,11 @@ WebServer gSetupServer(80);
 String gSetupPortalPassword;
 String gSetupPortalCsrf;
 WiFiUDP gSmartLampUdp;
-M5Canvas gCanvas(&M5Cardputer.Display);
+M5Canvas gCanvasBuffer(&M5Cardputer.Display);
+lgfx::LGFXBase& uiCanvas();
+// Drawing uses the current surface; allocation/presentation always names the
+// backing sprite explicitly. The network worker never accesses either surface.
+#define gCanvas uiCanvas()
 SPIClass gSdSpi(FSPI);
 MFRC522 gRfidReader(kRfidCsPin, kRfidResetPin);
 

@@ -1,4 +1,5 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
+import { startFirmwareJob, updateFirmwareJob, publicFirmwareJob, firmwareJobDeliveryUncertain } from "./firmware-job-status.mjs";
 import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -3946,9 +3947,9 @@ class BridgeRuntime {
       "Do not modify partition tables, bootloader, OTA slot layout, rollback/boot guard, credential handling, TLS verification, or storage migration/wipe behavior unless the user explicitly requested that exact area and you can explain the safety impact.",
       "Verify the produced firmware.bin is below the app slot limit from job_session_contract.safety_gate.app_slot_limit_bytes with reasonable headroom. If the image is too large or close enough to threaten OTA reliability, stop and report it instead of publishing.",
       "Build exactly once at a time with job_session_contract.build_wrapper. Do not run parallel PlatformIO builds against the same .pio directory.",
-      "Commit and push the firmware change on the current branch after a successful build.",
+      "After source checks pass, commit and push the firmware change on the current owned branch, then build the release from that exact pushed HEAD. The release binary BUILD_GIT_SHA and manifest build_git_sha must both identify that exact 40-character commit. Rebuild after any source commit; never relabel a binary built from an older HEAD.",
       "Publish the OTA candidate with job_session_contract.publish_wrapper and verify it with job_session_contract.smoke_wrapper or an equivalent manifest/file sha smoke.",
-      "When publishing succeeds, send one concise final assistant message in this job topic. It must be suitable for spoken playback on the device.",
+      "When publishing succeeds, send one concise final assistant message in this job topic including the actual published firmware version. It must be suitable for spoken playback on the device; the bridge correlates that version with the real new manifest.",
       immediateInstall
         ? "Because immediate_install_requested is true, the final message must say that the firmware is ready and installation is starting now, then append exactly this machine marker: [[cardputer_actions:[{\"type\":\"settings.set_ota_min_battery\",\"value\":25},{\"type\":\"ota.check\"},{\"type\":\"ota.apply\"}]]]"
         : "Because immediate_install_requested is false, the final message must say that the firmware is ready to install, then append exactly this machine marker: [[cardputer_actions:[{\"type\":\"ota.check\"}]]]",
@@ -4582,11 +4583,22 @@ class BridgeRuntime {
         m.sender?.kind==='assistant' && m.content?.text===last.content.text)) || null;
   }
 
+  firmwareJobStatusForDevice(device) {
+    const job = Object.values(this.store.state.topics)
+      .map(topic => topic.firmware_job)
+      .filter(job => job?.device_id === device.device_id)
+      .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))[0];
+    return publicFirmwareJob(job);
+  }
+
   async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
     const continuation=this.firmwareClarificationTopic(topic,transcript);
     if (wantsFirmwareWork(transcript) || continuation) {
       const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
       const routeTopic = continuation || await this.createFirmwareJobTopicForDevice(device, transcript);
+      this.store.getTopic(routeTopic.topic_key).firmware_job = startFirmwareJob(
+        device.device_id, clientMsgId, Date.now(), readJsonFileSyncSafe(this.firmwareManifestPath(), null));
+      await this.store.save();
       console.info(
         `[firmware-route] upstream device=${device?.device_id || "-"} ` +
         `job_topic=${routeTopic?.topic_key || "-"} dashboard=${dashboardTopic?.topic_key || "-"} ` +
@@ -4632,7 +4644,8 @@ class BridgeRuntime {
           replyMessage,
           includeAudio: false
         }), status: "accepted", pending: true, after_seq: replyMessage.seq,
-        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key }
+        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key,
+        firmware_job: this.firmwareJobStatusForDevice(device) }
       };
     }
     // Ordinary voice keeps the existing conversation and tools, without a
@@ -5036,6 +5049,13 @@ class BridgeRuntime {
         );
       }
     }
+    if (appended.sender?.kind === "assistant" && topic.firmware_job) {
+      topic.firmware_job = updateFirmwareJob(topic.firmware_job, {
+        message: raw, text: String(appended.content?.text || ""),
+        manifest: readJsonFileSyncSafe(this.firmwareManifestPath(), null)
+      });
+      console.info(`[firmware-job] request=${topic.firmware_job.request_id} state=${topic.firmware_job.state}`);
+    }
     this.queueDeviceMessageEvent(topic.topic_key, appended);
     await this.store.save();
     this.broadcast(topic.topic_key, {
@@ -5076,6 +5096,7 @@ class BridgeRuntime {
     const appended = await this.ingestUpstreamMessage(topic, frame.payload?.message || {}, {
       messageId: frame.payload?.messageId || null
     });
+
     if (
       appended &&
       topic.mirror_topic_key &&
@@ -5586,6 +5607,15 @@ class BridgeRuntime {
       });
     };
     const failDelivery = (error) => {
+      if (topic.firmware_job) {
+        topic.firmware_job = firmwareJobDeliveryUncertain(topic.firmware_job);
+        void this.store.save();
+        if (topic.mirror_topic_key) void this.appendAssistantReply({
+          topicKey: topic.mirror_topic_key,
+          text: "The agent delivery receipt is uncertain. Check chat before retrying to avoid a duplicate build.",
+          clientMsgId, source: "cardputer_firmware_job_error"
+        }).catch(err => console.warn(`[firmware-job] notification: ${String(err.message).slice(0, 160)}`));
+      }
       this.broadcast(topicKey, {
         type: "delivery_status",
         topic_key: topicKey,
@@ -5596,10 +5626,13 @@ class BridgeRuntime {
         updated_at: nowIso()
       });
     };
+    const mirrorOptional = () => mirrorToTelegram().catch(error => {
+      console.warn(`[telegram] optional mirror failed topic=${topicKey} err=${String(error.message || error).slice(0, 160)}`);
+    });
     if (waitForUpstream) {
       try {
         await sendToUpstream();
-        void mirrorToTelegram().catch((error) => failDelivery(error));
+        void mirrorOptional();
       } catch (error) {
         failDelivery(error);
         throw error;
@@ -5608,7 +5641,7 @@ class BridgeRuntime {
       void (async () => {
         try {
           await sendToUpstream();
-          await mirrorToTelegram();
+          await mirrorOptional();
         } catch (error) {
           failDelivery(error);
         }
@@ -6538,6 +6571,7 @@ async function main() {
       json(res, 200, {
         type: "device_events_pending",
         device_id: device.device_id,
+        firmware_job: runtime.firmwareJobStatusForDevice(device),
         items
       });
       return;

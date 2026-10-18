@@ -45,6 +45,8 @@ jobs:
       - run: node bots/CardputerADV/tests/render_eye_skins.mjs /tmp/cardputer-eye-skins
       - run: python scripts/test_assistant_ui.py
       - run: python scripts/test_home_update.py
+      - run: python scripts/test_auto_ota.py
+      - run: python scripts/test_ui_surface.py
       - run: python scripts/test_home_battery.py
       - run: python scripts/test_realtime_screen.py
       - run: python scripts/test_realtime_connection.py

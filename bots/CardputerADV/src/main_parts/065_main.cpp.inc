@@ -16,9 +16,8 @@ void endVoiceWifiPerformance() {
   }
 }
 void showVoiceNotice(const String& text, bool pending) {
-  if(pending) gVoiceRequestTranscript=cleanReplyForDevice(text);
   while(gVoiceRequestTranscript.length()>512) removeLastUtf8Char(gVoiceRequestTranscript);
-  gVoiceNoticeText = pending ? String("Reply will arrive in chat. You said: ")+gVoiceRequestTranscript : cleanReplyForDevice(text);
+  gVoiceNoticeText = cleanReplyForDevice(text);
   while (gVoiceNoticeText.length() > 1200) removeLastUtf8Char(gVoiceNoticeText);
   gVoiceNoticePending = pending;
   gVoiceRequestPhase=pending ? VoiceRequestPhase::Accepted : VoiceRequestPhase::Reply;
@@ -32,6 +31,51 @@ void showVoiceNotice(const String& text, bool pending) {
   gLastRenderMs=millis();
   logf("[VOICE_UI] sheet=%s mode=%d painted=%d", pending ? "accepted" : "reply",
        static_cast<int>(gUiMode),static_cast<int>(gCanvasSpriteActive));
+}
+
+void acceptPendingAssistantRequest(const String& transcript, const String& acknowledgement,
+                                   uint32_t afterSeq, uint32_t receiptSeq) {
+  gVoiceRequestTranscript = cleanReplyForDevice(transcript);
+  gVoiceReplyPending = true;
+  gAssistantPendingVisible = false;
+  gVoiceReplyAfterSeq = afterSeq;
+  gVoiceReplyPendingMs = millis();
+  gVoiceReplyNotifyUntilMs = millis() + 600000U;
+  gLastInboxAutoPollMs = 0;
+  const String receipt = acknowledgement.isEmpty()
+      ? String("Request accepted. The reply will arrive here.") : acknowledgement;
+  // Persist the acknowledgement in the conversation before advancing the inbox
+  // cursor. Its durable device event can then be ACKed without hiding its text.
+  appendAssistantReply(receipt);
+  if (receiptSeq > gInboxLastSeq) gInboxLastSeq = receiptSeq;
+  setFaceMode(FaceMode::Idle);
+  setStatus("Request accepted", 4000);
+  showVoiceNotice(receipt, true);
+  if (gCanvasSpriteActive) M5Cardputer.Speaker.tone(1047, 90);
+  logf("[REQUEST] accepted after_seq=%u receipt_seq=%u mode=%d visible=%d",
+       static_cast<unsigned>(afterSeq), static_cast<unsigned>(receiptSeq),
+       static_cast<int>(gUiMode), static_cast<int>(gVoiceNoticeVisible));
+}
+
+void applyFirmwareJobState(const String& state, const String& requestId) {
+  using State = firmware_job_display::State;
+  State next = State::Idle;
+  if (state == "building") next = State::Building;
+  else if (state == "ready") next = State::Ready;
+  else if (state == "uncertain") next = State::Stalled;
+  else if (state == "attention") next = State::Attention;
+  else if (state == "failed") next = State::Failed;
+  else if (state == "stalled") next = State::Stalled;
+  else if (state != "idle") return;
+  if (next != gFirmwareJobState || requestId != gFirmwareJobRequestId)
+    logf("[FIRMWARE_JOB] state=%s request=%s", state.c_str(), requestId.c_str());
+  gFirmwareJobState = next;
+  gFirmwareJobRequestId = requestId;
+  gFirmwareJobLastSyncMs = millis();
+}
+
+const char* homeStatusLabel(bool updateReady) {
+  return firmware_job_display::label(gFirmwareJobState, updateReady, millis() - gFirmwareJobLastSyncMs);
 }
 
 void beginVoiceRequestUi() {

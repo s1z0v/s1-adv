@@ -27,6 +27,7 @@ code = r'''
 #include <string>
 #include <vector>
 #include "release_delivery.h"
+#include "firmware_job_display.h"
 struct String:std::string {
  using std::string::string;
  String(const std::string& s):std::string(s){}
@@ -51,7 +52,11 @@ void logf(const char*,...){}
 void appendRuntimeLog(String,String,bool){}
 int fetched=0,applied=0,painted=0;
 bool checkResult=true;
-bool fetchRemoteOtaManifest(){++fetched;return checkResult;}
+bool applyAfter=false;
+bool startBackgroundManifestCheck(bool apply,bool){++fetched;gInboxHttpBusy=true;applyAfter=apply;return true;}
+void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOtaApplyAction=true;gPendingOtaActionAfterMs=now;}}
+firmware_job_display::State state=firmware_job_display::State::Idle;
+const char* homeStatusLabel(bool update){return firmware_job_display::label(state,update,0);}
 bool applyOtaFromManifest(){++applied;return true;}
 void setUiMode(UiMode m){gUiMode=m;}
 void render(){++painted;}
@@ -110,12 +115,14 @@ int main(){
  assert(gPendingOtaApplyAction&&gPendingOtaCheckAction&&fetched==0&&applied==0);
  now+=101;servicePendingOtaAction();assert(fetched==0&&applied==0);
  gInboxHttpBusy=false;servicePendingOtaAction();
- assert(fetched==1&&applied==1&&painted==1&&gUiMode==UiMode::Ota);
+ assert(fetched==1&&applied==0&&painted==1&&gUiMode==UiMode::Ota);
+ completeCheck();servicePendingOtaAction();assert(applied==1);
  servicePendingOtaAction();assert(applied==1);
  resetQueue();checkResult=false;assert(handleHomeUpdateKey('u',keys));now+=101;
- servicePendingOtaAction();assert(applied==1); // failed refresh never applies
+ servicePendingOtaAction();completeCheck();servicePendingOtaAction();assert(applied==1); // failed refresh never applies
  resetQueue();checkResult=true;gOtaManifest.version=kAppVersion;
  assert(handleHomeUpdateKey('u',keys));now+=101;servicePendingOtaAction();
+ completeCheck();servicePendingOtaAction();
  assert(applied==1&&gUiMode==UiMode::Home); // no candidate only checks
  assert(!gPendingOtaApplyAction&&!gPendingOtaCheckAction);
  // A bridge or startup check stays on Home and does not install.
@@ -129,6 +136,11 @@ int main(){
   assert(gCanvas.labels==(update?std::vector<std::string>{"NEW UPDATE","Ctrl+U"}:std::vector<std::string>{"READY"}));
   assert(gCanvas.border==(update?rgb565_local(255,159,42):rgb565_local(47,227,255)));
  }
+ for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled}){
+  state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+  assert(gCanvas.w==72&&gCanvas.h==18&&gCanvas.labels.size()==2);
+ }
+ assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,false,90001))=="CHECK LINK");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-home-update-') as directory:

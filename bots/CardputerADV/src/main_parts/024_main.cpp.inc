@@ -215,14 +215,16 @@ void servicePendingOtaAction() {
   logf("[ACT] ota action run check=%d apply=%d", static_cast<int>(shouldCheck), static_cast<int>(shouldApply));
   appendRuntimeLog("OTA", String("action run check=") + String(static_cast<int>(shouldCheck)) +
                             " apply=" + String(static_cast<int>(shouldApply)), true);
-  bool checkOk = true;
   if (shouldCheck) {
-    checkOk = fetchRemoteOtaManifest();
-    logf("[ACT] ota.check result=%d", static_cast<int>(checkOk));
-    if (!shouldApply) setStatus(checkOk ? (homeFirmwareUpdateAvailable() ?
-        "New update: Ctrl+U" : "Firmware is current") : "Update check failed", 2200);
+    // Paint the key response before network work. The shared worker owns TLS;
+    // completion schedules apply only after a valid fresh manifest.
+    if (!startBackgroundManifestCheck(shouldApply, !shouldApply)) {
+      gPendingOtaCheckAction = true;
+      gPendingOtaApplyAction = shouldApply;
+    }
+    return;
   }
-  if (shouldApply && checkOk) {
+  if (shouldApply) {
     bool applyOk = applyOtaFromManifest();
     logf("[ACT] ota.apply result=%d", static_cast<int>(applyOk));
   }

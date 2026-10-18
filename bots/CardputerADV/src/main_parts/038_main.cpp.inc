@@ -28,8 +28,15 @@ void processCompletedTextTurn() {
 
   std::unique_ptr<TextTurnTaskResult> done(result);
   gTextTurnTaskHandle = nullptr;
+  const String submittedText = gActiveTextTurn;
   gActiveTextTurn = "";
+  // The worker has finished. Feedback must paint as accepted/replied, not THINK.
+  gSubmitting = false;
+  gThinking = false;
+  gAssistantPendingVisible = false;
 
+  if (done->hasFirmwareJobStatus)
+    applyFirmwareJobState(done->firmwareJobState, done->firmwareJobRequestId);
   if (!done->error.isEmpty()) {
     logf("[TEXT] async error code=%d body=%s", done->statusCode, done->response.c_str());
     pushError(done->error);
@@ -43,16 +50,19 @@ void processCompletedTextTurn() {
     }
     setFaceMode(FaceMode::Error);
     setStatus("Text turn failed", 2000);
+  } else if (done->ok && done->pending) {
+    acceptPendingAssistantRequest(submittedText, done->reply, done->afterSeq, done->replySeq);
+    logf("[TEXT] async accepted receipt_seq=%u", static_cast<unsigned>(done->replySeq));
   } else if (done->ok && done->hasReply) {
+    gVoiceReplyPending = false;
     appendAssistantReply(done->reply);
-    bool playedAudio = false;
-    if (done->hasAudio) {
-      playedAudio = downloadAndPlayResponseAudio(done->audioUrl, done->audioPath, done->audioSha256,
-                                                 done->audioSize, done->audioTitle, done->reply);
-    }
-    if (!playedAudio && shouldSpeakAssistantTextReply(done->reply)) {
-      requestAndPlayTts(done->reply);
-    }
+    if (done->replySeq > gInboxLastSeq) gInboxLastSeq = done->replySeq;
+    if (gUiMode != UiMode::ChatFull && gUiMode != UiMode::ChatFace)
+      showVoiceNotice(done->reply, false);
+    // Speech uses the existing cancellable worker. A synchronous HTTPS/TTS
+    // request here can stop loopTask for the entire server round-trip.
+    if (shouldSpeakAssistantTextReply(done->reply))
+      gQueuedVoiceReplySpeech = cleanReplyForDevice(done->reply);
     logf("[TEXT] async reply=%s", done->reply.c_str());
     setStatus("Reply received", 1200);
     if (done->hasDeviceActions) {

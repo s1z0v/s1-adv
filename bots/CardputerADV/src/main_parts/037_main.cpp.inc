@@ -279,6 +279,14 @@ TextTurnTaskResult* performTextTurnRequest(void* arg) {
             reply = shortText;
           }
           result->shortText = shortText;
+          result->pending = resp["pending"] | false;
+          result->afterSeq = resp["after_seq"] | 0;
+          result->replySeq = resp["reply_seq"] | 0;
+          if (resp["firmware_job"].is<JsonObject>()) {
+            result->hasFirmwareJobStatus = true;
+            result->firmwareJobState = resp["firmware_job"]["state"] | "idle";
+            result->firmwareJobRequestId = resp["firmware_job"]["request_id"] | "";
+          }
           result->telegramDelivered = resp["telegram"]["delivered"] | false;
           if (!resp["device_actions"].isNull()) {
             serializeJson(resp["device_actions"], result->deviceActionsJson);

@@ -200,7 +200,7 @@ void renderTransferUi() {
   d.setTextColor(muted, panel);
   d.setCursor(18, 116);
   d.print("do not power off");
-  gCanvas.pushSprite(0, 0);
+  presentUiFrame();
 }
 
 void beginTransferUi(const String& title, const String& detail, uint32_t total, uint16_t accent) {

@@ -39,6 +39,8 @@ void startRecording() {
     releaseTtsBuffer();
   }
   dismissVoiceNotice();
+  setStatus("Preparing microphone...", 0);
+  render(); // First feedback precedes SD open and I2S setup; REC means capture.
   if (gRecordFileWriteFailed) {
     cancelVoicePreconnect();
     if (!remountSdStorage("record retry")) {
@@ -119,6 +121,9 @@ void startRecording() {
        static_cast<unsigned>(storageReadyMs - captureRequestedMs),
        static_cast<unsigned>(gRecordStartMs - storageReadyMs),
        static_cast<unsigned>(millis() - gRecordStartMs), gCanvasSpriteActive);
+  if (gG0VoiceHeld) Serial.printf("[VOICE_LATENCY] g0_mic_ms=%u g0_rec_frame_ms=%u network_wait=%d\n",
+      static_cast<unsigned>(gRecordStartMs - gG0VoiceRequestedMs),
+      static_cast<unsigned>(millis() - gG0VoiceRequestedMs), captureRequestedMs != gG0VoiceRequestedMs);
 }
 
 void writeWavHeader(uint8_t* h, uint32_t dataSize, uint32_t sampleRate) {

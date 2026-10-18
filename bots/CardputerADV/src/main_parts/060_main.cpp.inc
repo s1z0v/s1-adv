@@ -266,7 +266,7 @@ void renderSetupPortalUi() {
   const uint16_t panel = rgb565_local(8, 28, 36);
   const uint16_t accent = rgb565_local(33, 199, 223);
   const uint16_t ok = rgb565_local(132, 245, 174);
-  d.fillSprite(bg);
+  d.fillScreen(bg);
   d.fillRoundRect(8, 8, 224, 118, 6, panel);
   d.drawRoundRect(8, 8, 224, 118, 6, accent);
   d.setTextDatum(TL_DATUM);
@@ -296,13 +296,11 @@ void renderSetupPortalUi() {
   d.setTextColor(rgb565_local(132, 157, 171), panel);
   d.setCursor(18, 112);
   d.print(gSetupPortalSaved ? "saved, restarting" : "Wi-Fi + bridge credentials");
-  d.pushSprite(0, 0);
+  presentUiFrame();
 }
 
 void render() {
-  if (!gCanvasSpriteActive) {
-    return;
-  }
+  UiFrameTrace frameTrace;
   uint32_t renderStartMs = millis();
   if (gStatusUntilMs != 0 && millis() > gStatusUntilMs) {
     gStatusUntilMs = 0;
@@ -320,6 +318,6 @@ void render() {
   }
   if (voiceRequestBusyUi()) {
     renderAssistantPulseUi();
-    gCanvas.pushSprite(0,0);
+    presentUiFrame();
     return;
   }

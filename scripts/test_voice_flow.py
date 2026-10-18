@@ -37,6 +37,7 @@ enum class VoiceRequestPhase{None,Recording,Sending,Processing,Accepted,Reply,Er
 VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::None;
 bool gVoiceNoticeVisible=false,gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false;
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
+struct UiFrameTrace{};void presentUiFrame(){}
 bool gCanvasSpriteActive=true,gSetupPortalActive=false,gVoiceNoticePending=false;
 bool gLauncherVisible=false,gChatCommandsVisible=false;
 bool gVoiceReplySpeechBusy=false,gTransferUiActive=false,gOtaApplyInProgress=false,gPendingRestart=false;
@@ -111,7 +112,14 @@ int main(){
  expect({"READY","REPLY"}); // Real card is fully visible in its FIRST frame.
  assert(cardText.back()=="Enter read more   Esc OK");
  assert(voiceReplyFeedbackReady());speakerPlaying=1;assert(!voiceReplyFeedbackReady());speakerPlaying=0;
- gCanvasSpriteActive=false;assert(!voiceReplyFeedbackReady());gCanvasSpriteActive=true;
+ gCanvasSpriteActive=false;assert(!voiceReplyFeedbackReady());
+ // Even with the sprite loaned to TLS, the real dispatcher must render Home,
+ // the clock, and chat immediately. This used to return before drawing.
+ for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}) {
+  gUiMode=mode;showVoiceNotice("Background poll stays responsive",false);
+  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY","REPLY"});else expect({"CHAT"});
+ }
+ gCanvasSpriteActive=true;gUiMode=UiMode::Home;showVoiceNotice("Unread reply",false);
  assert(!screensaverMayRun()); // Unread feedback must not disappear into a saver.
  gVoiceNoticeVisible=false;assert(screensaverMayRun());
  gVoiceReplySpeechBusy=true;assert(!screensaverMayRun());gVoiceReplySpeechBusy=false;

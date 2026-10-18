@@ -145,19 +145,24 @@ void drawAssistantPulseButton(int16_t x, int16_t y, int16_t w, int16_t h,
 
 void drawHomeReadyStatus(bool updateReady, bool pressed) {
   auto& d = gCanvas;
+  const char* label = homeStatusLabel(updateReady);
+  const bool ready = strcmp(label, "READY") == 0;
+  const bool building = strcmp(label, "BUILDING") == 0;
+  const bool update = strcmp(label, "NEW UPDATE") == 0;
   const int y = 103 + (pressed ? 1 : 0);
-  const int x = updateReady ? 149 : 154, w = updateReady ? 72 : 62;
-  const uint16_t fill = updateReady ? rgb565_local(36,22,7) : rgb565_local(7,20,26);
-  const uint16_t accent = updateReady ? rgb565_local(255,159,42) : rgb565_local(47,227,255);
+  const int x = ready ? 154 : 149, w = ready ? 62 : 72;
+  const uint16_t fill = ready ? rgb565_local(7,20,26) : rgb565_local(36,22,7);
+  const uint16_t accent = ready ? rgb565_local(47,227,255) : building ? rgb565_local(100,190,255) : rgb565_local(255,159,42);
   d.fillRoundRect(x,y,w,18,5,fill);
   d.drawRoundRect(x,y,w,18,5,accent);
   d.setTextSize(1);
   d.setTextColor(accent,fill);
-  if (updateReady) {
+  if (!ready) {
     d.setFont(&fonts::Font0);
-    d.setCursor(x+(w-d.textWidth("NEW UPDATE"))/2,y+1);d.print("NEW UPDATE");
+    d.setCursor(x+(w-d.textWidth(label))/2,y+1);d.print(label);
     d.setTextColor(rgb565_local(255,240,214),fill);
-    d.setCursor(x+(w-d.textWidth("Ctrl+U"))/2,y+9);d.print("Ctrl+U");
+    const char* hint = update ? "Ctrl+U" : building ? "Please wait" : "Enter chat";
+    d.setCursor(x+(w-d.textWidth(hint))/2,y+9);d.print(hint);
   } else {
     d.setFont(&fonts::Font2);
     d.setCursor(x+(w-d.textWidth("READY"))/2,y+1);d.print("READY");

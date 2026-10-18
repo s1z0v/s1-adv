@@ -57,6 +57,62 @@ void logf(const char* fmt, ...) {
   appendRuntimeLog("SER", String(buf), false);
 }
 
+lgfx::LGFXBase& uiCanvas() {
+  return gCanvasSpriteActive ? static_cast<lgfx::LGFXBase&>(gCanvasBuffer)
+                            : static_cast<lgfx::LGFXBase&>(M5Cardputer.Display);
+}
+
+void presentUiFrame() {
+  if (gInboxHttpBusy) {
+    // Small live indicator; the actual screen and inputs continue updating.
+    const uint16_t color = (millis() / 200U) % 2U ? rgb565_local(47,227,255) : rgb565_local(12,60,72);
+    uiCanvas().drawFastHLine(226, 1, 10, color);
+  }
+  if (gCanvasSpriteActive) gCanvasBuffer.pushSprite(0, 0);
+}
+
+void noteUiInput(const char* source) {
+  gUiInputAtMs = millis();
+  gUiInputPending = true;
+  gUiInputSource = source;
+  gLastRenderMs = 0;
+}
+
+struct UiFrameTrace {
+  uint32_t started = millis();
+  ~UiFrameTrace() {
+    const uint32_t now = millis();
+    if (gUiInputPending) {
+      const uint32_t latency = now - gUiInputAtMs;
+      if (latency > gUiInputMaxMs) gUiInputMaxMs = latency;
+      Serial.printf("[UI_LATENCY] source=%s input_frame_ms=%u render_ms=%u direct=%d network=%d\n",
+                    gUiInputSource, latency, now - started, !gCanvasSpriteActive, gInboxHttpBusy);
+      gUiInputPending = false;
+    }
+  }
+};
+
+void sampleUiHealth() {
+  const uint32_t now = millis();
+  if (gUiLastServiceMs && now - gUiLastServiceMs > gUiMaxServiceGapMs) gUiMaxServiceGapMs = now - gUiLastServiceMs;
+  gUiLastServiceMs = now;
+  if (now - gUiLastMemorySampleMs < 1000U) return;
+  gUiLastMemorySampleMs = now;
+  gUiMinHeap = min<uint32_t>(gUiMinHeap, ESP.getFreeHeap());
+  gUiMinLargest = min<uint32_t>(gUiMinLargest, heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+  gUiMinStack = min<uint32_t>(gUiMinStack, uxTaskGetStackHighWaterMark(nullptr));
+}
+
+template<typename F> void traceUiService(const char* name, F&& fn) {
+  const uint32_t started = millis();
+  fn();
+  const uint32_t cost = millis() - started;
+  if (cost >= 80U) Serial.printf("[UI_SERVICE] name=%s ms=%u free=%u largest=%u stack=%u\n", name, cost,
+      static_cast<unsigned>(ESP.getFreeHeap()),
+      static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)),
+      static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+}
+
 void prepareNetworkMemory(const char* reason, bool forceTtsBuffer) {
   if (!gRecording && gRecordBuffer) {
     releaseRecordBuffer();
@@ -81,7 +137,7 @@ bool releaseUiCanvasForNetwork(const char* reason) {
   if (!gCanvasSpriteActive) {
     return false;
   }
-  gCanvas.deleteSprite();
+  gCanvasBuffer.deleteSprite();
   gCanvasSpriteActive = false;
   yield();
   delay(2);
@@ -96,16 +152,16 @@ void restoreUiCanvasAfterNetwork() {
   if (gCanvasSpriteActive) {
     return;
   }
-  gCanvas.setColorDepth(8);
-  if (!gCanvas.createSprite(240, 135)) {
+  gCanvasBuffer.setColorDepth(8);
+  if (!gCanvasBuffer.createSprite(240, 135)) {
     gCanvasSpriteActive = false;
     logf("[MEM] canvas restore deferred free=%u largest=%u", static_cast<unsigned>(ESP.getFreeHeap()),
          static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     return;
   }
-  gCanvas.setTextWrap(false);
-  gCanvas.setFont(&fonts::Font2);
-  gCanvas.setTextSize(1);
+  gCanvasBuffer.setTextWrap(false);
+  gCanvasBuffer.setFont(&fonts::Font2);
+  gCanvasBuffer.setTextSize(1);
   configureEmojiRendering();
   gCanvasSpriteActive = true;
   gLastRenderMs = 0;

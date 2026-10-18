@@ -44,6 +44,7 @@
 #include "transport_security.h"
 #include "realtime_socket.h"
 #include "clock_display.h"
+#include "firmware_job_display.h"
 
 extern "C" {
 #include "libb64/cdecode.h"
@@ -66,7 +67,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.166-dev"
+#define APP_VERSION "0.2.167-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"

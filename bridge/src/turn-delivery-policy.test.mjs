@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
+import { startFirmwareJob, publicFirmwareJob } from './firmware-job-status.mjs';
 import { requestedReplyLanguage } from './reply-language.mjs';
 import { RealtimePacingBudget } from './realtime-pacing-budget.mjs';
 
@@ -17,9 +18,10 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
  assert(!classifier('What is the battery percentage?'));
  assert(!classifier('Какая погода сегодня?'));
  const method=source.slice(source.indexOf('async tryFastLaneTurn('),source.indexOf('async runFirmwareWorkJob(')).trim();
- const route=new Function('wantsFirmwareWork','languageNameForText',`return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage);
+ const route=new Function('wantsFirmwareWork','languageNameForText','startFirmwareJob','readJsonFileSyncSafe',`return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage,startFirmwareJob,()=>null);
  let jobs=0,sends=0,replies=0;
- const runtime={firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
+ const jobStore={};
+ const runtime={store:{getTopic:()=>jobStore,save:async()=>{}},firmwareManifestPath:()=>'unused',firmwareJobStatusForDevice:()=>publicFirmwareJob(jobStore.firmware_job),firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
   sendText:async v=>{++sends;assert.equal(v.topicKey,'job');assert.equal(v.waitForUpstream,false);return {seq:1};},
   buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {seq:7};},buildTurnResponse:async()=>({ok:true})};
  const result=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'убери индикатор с главного экрана',inputMode:'voice'});
@@ -35,7 +37,7 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
 
 test('a confirmation resumes the firmware job that asked, without a new owner',()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
- const code=source.slice(source.indexOf('  firmwareClarificationTopic('),source.indexOf('  async tryFastLaneTurn(')).trim();
+ const code=source.slice(source.indexOf('  firmwareClarificationTopic('),source.indexOf('  firmwareJobStatusForDevice(')).trim();
  const resolve=new Function(`return function ${code}`)();
  const question={sender:{kind:'assistant'},content:{text:'Publish the new build?'},source:{transport:'cardputer_firmware_job_mirror'}};
  const job={topic_key:'local:cardputer-firmware-job:one',mirror_topic_key:'main',updated_at:new Date().toISOString()};

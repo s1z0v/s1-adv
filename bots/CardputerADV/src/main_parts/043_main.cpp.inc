@@ -824,10 +824,15 @@ bool handleHostSerialCommand(String line) {
     for (const auto& entry : gRuntimeLogs) { Serial.print("[LOG] "); Serial.println(entry); }
     return true;
   }
+  if (cmd=="ui.perf") {
+    logf("[UI_PERF] input_frame_max_ms=%u service_gap_max_ms=%u heap_min=%u largest_min=%u stack_min=%u direct=%d network=%d",
+         gUiInputMaxMs, gUiMaxServiceGapMs, gUiMinHeap, gUiMinLargest, gUiMinStack, !gCanvasSpriteActive, gInboxHttpBusy);
+    return true;
+  }
   if (cmd=="home.update.status") {
     logf("[HOST] home.update available=%d label=%s shortcut=Ctrl+U mode=%d",
          static_cast<int>(homeFirmwareUpdateAvailable()),
-         homeFirmwareUpdateAvailable()?"NEW UPDATE":"READY",static_cast<int>(gUiMode));
+         homeStatusLabel(homeFirmwareUpdateAvailable()),static_cast<int>(gUiMode));
     return true;
   }
   if (cmd=="home.update.preview") {

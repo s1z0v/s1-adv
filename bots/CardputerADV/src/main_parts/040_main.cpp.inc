@@ -616,10 +616,10 @@ void serviceDeferredBoot() {
       if (!gOtaPendingVerify) {
         maybeSyncPomodoroMeditationAssetsOnBoot();
       }
-      if (gDeviceSettings.autoUpdateFirmware && gOtaManifest.parsed &&
-          !gOtaManifest.url.isEmpty() &&
-          release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion)) {
-        applyOtaFromManifest();
+      if (gDeviceSettings.autoUpdateFirmware) {
+        gPendingOtaCheckAction = true;
+        gPendingOtaApplyAction = true;
+        gPendingOtaActionAfterMs = millis() + 1000;
       }
       gBootBackgroundStep = 10;
       break;

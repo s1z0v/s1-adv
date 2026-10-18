@@ -104,6 +104,9 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
     return false;
   }
 
+  if (doc["firmware_job"].is<JsonObject>())
+    applyFirmwareJobState(doc["firmware_job"]["state"] | "idle",
+                          doc["firmware_job"]["request_id"] | "");
   bool found = false;
   String eventId = "";
   if (doc["items"].is<JsonArray>()) {
@@ -212,10 +215,10 @@ bool fetchLatestInboxMessage(bool forcePlay, bool speak, bool quiet, bool assist
 bool autoInboxPollAllowed() {
   bool passiveUi = gUiMode == UiMode::Home || gUiMode == UiMode::ChatFace ||
                    gUiMode == UiMode::Face || gUiMode == UiMode::Hero ||
-                   gUiMode == UiMode::ChatFull || gUiMode == UiMode::Ota;
+                   gUiMode == UiMode::ChatFull || gUiMode == UiMode::Ota || gUiMode == UiMode::Clock;
   return gWifiReady && !gHubHost.isEmpty() && !gOtaApplyInProgress && !gTransferUiActive &&
          passiveUi && !gLauncherVisible &&
-         !gBootBackgroundActive && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy && !gVoiceDialBusy &&
+         !gBootBackgroundActive && !gG0VoicePending && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy && !gVoiceDialBusy &&
          !gRealtimeDialBusy && !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
          gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty() &&
@@ -224,24 +227,27 @@ bool autoInboxPollAllowed() {
 
 InboxHttpResult* performInboxHttpRequest(void* arg) {
   std::unique_ptr<InboxHttpPayload> request(static_cast<InboxHttpPayload*>(arg));
-  std::unique_ptr<InboxHttpResult> result(new InboxHttpResult());
+  std::unique_ptr<InboxHttpResult> result(new (std::nothrow) InboxHttpResult());
   if (!result) return nullptr;
   result->eventId = request->eventId;
+  result->otaManifest = request->otaManifest;
+  result->applyAfter = request->applyAfter;
+  result->announce = request->announce;
   HTTPClient http;
   std::unique_ptr<WiFiClientSecure> secure;
-  http.setConnectTimeout(2500);
-  http.setTimeout(2500);
+  http.setConnectTimeout(1200);
+  http.setTimeout(1500);
   http.setReuse(false);
   bool opened = false;
   if (WiFi.status() == WL_CONNECTED) {
     if (request->url.startsWith("https://")) {
       secure.reset(new WiFiClientSecure());
       configureSecureClient(*secure);
-      secure->setHandshakeTimeout(12);
+      secure->setHandshakeTimeout(2);
       opened = http.begin(*secure, request->url);
     } else opened = http.begin(request->url);
   }
-  if (opened) {
+  if (opened && !gInboxCancelRequested) {
     if (!request->token.isEmpty()) http.addHeader("Authorization", "Bearer " + request->token);
     if (request->eventId.isEmpty()) {
       result->code = http.GET();
@@ -268,6 +274,7 @@ void inboxHttpTask(void* arg) {
 }
 
 void serviceInboxNetworkCompletion() {
+  if (gRecording || gSubmitting || gPlaybackActive || gTransferUiActive) return;
   InboxHttpResult* completed = nullptr;
   portENTER_CRITICAL(&gInboxHttpMux);
   completed = gInboxHttpResult;
@@ -277,14 +284,15 @@ void serviceInboxNetworkCompletion() {
     if(gInboxAllocationFailed) {
       gInboxAllocationFailed=false; gInboxHttpBusy=false; gInboxRetryAfterMs=millis()+10000;
       if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased=false; }
-      initSpeaker();
     }
     return;
   }
   std::unique_ptr<InboxHttpResult> result(completed);
   gInboxHttpBusy = false;
+  const bool cancelled = gInboxCancelRequested;
+  gInboxCancelRequested = false;
   if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
-  initSpeaker();
+  if (cancelled) { logf("[INBOX] poll yielded to input"); return; }
   if (result->code < 200 || result->code >= 300) {
     gInboxRetryAfterMs=millis()+4000;
     logf("[INBOX] background HTTP %d",result->code);
@@ -293,42 +301,80 @@ void serviceInboxNetworkCompletion() {
     if (result->code >= 200 && result->code < 300 && !gInboxAckQueue.empty() &&
         gInboxAckQueue.front() == result->eventId) gInboxAckQueue.pop_front();
     else gLastInboxAutoPollMs = millis(); // Retry later, never spin on a failed ACK.
+  } else if (result->otaManifest) {
+    const bool ok = result->code >= 200 && result->code < 300 && applyRemoteOtaManifestBody(result->body);
+    logf("[OTA_AUTO] complete http=%d ok=%d elapsed_ms=%u", result->code, static_cast<int>(ok),
+         static_cast<unsigned>(millis() - gOtaLastAutoCheckMs));
+    if (result->announce) setStatus(ok ? (homeFirmwareUpdateAvailable() ?
+        "New update: Ctrl+U" : "Firmware is current") : "Update check failed", 2200);
+    if (ok && result->applyAfter) {
+      gPendingOtaApplyAction = true;
+      gPendingOtaActionAfterMs = millis() + 100;
+    }
   } else if (result->code >= 200 && result->code < 300) {
     applyInboxResponse(result->body, false, false, true, true);
   }
 }
 
-void serviceAutoInboxPoll() {
-  uint32_t now = millis();
-  if (gInboxHttpBusy || now < 30000U || now - gLastUserActivityMs < 1000U || !autoInboxPollAllowed()) return;
-  if (gVoiceReplyPending && now - gVoiceReplyPendingMs > 300000U) gVoiceReplyPending = false;
-  const uint32_t interval = !gInboxAckQueue.empty() ? 250U : (gVoiceReplyPending ? 4000U : kInboxAutoPollIntervalMs);
-  if (gInboxRetryAfterMs && static_cast<int32_t>(now-gInboxRetryAfterMs)<0) return;
-  if (gLastInboxAutoPollMs && now - gLastInboxAutoPollMs < interval) return;
-  std::unique_ptr<InboxHttpPayload> payload(new InboxHttpPayload());
-  payload->token = gDeviceToken;
-  if (!gInboxAckQueue.empty()) {
-    payload->eventId = gInboxAckQueue.front();
-    payload->url = hubBaseUrl() + "/api/cardputer/device-events/ack";
-  } else {
-    payload->url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=2&text_chars=1024&sender_kind=assistant&firmware_version=" + String(kAppVersion) + "&firmware_git=" + String(kBuildGitSha);
-  }
+bool startInboxNetworkRequest(std::unique_ptr<InboxHttpPayload> payload) {
+  if (gInboxHttpBusy) return false;
+  gInboxCancelRequested = false;
   // Only loopTask manages display/audio memory. A low-memory fallback keeps
-  // the last frame visible until the worker returns and restores the canvas.
+  // direct display rendering active until the worker restores the sprite.
   prepareNetworkMemory("inbox", false);
   clearEmojiCache();
   // Polling is silent: retain the speaker's DMA/amp state to avoid periodic clicks.
   if (tlsHandshakeNeedsCanvas())
     gInboxCanvasReleased = releaseUiCanvasForNetwork("inbox memory");
-  gLastInboxAutoPollMs = now;
+  gLastInboxAutoPollMs = millis();
   gInboxHttpBusy = true;
   InboxHttpPayload* raw = payload.release();
   if (xTaskCreate(inboxHttpTask, "inbox-http", 8192, raw, 1, nullptr) != pdPASS) {
     delete raw;
     gInboxHttpBusy = false;
     if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
-    initSpeaker();
+    return false;
   }
+  return true;
+}
+
+bool startBackgroundManifestCheck(bool applyAfter, bool announce) {
+  if (gInboxHttpBusy) return false;
+  std::unique_ptr<InboxHttpPayload> payload(new (std::nothrow) InboxHttpPayload());
+  if (!payload) return false;
+  payload->token = gDeviceToken;
+  payload->url = hubBaseUrl() + kFirmwareManifestFetchPath;
+  payload->otaManifest = true;
+  payload->applyAfter = applyAfter;
+  payload->announce = announce;
+  gOtaLastAutoCheckMs = millis();
+  logf("[OTA_AUTO] GET at_ms=%u interval_ms=%u apply=%d", static_cast<unsigned>(millis()),
+       kOtaAutoCheckIntervalMs, static_cast<int>(applyAfter));
+  return startInboxNetworkRequest(std::move(payload));
+}
+
+void serviceAutoInboxPoll() {
+  uint32_t now = millis();
+  if (gInboxHttpBusy || now < 30000U || now - gLastUserActivityMs < 1000U || !autoInboxPollAllowed()) return;
+  if (gVoiceReplyPending && now - gVoiceReplyPendingMs > 300000U) gVoiceReplyPending = false;
+  const bool otaDue = now - gOtaLastAutoCheckMs >= kOtaAutoCheckIntervalMs &&
+                      gInboxAckQueue.empty() && !gPendingOtaCheckAction && !gPendingOtaApplyAction;
+  const uint32_t interval = !gInboxAckQueue.empty() ? 250U : (gVoiceReplyPending ? 4000U : kInboxAutoPollIntervalMs);
+  if (gInboxRetryAfterMs && static_cast<int32_t>(now-gInboxRetryAfterMs)<0) return;
+  if (!otaDue && gLastInboxAutoPollMs && now - gLastInboxAutoPollMs < interval) return;
+  std::unique_ptr<InboxHttpPayload> payload(new (std::nothrow) InboxHttpPayload());
+  if (!payload) { gInboxRetryAfterMs = now + 4000U; return; }
+  payload->token = gDeviceToken;
+  if (!gInboxAckQueue.empty()) {
+    payload->eventId = gInboxAckQueue.front();
+    payload->url = hubBaseUrl() + "/api/cardputer/device-events/ack";
+  } else if (otaDue) {
+    startBackgroundManifestCheck(false, false);
+    return;
+  } else {
+    payload->url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=2&text_chars=1024&sender_kind=assistant&firmware_version=" + String(kAppVersion) + "&firmware_git=" + String(kBuildGitSha);
+  }
+  startInboxNetworkRequest(std::move(payload));
 }
 
 bool injectInboxText(const String& text, bool speakAfter) {

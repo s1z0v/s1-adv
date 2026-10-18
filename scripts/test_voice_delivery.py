@@ -108,9 +108,10 @@ inbox=(parts/'020_main.cpp.inc').read_text()
 assert inbox.index('if (kind == "text" && text.isEmpty())')<inbox.index('gInboxLastSeq = seq')
 assert 'voiceReplyWasPending && !gVoiceReplyPending' in inbox
 pending=(parts/'039_main.cpp.inc').read_text().split('if (resp["pending"] | false)')[1].split('gVoiceReplyPending = false')[0]
-assert 'gAssistantPendingVisible = false' in pending and 'showVoiceNotice(transcript, true)' in pending
-assert 'setFaceMode(FaceMode::Idle)' in pending and '"Request accepted", 1500' in pending
-assert 'receiptSeq>gInboxLastSeq' in pending
+assert 'acceptPendingAssistantRequest(transcript, reply,' in pending
+helper=function('065_main.cpp.inc','void acceptPendingAssistantRequest(')
+assert helper.index('appendAssistantReply(receipt)')<helper.index('gInboxLastSeq = receiptSeq')
+assert 'showVoiceNotice(receipt, true)' in helper
 assert 'setUiMode(UiMode::ChatFull)' not in pending
 print('PASS actual drained/rebuffered playback and 12/24h boundaries; connected TCP_NODELAY; visible voice receipt and delayed reply')
 
@@ -180,7 +181,8 @@ int main(){
  gSubmitting=true;gThinking=true;
  assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Sending);
  keys.enter=true;assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible);
- gSubmitting=false;gThinking=false;showVoiceNotice("Russian input is retained",true);
+ gSubmitting=false;gThinking=false;gVoiceRequestTranscript="Russian input is retained";
+ showVoiceNotice("Firmware request accepted on the server",true);
  assert(!voiceRequestBusyUi());
  gAssistantPendingVisible=true;assert(assistantPulseState()==AssistantPulseState::Ready);
  assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceRequestTranscript=="Russian input is retained");
@@ -264,7 +266,7 @@ canvas=r'''
 bool gCanvasSpriteActive=false;uint32_t gLastRenderMs=5;bool allocation=false;int configured=0;
 namespace fonts {int Font2;}
 struct {void setColorDepth(int){};void* createSprite(int,int){return allocation?(void*)1:nullptr;}
- void setTextWrap(bool){};void setFont(int*){};void setTextSize(int){};} gCanvas;
+ void setTextWrap(bool){};void setFont(int*){};void setTextSize(int){};} gCanvasBuffer;
 struct {int getFreeHeap(){return 10000;}} ESP;
 constexpr int MALLOC_CAP_8BIT=0;int heap_caps_get_largest_free_block(int){return 4000;}
 void configureEmojiRendering(){++configured;}void logf(const char*,...){}

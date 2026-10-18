@@ -72,6 +72,9 @@ void render(){++frames;assert(gCanvasSpriteActive);}
 // The former "optimization" both froze the canvas and aged an unused socket.
 void beginVoicePreconnect(){++networkCalls;gCanvasSpriteActive=false;now+=6000;}
 bool handleScreensaverWake(){++wakes;bool was=sleeping;sleeping=false;return was;}
+struct {void printf(const char*,...){} } Serial;
+void noteUiInput(const char*){}
+bool gG0VoicePending=false,gInboxCancelRequested=false;uint32_t gG0VoiceRequestedMs=0;
 bool gG0VoiceHeld=false,gCtrlSoloCandidate=false;uint32_t gLastCtrlTapMs=0;
 bool stopRecordingAndSend(){++stops;gRecording=false;return true;}
 void appendRuntimeLog(const char*,const char*,bool){}void applyOtaFromManifest(){assert(false);}
@@ -92,6 +95,17 @@ int main(){
   M5Cardputer.BtnA.pressed=false;updateG0VoiceTrigger();
   assert(!gRecording&&!gG0VoiceHeld&&stops==before+1);
  }
+ // The first frame appears while the existing poll drains. Keep holding to
+ // capture automatically, and release cancels a queued start without a send.
+ gUiMode=UiMode::Home;gInboxHttpBusy=true;gG0VoiceHeld=false;gRecording=false;
+ int prior=starts,priorFrames=frames;M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();
+ assert(gG0VoicePending&&gInboxCancelRequested&&starts==prior&&frames==priorFrames+1);
+ now+=200;updateG0VoiceTrigger();assert(starts==prior);
+ gInboxHttpBusy=false;updateG0VoiceTrigger();assert(gRecording&&starts==prior+1&&!gG0VoicePending);
+ M5Cardputer.BtnA.pressed=false;updateG0VoiceTrigger();
+ gInboxHttpBusy=true;M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();
+ M5Cardputer.BtnA.pressed=false;updateG0VoiceTrigger();assert(!gG0VoicePending&&!gRecording);
+ gInboxHttpBusy=false;updateG0VoiceTrigger();assert(starts==prior+1);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-voice-capture-') as directory:

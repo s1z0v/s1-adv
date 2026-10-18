@@ -24,6 +24,9 @@ code = r'''
 #include <cstdint>
 #include <string>
 #include <map>
+#include <vector>
+#include <memory>
+#include <deque>
 struct String:std::string {
  using std::string::string;String(const std::string& s):std::string(s){}
  String(int n):std::string(std::to_string(n)){}bool isEmpty()const{return empty();}
@@ -44,14 +47,18 @@ bool handleScreensaverWake(){return false;}
 String cleanReplyForDevice(String s){return s;}void removeLastUtf8Char(String& s){s.pop_back();}
 enum class FaceMode{Idle,Error};void setFaceMode(FaceMode){}
 void pushError(String){++errors;}void pushSystem(String){}void pushUser(String s){userText=s;}
-void appendAssistantReply(String s){replyText=s;}void setStatus(String,int){}
+std::vector<String> history;unsigned cursorAtStorage=0;
+void appendAssistantReply(String s){cursorAtStorage=gInboxLastSeq;replyText=s;history.push_back(s);}void setStatus(String,int){}
 void setVoiceDiag(String){}void setHttpDiag(String s){gLastHttpDiag=s;}
 void executeOrDeferDeviceActionsJson(String){++actions;}
 struct {struct {void tone(int,int){assert(painted);++tones;}} Speaker;} M5Cardputer;
 struct HTTPClient{static String errorToString(int){return "connection";}};
 // Parsing is separately covered by bridge contract tests. Inject decoded values
 // here so the actual firmware receipt handler must close every THINK path.
+struct JsonObject{};void applyFirmwareJobState(String,String){}
 struct Value {
+ template<class T> bool is()const{return false;}
+ Value operator[](const char*)const{return {};}
  String text;unsigned number=0;bool flag=false,missing=true;
  bool isNull()const{return missing;}
  Value operator|(Value b)const{return missing?b:*this;}
@@ -65,20 +72,42 @@ bool deserializeJson(DynamicJsonDocument&,const String&){return badJson;}
 void serializeJson(Value,String& out){out="actions";}
 '''
 code += function('065_main.cpp.inc', 'void showVoiceNotice(')
+code += function('065_main.cpp.inc', 'void acceptPendingAssistantRequest(')
 code += function('065_main.cpp.inc', 'void showVoiceRequestError(')
 code += function('039_main.cpp.inc', 'bool finishVoiceSubmission(')
+source = (parts / '003_main.cpp.inc').read_text()
+start = source.index('struct TextTurnTaskResult {')
+code += source[start:source.index('\n};', start)+3]
 code += r'''
-void reset(){decoded.clear();badJson=false;errors=actions=tones=0;painted=false;gVoiceRequestPhase=VoiceRequestPhase::Processing;
+#define portENTER_CRITICAL(x) ((void)0)
+#define portEXIT_CRITICAL(x) ((void)0)
+TextTurnTaskResult* gCompletedTextTurn=nullptr;
+void* gTextTurnTaskHandle=nullptr;
+bool gTextTurnAllocationFailed=false,gSubmitting=true,gThinking=true,gRecording=false,gPlaybackActive=false;
+String gActiveTextTurn;
+std::deque<String> gPendingTextTurns;
+int tts=0,nextTurns=0;
+void maybeStartNextTextTurn(){++nextTurns;gActiveTextTurn=gPendingTextTurns.front();gPendingTextTurns.pop_front();gSubmitting=gThinking=true;}
+bool downloadAndPlayResponseAudio(String,String,String,unsigned,String,String){++tts;return true;}
+bool shouldSpeakAssistantTextReply(String){return true;}
+void requestAndPlayTts(String){++tts;}
+'''
+code += function('038_main.cpp.inc', 'void processCompletedTextTurn()')
+code += r'''
+void reset(){history.clear();gInboxLastSeq=20;decoded.clear();badJson=false;errors=actions=tones=0;painted=false;gVoiceRequestPhase=VoiceRequestPhase::Processing;
  gVoiceNoticeVisible=true;gVoiceReplyPending=false;gAssistantPendingVisible=true;
  gVoiceNoticeText="";gVoiceRequestTranscript="";gLastHttpDiag="";gQueuedVoiceReplySpeech="";replyText="";userText="";}
 int main(){
  for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}){
   gUiMode=mode;reset();decoded["pending"]={"",0,true,false};
   decoded["transcript"]={"Change the battery",0,false,false};decoded["reply_seq"]={"",30,false,false};
+  decoded["reply"]={"Request accepted. Firmware is building on the server.",0,false,false};
   assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceReplyPending&&!gAssistantPendingVisible);
   assert(tones==1&&gQueuedVoiceReplySpeech.empty()&&gInboxLastSeq==30&&userText=="Change the battery");
   assert(gVoiceNoticeVisible==(mode==UiMode::Home||mode==UiMode::Clock));
+  assert(history.size()==1&&replyText==decoded["reply"].text&&gVoiceNoticeText==replyText);
+  assert(cursorAtStorage==20); // Persist first, then skip/ACK the duplicated inbox receipt.
   reset();decoded["reply"]={"Done",0,false,false};
   assert(finishVoiceSubmission(true,200,"json","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Reply&&!gVoiceReplyPending&&replyText=="Done"&&gQueuedVoiceReplySpeech=="Done");
@@ -94,7 +123,28 @@ int main(){
   reset();assert(!finishVoiceSubmission(false,-1,"","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Error&&!gVoiceReplyPending&&tones==0);
   assert(gVoiceNoticeText.find("No delivery receipt")!=std::string::npos);
+  }
+ // Text acceptance must also keep the body, end THINK and never speak an ACK.
+ for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}) {
+  reset();gUiMode=mode;tts=0;gActiveTextTurn="first";gSubmitting=gThinking=true;
+  auto* accepted=new TextTurnTaskResult();accepted->ok=true;accepted->pending=true;
+  accepted->reply="Accepted by the real firmware agent";accepted->replySeq=31;accepted->afterSeq=31;
+  gCompletedTextTurn=accepted;processCompletedTextTurn();
+  assert(!gSubmitting&&!gThinking&&gVoiceReplyPending&&tts==0&&history.size()==1);
+  assert(replyText=="Accepted by the real firmware agent"&&cursorAtStorage==20&&gInboxLastSeq==31);
+  assert(gVoiceNoticeVisible==(mode==UiMode::Home||mode==UiMode::Clock));
+  auto* final=new TextTurnTaskResult();final->ok=final->hasReply=true;final->reply="Published";final->replySeq=32;
+  gCompletedTextTurn=final;processCompletedTextTurn();assert(replyText=="Published"&&tts==0&&gQueuedVoiceReplySpeech=="Published");
+  assert(cursorAtStorage==31&&gInboxLastSeq==32);
+  auto* empty=new TextTurnTaskResult();empty->ok=true;gCompletedTextTurn=empty;
+  gThinking=gSubmitting=true;processCompletedTextTurn();assert(!gSubmitting&&!gThinking);
+  auto* error=new TextTurnTaskResult();error->error="HTTP 503";error->statusCode=503;
+  gThinking=gSubmitting=true;gCompletedTextTurn=error;processCompletedTextTurn();assert(!gSubmitting&&!gThinking);
  }
+ reset();gPendingTextTurns.push_back("second");gActiveTextTurn="first";
+ auto* first=new TextTurnTaskResult();first->ok=first->pending=true;first->reply="First accepted";
+ gCompletedTextTurn=first;processCompletedTextTurn();
+ assert(gActiveTextTurn=="second"&&gSubmitting&&gThinking&&nextTurns==1&&replyText=="First accepted");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-voice-receipt-') as directory:

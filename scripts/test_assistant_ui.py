@@ -61,6 +61,19 @@ const char* eyeSkinName(uint8_t){return "skin";}
 void logf(const char*,...){}
 void runChatCommand(uint8_t);
 '''
+code+=r'''
+bool gPendingOtaCheckAction=false,gPendingOtaApplyAction=false,gInboxCancelRequested=false;
+bool gG0VoicePending=false,gAlarmRinging=false,gDebugOverlayVisible=false,gTetrisHelpVisible=false;
+bool gCtrlSoloHeld=false,gCtrlSoloCandidate=false;uint32_t gLastCtrlTapMs=0;
+struct{bool helpVisible=false;}gFocus;String gQueuedVoiceReplySpeech,gNoteInputBuffer;
+enum class NotesMode{List,Edit};NotesMode gNotesMode=NotesMode::List;
+int gChatScrollOffset=0,gLogScrollOffset=0,gNoteScrollOffset=0,gNoteListScrollOffset=0;
+bool handleVoiceRequestEscape(){return false;}void dismissVoiceNotice(){gVoiceNoticeVisible=false;}
+void dismissAlarm(const char*){gAlarmRinging=false;}void stopPlaybackStream(){}
+enum class FaceMode{Idle};void setFaceMode(FaceMode){}void setKeyDiag(const char*){}
+void appendRuntimeLog(const char*,const char*,bool){}
+'''
+code+='\n'+function('047_main.cpp.inc','bool handleGlobalEscape()')
 code+='\n'+function('064_main.cpp.inc','bool isAssistantUi()')
 code+='\n'+function('064_main.cpp.inc','String makeRealtimeUpgradeRequest(')
 code+='\n'+function('064_main.cpp.inc','bool handleAssistantMenuKey(')
@@ -137,6 +150,14 @@ int main(){
  gInboxHttpBusy=false;gPendingTextTurns.clear();servicePendingRealtimeStart();
  assert(started==1 && !gPendingRealtimeStart);
  gPendingRealtimeStart=true;gUiMode=UiMode::Nes;servicePendingRealtimeStart();assert(started==1);
+ // Escape and Ctrl+K still route while a poll/audio operation owns resources.
+ gUiMode=UiMode::Home;gInboxHttpBusy=true;gPlaybackActive=true;gChatCommandsVisible=false;
+ assert(handleAssistantMenuKey('k',keys)&&gChatCommandsVisible);
+ handleGlobalEscape();assert(!gChatCommandsVisible);
+ gUiMode=UiMode::Face;gLauncherVisible=true;gG0VoicePending=true;
+ handleGlobalEscape();assert(gUiMode==UiMode::Home&&!gLauncherVisible&&!gPlaybackActive&&!gG0VoicePending);
+ assert(gInboxHttpBusy); // input never destroys another task's transport.
+
 }
 '''
 out=Path(tempfile.mkdtemp(prefix='s1-assistant-'))
@@ -152,7 +173,8 @@ for file,name in [('037_main.cpp.inc','TextTurnTaskResult* performTextTurnReques
                    'ensureWifiForHttp','setUiMode','setStatus','logf(','vTaskDelete']:
         assert banned not in worker,(name,banned)
 poll=function('020_main.cpp.inc','void serviceAutoInboxPoll()')
-assert 'fetchLatestInboxMessage' not in poll and 'xTaskCreate(inboxHttpTask' in poll
+assert 'fetchLatestInboxMessage' not in poll and 'startInboxNetworkRequest' in poll
+assert 'xTaskCreate(inboxHttpTask' in function('020_main.cpp.inc','bool startInboxNetworkRequest(')
 assert 'ensureWifiForHttp' not in function('043_main.cpp.inc','void maintainConnectivity()')
 typing=(parts/'048_main.cpp.inc').read_text()
 assert typing.index('handleVoiceNoticeKey(key, keys)') < typing.index('handleAssistantMenuKey(key,keys)')

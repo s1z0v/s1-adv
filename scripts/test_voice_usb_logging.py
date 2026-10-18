@@ -10,7 +10,7 @@ parts = root / 'bots/CardputerADV/src/main_parts'
 setup = (parts / '061_main.cpp.inc').read_text().split('void setup() {', 1)[1]
 assert setup.index('Serial.setTxTimeoutMs(0)') < setup.index('Serial.begin(') < setup.index('Serial.println(')
 source = (parts / '006_main.cpp.inc').read_text()
-function = source[source.index('void logf('):source.index('void prepareNetworkMemory(')]
+function = source[source.index('void logf('):source.index('lgfx::LGFXBase& uiCanvas()')]
 code = r'''
 #include <cassert>
 #include <cstdarg>

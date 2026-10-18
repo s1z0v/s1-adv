@@ -211,6 +211,12 @@ struct TextTurnTaskResult {
   bool hasDeviceActions = false;
   bool hasAudio = false;
   bool telegramDelivered = false;
+  bool pending = false;
+  uint32_t afterSeq = 0;
+  uint32_t replySeq = 0;
+  bool hasFirmwareJobStatus = false;
+  String firmwareJobState;
+  String firmwareJobRequestId;
   String reply;
   String shortText;
   String deviceActionsJson;

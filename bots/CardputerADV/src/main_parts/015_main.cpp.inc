@@ -191,12 +191,6 @@ bool fetchRemoteOtaManifest() {
     appendRuntimeLog("OTA", "fetch offline", true);
     return false;
   }
-  fs::FS* fs = activeVoiceFs();
-  if (!fs || !ensurePomodoroStorageOn(*fs) || !ensureDirRecursive(*fs, parentDirOf(kOtaManifestPath))) {
-    appendRuntimeLog("OTA", "fetch no storage", true);
-    return false;
-  }
-
   String url = hubBaseUrl() + kFirmwareManifestFetchPath;
   HTTPClient http;
   std::unique_ptr<WiFiClientSecure> secureClient;
@@ -216,6 +210,16 @@ bool fetchRemoteOtaManifest() {
   http.end();
   if (code < 200 || code >= 300 || body.isEmpty()) {
     appendRuntimeLog("OTA", "fetch HTTP " + String(code) + " bytes=" + String(body.length()), true);
+    return false;
+  }
+
+  return applyRemoteOtaManifestBody(body);
+}
+
+bool applyRemoteOtaManifestBody(const String& body) {
+  fs::FS* fs = activeVoiceFs();
+  if (!fs || !ensurePomodoroStorageOn(*fs) || !ensureDirRecursive(*fs, parentDirOf(kOtaManifestPath))) {
+    appendRuntimeLog("OTA", "fetch no storage", true);
     return false;
   }
 

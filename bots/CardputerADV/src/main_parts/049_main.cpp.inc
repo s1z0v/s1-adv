@@ -152,7 +152,15 @@ void updateG0VoiceTrigger() {
   bool pressed = M5.BtnA.isPressed();
   // G0 is push-to-talk even when the clock/screen saver is asleep. Do not
   // consume the first press solely to wake the display.
-  if (pressed && !gG0VoiceHeld) handleScreensaverWake();
+  if (pressed && !gG0VoiceHeld) {
+    gG0VoiceRequestedMs = millis();
+    noteUiInput("G0");
+    handleScreensaverWake();
+  }
+  if (pressed && gG0VoicePending && !gInboxHttpBusy) {
+    gG0VoicePending = false;
+    startRecording();
+  }
   if (gUiMode == UiMode::Ota) {
     if (pressed && !gG0VoiceHeld) {
       gG0VoiceHeld = true;
@@ -177,12 +185,19 @@ void updateG0VoiceTrigger() {
     gCtrlSoloCandidate = false;
     if (!gRecording) {
       logf("[VOICE] G0 hold start");
-      startRecording();
+      if (gInboxHttpBusy) {
+        gG0VoicePending = true;
+        gInboxCancelRequested = true;
+        setStatus("Hold G0: network finishing", 0);
+        render();
+      } else startRecording();
     }
     return;
   }
   if (!pressed && gG0VoiceHeld) {
     gG0VoiceHeld = false;
+    if (gG0VoicePending) setStatus("Voice cancelled", 900);
+    gG0VoicePending = false;
     if (gRecording) {
       logf("[VOICE] G0 hold stop");
       stopRecordingAndSend();

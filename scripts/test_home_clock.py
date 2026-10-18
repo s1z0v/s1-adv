@@ -11,13 +11,11 @@ source = (root / 'bots/CardputerADV/src/main_parts/059_main.cpp.inc').read_text(
 match = re.search(r'd\.setTextColor\([^;]+, clockPanel\);', source)
 assert match, 'Home clock text color must be set before printing the time'
 assert match.end() < source.index('d.print(hhmm);')
-assert 'constexpr uint16_t white = rgb565_local(244, 251, 255);' in source
-assert 'uint16_t fg = white;' in source
-assert 'TFT_YELLOW' not in match.group()
 code = r'''
 #include <cassert>
 #include <cstdint>
 enum class AssistantPulseState {Ready, Recording, Thinking, Playback, Realtime};
+constexpr uint16_t TFT_YELLOW = 0xffe0;
 struct Canvas {
  uint16_t foreground=0,background=0;
  void setTextColor(uint16_t fg,uint16_t bg) {foreground=fg;background=bg;}
@@ -31,8 +29,7 @@ int main() {
    const uint16_t clockPanel=0x0324;
 '''
 code = '#include <initializer_list>\n' + code + match.group() + r'''
-   (void)state;
-   assert(d.foreground==fg);
+   assert(d.foreground==(state==AssistantPulseState::Ready ? TFT_YELLOW : fg));
    assert(d.background==clockPanel);
   }
  }
@@ -44,4 +41,4 @@ with tempfile.TemporaryDirectory(prefix='s1-home-clock-') as directory:
     subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++17', '-Wall', '-Wextra',
                     '-Werror', str(path / 'test.cpp'), '-o', str(path / 'test')], check=True)
     subprocess.run([str(path / 'test')], check=True)
-print('PASS Home clock: original white idle digits; recording/thinking/playback/realtime colors and background preserved')
+print('PASS Home clock: yellow idle digits; recording/thinking/playback/realtime colors and background preserved')

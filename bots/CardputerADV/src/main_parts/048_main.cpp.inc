@@ -301,6 +301,7 @@ void pollTyping() {
   bool inputActivityEdge = enterDown || delDown || tabDown || spaceDown || upDown || downDown || leftDown ||
                            rightDown || optDown || charDown || escDown;
   if (inputActivityEdge) {
+    noteUiInput(escDown ? "Escape" : (keys.ctrl ? "Ctrl" : "key"));
     if (handleScreensaverWake()) {
       rememberInputState();
       return;

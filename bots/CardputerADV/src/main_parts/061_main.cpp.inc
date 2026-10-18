@@ -90,7 +90,7 @@
   }
   renderChatCommandsOverlay();
   renderVoiceNotice();
-  gCanvas.pushSprite(0, 0);
+  presentUiFrame();
   uint32_t renderCostMs = millis() - renderStartMs;
   if (renderCostMs >= 45U && millis() - gLastUiSlowLogMs >= 2000U) {
     gLastUiSlowLogMs = millis();
@@ -201,8 +201,8 @@ void setup() {
   M5Cardputer.Display.setFont(&fonts::Font2);
   M5Cardputer.Display.setTextSize(1);
   renderBootSplash("Display");
-  gCanvas.setColorDepth(8);
-  gCanvasSpriteActive = gCanvas.createSprite(240, 135) != nullptr;
+  gCanvasBuffer.setColorDepth(8);
+  gCanvasSpriteActive = gCanvasBuffer.createSprite(240, 135) != nullptr;
   gCanvas.setTextWrap(false);
   gCanvas.setFont(&fonts::Font2);
   gCanvas.setTextSize(1);
@@ -316,6 +316,7 @@ void serviceRealtimeExclusiveLoop(uint32_t loopStartMs) {
 
 void loop() {
   uint32_t loopStartMs = millis();
+  sampleUiHealth();
   M5Cardputer.update();
   refreshKeyboardState();
 
@@ -329,9 +330,11 @@ void loop() {
     serviceRealtimeExclusiveLoop(loopStartMs);
     return;
   }
-  serviceInboxNetworkCompletion();
-  serviceVoicePreconnect();
-  serviceVoiceReplySpeech();
+  updateG0VoiceTrigger();
+  pollTyping();
+  traceUiService("serviceInboxNetworkCompletion", [] { serviceInboxNetworkCompletion(); });
+  traceUiService("serviceVoicePreconnect", [] { serviceVoicePreconnect(); });
+  traceUiService("serviceVoiceReplySpeech", [] { serviceVoiceReplySpeech(); });
   if (!gCanvasSpriteActive && gUiMode != UiMode::Nes && !gInboxHttpBusy && !gVoiceReplySpeechBusy &&
       !gVoiceDialBusy && !gSubmitting && !gRecording && !gPlaybackActive && !gRealtimeDialBusy) {
     static uint32_t retryCanvasMs = 0;
@@ -353,9 +356,9 @@ void loop() {
     ESP.restart();
   }
 
-  serviceDeferredBoot();
+  traceUiService("serviceDeferredBoot", [] { serviceDeferredBoot(); });
   if (bootBackgroundAllowsConnectivity()) {
-    maintainConnectivity();
+    traceUiService("maintainConnectivity", [] { maintainConnectivity(); });
   }
   if (kUseHubWebSocket) {
     gWs.loop();
@@ -376,23 +379,21 @@ void loop() {
   }
   serviceRfidLab();
   servicePet();
-  processCompletedTextTurn();
+  traceUiService("processCompletedTextTurn", [] { processCompletedTextTurn(); });
   if (!gPendingTextTurns.empty()) maybeStartNextTextTurn();
   serviceMemoryGuard();
-  updateG0VoiceTrigger();
   updateVoiceTrigger();
-  pollTyping();
   serviceRealtimeVoice();
   if (gRealtimeExclusiveMode) {
     return;
   }
-  serviceRecordingToFile();
-  servicePlaybackStream();
+  traceUiService("serviceRecordingToFile", [] { serviceRecordingToFile(); });
+  traceUiService("servicePlaybackStream", [] { servicePlaybackStream(); });
   serviceDeferredDeviceActions();
-  servicePendingOtaAction();
+  traceUiService("servicePendingOtaAction", [] { servicePendingOtaAction(); });
   servicePostInstallStory();
   serviceIdleScreensaver();
-  serviceAutoInboxPoll();
+  traceUiService("serviceAutoInboxPoll", [] { serviceAutoInboxPoll(); });
 
   if (gPlaybackActive && !gPlaybackStreaming && !gRealtimePlaybackActive &&
       !M5Cardputer.Speaker.isPlaying()) {
