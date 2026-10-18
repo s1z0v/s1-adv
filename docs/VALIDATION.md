@@ -43,8 +43,13 @@ not microphone, speaker, keyboard or display acceptance.
 USB boot logs separately identified the owner's installed firmware as 0.2.171
 with its expected source commit and a valid OTA slot. USB host-control requests
 did not produce command receipts in that session, and an Inbox transport error
-was observed. Physical end-to-end acceptance therefore remains pending; five
-server checks must not be presented as five physical-device canaries.
+was observed. A subsequent keyboard request from the physical Cardputer received
+`Hello!` through the installed 0.3.3 plugin. Serial logged the same answer, its own
+persisted turn had an exact terminal `ok` receipt, and the owner confirmed the
+answer on screen. This establishes one physical text round trip. The five server
+checks must not be presented as five physical-device canaries; physical voice,
+speaker playback and the separate firmware UI/Inbox stability work remain
+distinct acceptance checks. No firmware was flashed for this plugin migration.
 
 ## English-only default audio and catalog name, plugin 0.3.1, 2026-10-19
 
