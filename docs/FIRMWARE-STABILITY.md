@@ -1,7 +1,7 @@
-# Firmware request and UI stability, 0.2.168-dev
+# Firmware request and UI stability, 0.2.169-dev
 
 This candidate retains the compact Home frame, REC/THINK graphics, battery,
-eyes, and the requested yellow idle clock. RFID implementation is unchanged.
+eyes, and the requested white idle clock. RFID implementation is unchanged.
 
 ## Request acknowledgement and job status
 

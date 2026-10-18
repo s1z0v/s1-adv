@@ -170,7 +170,7 @@
   // the heading instead of drawing MIC/WAIT as overlapping seven-segment text.
   if (realtime) d.setFont(&fonts::Font4);
   else d.setFont(&fonts::Font7);
-  d.setTextColor(state == AssistantPulseState::Ready ? TFT_YELLOW : fg, clockPanel);
+  d.setTextColor(state == AssistantPulseState::Ready ? TFT_WHITE : fg, clockPanel);
 	  int tw = d.textWidth(hhmm);
 	  d.setCursor(171 - tw / 2, realtime ? 35 : state == AssistantPulseState::Recording ? 18 : 20);
 	  d.print(hhmm);
