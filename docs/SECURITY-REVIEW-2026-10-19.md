@@ -66,6 +66,13 @@ one synthetic-speech/STT request. Both had their own answer and exact terminal
 returned 55,200 bytes of PCM. These are server/provider checks, not physical
 microphone, speaker, display or firmware acceptance.
 
+After the native plugin upgrade and a graceful Gateway reload, the same isolated
+worker stayed running without a service restart and completed another fresh text
+turn with its own exact terminal receipt. Upstream connectivity recovered. The
+aggregate `delivery_ready` flag still reports a known older held firmware request;
+that record was preserved rather than replayed or hidden. This is not a claim
+that every old queued request has been resolved.
+
 ## Residual trust and limits
 
 An authenticated device can use the selected agent's existing tools. On a private
