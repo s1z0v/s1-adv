@@ -772,6 +772,27 @@ bool handleHostSerialCommand(String line) {
     for (const auto& entry : gRuntimeLogs) { Serial.print("[LOG] "); Serial.println(entry); }
     return true;
   }
+  if (cmd=="home.update.status") {
+    logf("[HOST] home.update available=%d label=%s shortcut=Ctrl+U mode=%d",
+         static_cast<int>(homeFirmwareUpdateAvailable()),
+         homeFirmwareUpdateAvailable()?"NEW UPDATE":"READY",static_cast<int>(gUiMode));
+    return true;
+  }
+  if (cmd=="home.update.preview") {
+    if (gRecording || gSubmitting || gThinking || gRealtimeActive || gInboxHttpBusy ||
+        gVoiceDialBusy || gVoiceReplySpeechBusy || gOtaApplyInProgress) return true;
+    // Serial-only visual inspection. No manifest, candidate or install state
+    // changes: Ctrl+U still uses only the authenticated real candidate.
+    setUiMode(UiMode::Home);
+    gHomeUpdatePreviewUntilMs=millis()+8000;
+    logf("[HOST] home.update.preview 8s real_available=%d",static_cast<int>(homeFirmwareUpdateAvailable()));
+    return true;
+  }
+  if (cmd=="home.update.key") {
+    Keyboard_Class::KeysState keys;keys.ctrl=true;
+    logf("[HOST] home.update.key handled=%d",static_cast<int>(handleHomeUpdateKey('u',keys)));
+    return true;
+  }
   if (cmd=="ui.escape" || cmd=="esc") {
     handleGlobalEscape();
     logf("[HOST] ui.escape done");

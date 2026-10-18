@@ -4,6 +4,7 @@
 - Hold **G0**, speak, then release to send. **Ctrl+V** or double **Ctrl** toggles recording.
 - **Tab** opens the app menu from Home and the chat/eyes screens; arrows select, Enter opens.
 - **Ctrl+K** opens assistant commands. R selects Realtime, C AI Chat, E Chat Eyes, F Big Eyes.
+- **Ctrl+U** on the Home clock installs an available update. An orange **NEW UPDATE / Ctrl+U** badge replaces READY until the newer firmware is installed. Without a candidate, Ctrl+U checks for updates.
 - **Ctrl+R** starts Realtime or commits the current speech turn. While awaiting a reply, it stops Realtime.
 - **Esc** closes an overlay, or ends Realtime and returns Home.
 - **Ctrl+Left / Ctrl+Right** or **Ctrl+, / Ctrl+.** selects the previous/next animal.

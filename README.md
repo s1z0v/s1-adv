@@ -79,10 +79,10 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-Current source is `0.2.160-dev`: app menu on Tab, assistant commands on Ctrl+K,
+Current source is `0.2.161-dev`: app menu on Tab, assistant commands on Ctrl+K,
 visible Realtime connection/microphone states, one configured chat and an SD
 NES game library and a compact, broad-stroke Home battery gauge. See
-[controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.160.md).
+[controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.161.md).
 The public security fixes are retained. Public builds have not yet been tested
 on a freshly provisioned physical device.
 

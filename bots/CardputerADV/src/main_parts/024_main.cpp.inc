@@ -122,7 +122,6 @@
     gPendingOtaCheckAction = true;
     gPendingOtaActionAfterMs = millis() + 500;
     logf("[ACT] ota.check queued");
-    setUiMode(UiMode::Ota);
     setStatus("Action: OTA check", 700);
     return true;
   }
@@ -204,12 +203,13 @@ void serviceDeferredDeviceActions() {
 void servicePendingOtaAction() {
   if ((!gPendingOtaCheckAction && !gPendingOtaApplyAction) || millis() < gPendingOtaActionAfterMs ||
       gPlaybackActive || gRecording || gSubmitting || gThinking || gOtaApplyInProgress ||
-      gInboxHttpBusy || gRealtimeDialBusy || gTextTurnTaskHandle) {
+      gInboxHttpBusy || gRealtimeDialBusy || gRealtimeActive || gVoiceDialBusy ||
+      gVoiceReplySpeechBusy || gTextTurnTaskHandle) {
     return;
   }
   bool shouldCheck = gPendingOtaCheckAction;
   bool shouldApply = gPendingOtaApplyAction;
-  setUiMode(UiMode::Ota);
+  if (shouldApply) { setUiMode(UiMode::Ota); render(); }
   gPendingOtaCheckAction = false;
   gPendingOtaApplyAction = false;
   logf("[ACT] ota action run check=%d apply=%d", static_cast<int>(shouldCheck), static_cast<int>(shouldApply));
@@ -219,6 +219,8 @@ void servicePendingOtaAction() {
   if (shouldCheck) {
     checkOk = fetchRemoteOtaManifest();
     logf("[ACT] ota.check result=%d", static_cast<int>(checkOk));
+    if (!shouldApply) setStatus(checkOk ? (homeFirmwareUpdateAvailable() ?
+        "New update: Ctrl+U" : "Firmware is current") : "Update check failed", 2200);
   }
   if (shouldApply && checkOk) {
     bool applyOk = applyOtaFromManifest();

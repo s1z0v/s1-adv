@@ -203,6 +203,7 @@ String gAlarmStatus = "Ready";
 String gAlarmEditBuffer;
 String gDeferredDeviceActionsJson;
 bool gPendingOtaCheckAction = false;
+uint32_t gHomeUpdatePreviewUntilMs = 0;
 bool gPendingOtaApplyAction = false;
 uint32_t gPendingOtaActionAfterMs = 0;
 std::vector<VoiceNote> gVoiceNotes;

@@ -5,6 +5,26 @@ extern "C" {
 namespace {
 constexpr uint8_t kNesAudioChannel=0;
 // Shared assistant navigation and a bounded NES app.
+bool handleHomeUpdateKey(char key, const Keyboard_Class::KeysState& keys) {
+  if (!keys.ctrl || keys.alt || keys.fn || (key!='u' && key!='U') ||
+      (gUiMode!=UiMode::Home && gUiMode!=UiMode::Clock) ||
+      gLauncherVisible || gChatCommandsVisible || gVoiceNoticeVisible) return false;
+  if (gBlockingInputPumpActive || gRecording || gSubmitting || gThinking ||
+      gPlaybackActive || gRealtimeActive || gRealtimeDialBusy || gOtaApplyInProgress ||
+      gPendingOtaCheckAction || gPendingOtaApplyAction) {
+    setStatus("Busy, please wait",900);
+    return true;
+  }
+  // Queue on the UI thread. The existing OTA service waits for network workers
+  // and retains its battery, version, trusted-URL, hash and rollback checks.
+  gPendingOtaApplyAction = homeFirmwareUpdateAvailable();
+  gPendingOtaCheckAction = true;
+  gPendingOtaActionAfterMs = millis()+100;
+  setStatus(gPendingOtaApplyAction ? "Starting update..." : "Checking updates...",900);
+  logf("[OTA_UI] Ctrl+U queued apply=%d",static_cast<int>(gPendingOtaApplyAction));
+  return true;
+}
+
 bool isAssistantUi() {
   return gUiMode == UiMode::Home || gUiMode == UiMode::ChatFace ||
          gUiMode == UiMode::ChatFull || gUiMode == UiMode::Face || gUiMode == UiMode::Hero;

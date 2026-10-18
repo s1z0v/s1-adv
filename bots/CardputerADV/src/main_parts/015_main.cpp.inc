@@ -162,6 +162,13 @@ void loadOtaManifestSummary() {
   appendRuntimeLog("OTA", "manifest version=" + gOtaManifest.version, true);
 }
 
+bool homeFirmwareUpdateAvailable() {
+  return gOtaManifest.parsed && !gOtaManifest.url.isEmpty() &&
+      gOtaManifest.sha256.length() == 64 && gOtaManifest.size > 0 &&
+      gOtaManifest.size <= 3145728 &&
+      release_delivery::isNewerVersion(gOtaManifest.version.c_str(), kAppVersion);
+}
+
 bool fetchRemoteJsonToFile(const String& path, const String& localPath, const String& label) {
   String url = hubBaseUrl() + path;
   String title = label == "OTA" ? "OTA Manifest" : (label == "ASSET" ? "Asset Manifest" : "Download");

@@ -415,6 +415,8 @@ const EmojiCacheEntry* emojiCacheLookup(uint32_t codepoint);
 String normalizeTopicTitleForDisplay(const String& raw, bool keepAvailableEmoji = true);
 bool fetchRemoteAssetManifest();
 bool fetchRemoteOtaManifest();
+bool homeFirmwareUpdateAvailable();
+bool handleHomeUpdateKey(char key, const Keyboard_Class::KeysState& keys);
 bool syncAssetsFromManifest(bool pomodoroOnly = false);
 String fitCurrentFontToWidth(String text, int32_t pixelLimit);
 void drawTinyFooter(uint16_t bg, uint16_t fg, const String& text, int16_t x = 12, int16_t y = 124,

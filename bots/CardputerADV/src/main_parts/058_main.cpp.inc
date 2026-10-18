@@ -143,6 +143,28 @@ void drawAssistantPulseButton(int16_t x, int16_t y, int16_t w, int16_t h,
   d.print(label);
 }
 
+void drawHomeReadyStatus(bool updateReady, bool pressed) {
+  auto& d = gCanvas;
+  const int y = 103 + (pressed ? 1 : 0);
+  const int x = updateReady ? 149 : 154, w = updateReady ? 72 : 62;
+  const uint16_t fill = updateReady ? rgb565_local(36,22,7) : rgb565_local(7,20,26);
+  const uint16_t accent = updateReady ? rgb565_local(255,159,42) : rgb565_local(47,227,255);
+  d.fillRoundRect(x,y,w,18,5,fill);
+  d.drawRoundRect(x,y,w,18,5,accent);
+  d.setTextSize(1);
+  d.setTextColor(accent,fill);
+  if (updateReady) {
+    d.setFont(&fonts::Font0);
+    d.setCursor(x+(w-d.textWidth("NEW UPDATE"))/2,y+1);d.print("NEW UPDATE");
+    d.setTextColor(rgb565_local(255,240,214),fill);
+    d.setCursor(x+(w-d.textWidth("Ctrl+U"))/2,y+9);d.print("Ctrl+U");
+  } else {
+    d.setFont(&fonts::Font2);
+    d.setCursor(x+(w-d.textWidth("READY"))/2,y+1);d.print("READY");
+  }
+  d.setFont(&fonts::Font2);
+}
+
 void drawHomeBatteryStatus(int32_t rawLevel) {
   auto& d=gCanvas;
   const bool known=rawLevel>=0;

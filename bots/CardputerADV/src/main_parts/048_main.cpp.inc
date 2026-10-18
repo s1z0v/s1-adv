@@ -11,6 +11,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     return;
   }
   if (handleVoiceNoticeKey(key, keys)) return;
+  if (handleHomeUpdateKey(key, keys)) return;
   if (handleAssistantMenuKey(key,keys)) return;
   if (isAssistantUi() && gLauncherVisible) { handleLauncherKey(key,keys); return; }
   if (gChatCommandsVisible) {
