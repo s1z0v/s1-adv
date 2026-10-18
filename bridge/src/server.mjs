@@ -4777,6 +4777,25 @@ class BridgeRuntime {
     }
   }
 
+  async buildPendingTurnResponse({ req, device, topic, transcript, ack }) {
+    const confirmed = ack.upstream_accepted === true;
+    const receipt = languageNameForText(transcript) === "Russian"
+      ? (confirmed ? "Запрос принят. Ответ появится в Inbox." : "Запрос сохранён. Подтверждение доставки ожидается; проверьте Inbox перед повтором.")
+      : (confirmed ? "Request accepted. The reply will arrive in Inbox." : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
+    return {
+      ...await this.buildTurnResponse({ req, device, topic, transcript, replyText: receipt, includeAudio: false }),
+      status: "pending",
+      pending: true,
+      after_seq: ack.seq,
+      client_msg_id: ack.client_msg_id,
+      upstream_run_id: ack.upstream_run_id,
+      upstream_accepted: confirmed,
+      reply_seq: 0,
+      status_text: receipt,
+      inbox_hint: true
+    };
+  }
+
   async buildTurnResponse({ req, topic, transcript = "", replyText = "", replyMessage = null, includeAudio = false }) {
     const extracted = extractDeviceActionsFromText(replyText);
     const actions = alignFocusActionMinutes(extracted.actions, extracted.visibleText, replyText, transcript);
@@ -5580,6 +5599,7 @@ class BridgeRuntime {
       topic_key: topicKey,
       client_msg_id: clientMsgId,
       upstream_run_id: expectedRunId,
+      upstream_accepted: false,
       message_id: message.id,
       seq: message.seq,
       accepted_at: nowIso()
@@ -5620,9 +5640,10 @@ class BridgeRuntime {
       if (typeof sent?.runId === "string" && sent.runId.length > 0 && sent.runId.length <= 1024) {
         ack.upstream_run_id = sent.runId;
         message.source.upstream_run_id = sent.runId;
-        this.store.setIdempotent(topicKey, clientMsgId, ack);
-        await this.store.save();
       }
+      ack.upstream_accepted = true;
+      this.store.setIdempotent(topicKey, clientMsgId, ack);
+      await this.store.save();
     };
     const mirrorToTelegram = async () => {
       const mirroredMessageId = await maybeRelayTelegramText(this.config, topic, text);
@@ -6017,8 +6038,8 @@ async function main() {
           ack
         );
         if (!reply) {
-          console.warn(`[turn] assistant timeout topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          requestError(res, 504, "assistant reply timeout");
+          console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
+          json(res, 202, await runtime.buildPendingTurnResponse({ req, device, topic, transcript: message, ack }));
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6123,8 +6144,8 @@ async function main() {
           ack
         );
         if (!reply) {
-          console.warn(`[turn] assistant timeout topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          requestError(res, 504, "assistant reply timeout");
+          console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
+          json(res, 202, await runtime.buildPendingTurnResponse({ req, device, topic, transcript: transcript, ack }));
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6258,21 +6279,9 @@ async function main() {
           ack
         );
         if (!reply) {
-          console.warn(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${voiceWaitMs}`);
-          json(res, 200, {
-            ...(await runtime.buildTurnResponse({
-              req,
-              topic,
-              transcript,
-              replyText: "",
-              includeAudio: false
-            })),
-            status: "pending",
-            pending: true,
-            after_seq: ack.seq,
-            status_text: languageNameForText(transcript) === "Russian" ? "Принято. Ответ появится в Inbox." : "Accepted. Reply will appear in Inbox.",
-            inbox_hint: true
-          });
+          console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${voiceWaitMs}`);
+          // Keep the existing raw-voice HTTP 200 transport contract.
+          json(res, 200, await runtime.buildPendingTurnResponse({ req, device, topic, transcript, ack }));
           return;
         }
         console.info(`[voice-raw] reply device=${device.device_id} turn=${turnId || "-"} topic=${topic.topic_key} seq=${reply.seq}`);
