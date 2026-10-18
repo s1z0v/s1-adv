@@ -74,6 +74,9 @@ test('actual upstream dispatch separates optional Telegram failure from uncertai
  const events=[];
  const runtime={config:{},store:{getTopic:()=>topic,getIdempotent:()=>null,appendMessage:(_k,m)=>({...m,seq:1}),setIdempotent(){},save:async()=>{}},
    rememberPendingMirror(){},broadcast:(_k,event)=>events.push(event),upstream:{rpc:async()=>({})}};
+ // This extracted handler test isolates the optional mirror policy. Actual
+ // durable queue/admission/dispatch behavior is exercised in turn-outbox.test.
+ runtime.turnOutbox={assertCapacity(){},enqueue:async()=>({dispatched:runtime.upstream.rpc()})};
  await send.call(runtime,{device:{device_id:'a'},topicKey:'one',clientMsgId:'one',text:'Build firmware',waitForUpstream:true});
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(topic.firmware_job.state,'building');assert(!events.some(e=>e.state==='failed'));

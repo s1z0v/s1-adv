@@ -124,3 +124,4 @@ test('actual Realtime callback and pacer finish the device turn while history st
 
 // Keep the request-correlation regressions in the existing CI boundary suite.
 import './turn-correlation.test.mjs';
+import './turn-outbox.test.mjs';

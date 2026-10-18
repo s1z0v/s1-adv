@@ -40,6 +40,7 @@ import {
   stripTelegramEnvelope
 } from "./utils.mjs";
 import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs, gatewayTurnCorrelation, assistantReplyMatchesTurn } from "./turn-delivery-policy.mjs";
+import { DurableTurnOutbox } from "./turn-outbox.mjs";
 import { decodeVoiceUpload } from "./voice-upload-codec.mjs";
 import { RealtimePacingBudget, REALTIME_MAX_AUDIO_LEAD_MS } from "./realtime-pacing-budget.mjs";
 
@@ -3538,6 +3539,18 @@ class BridgeRuntime {
     this.deviceFirmwareReports = new Map();
     this.lastSessionTopicSyncMs = 0;
     this.startedAtMs = Date.now();
+    this.turnOutbox = new DurableTurnOutbox({
+      store: this.store,
+      dispatch: entry => this.dispatchOutboxTurn(entry),
+      wait: runId => this.upstream.rpc("agent.wait", { runId, timeoutMs: 1000 }),
+      valid: entry => {
+        const topic = this.store.getTopic(entry.topic_key);
+        const device = this.store.state.devices[entry.device_id];
+        return topic?.session_key === entry.session_key && device && !device.revoked_at &&
+          device.topics?.includes(entry.topic_key);
+      },
+      changed: entry => this.updateOutboxReceipt(entry)
+    });
 	  }
 
   async start() {
@@ -3551,7 +3564,11 @@ class BridgeRuntime {
     await ensureDir(this.firmwareRootDir());
     await this.store.load();
     this.upstream.on("event", (frame) => void this.handleUpstreamEvent(frame));
-    this.upstream.on("reconnected", () => void this.scheduleBootstrap());
+    this.upstream.on("reconnected", () => {
+      void this.scheduleBootstrap();
+      this.turnOutbox.kick();
+    });
+    await this.turnOutbox.resume();
     // The HTTP service must stay observable while the gateway is unavailable.
     // UpstreamGatewayClient retries with bounded handshakes in the background.
     void this.upstream.start().then(() => {
@@ -4779,7 +4796,9 @@ class BridgeRuntime {
 
   async buildPendingTurnResponse({ req, device, topic, transcript, ack }) {
     const confirmed = ack.upstream_accepted === true;
-    const receipt = languageNameForText(transcript) === "Russian"
+    const queued = ack.delivery_state === "queued";
+    const receipt = queued ? (languageNameForText(transcript) === "Russian" ? "Запрос в очереди. Ответ появится в Inbox." : "Request queued. The reply will arrive in Inbox.")
+      : languageNameForText(transcript) === "Russian"
       ? (confirmed ? "Запрос принят. Ответ появится в Inbox." : "Запрос сохранён. Подтверждение доставки ожидается; проверьте Inbox перед повтором.")
       : (confirmed ? "Request accepted. The reply will arrive in Inbox." : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
     return {
@@ -4790,6 +4809,7 @@ class BridgeRuntime {
       client_msg_id: ack.client_msg_id,
       upstream_run_id: ack.upstream_run_id,
       upstream_accepted: confirmed,
+      delivery_state: ack.delivery_state,
       reply_seq: 0,
       status_text: receipt,
       inbox_hint: true
@@ -5565,6 +5585,31 @@ class BridgeRuntime {
     );
   }
 
+  updateOutboxReceipt(entry) {
+    const ack = this.store.getIdempotent(entry.topic_key, entry.client_msg_id);
+    if (!ack) return;
+    ack.upstream_run_id = entry.run_id;
+    ack.upstream_accepted = entry.upstream_accepted === true;
+    ack.delivery_state = entry.phase;
+    if (entry.terminal) ack.upstream_terminal = entry.terminal;
+    this.store.setIdempotent(entry.topic_key, entry.client_msg_id, ack);
+    const message = this.store.getHistory(entry.topic_key, 0, 100000).items.find(item => item.id === ack.message_id);
+    if (message) message.source.upstream_run_id = entry.run_id;
+  }
+
+  async dispatchOutboxTurn(entry) {
+    const topic = this.store.getTopic(entry.topic_key);
+    console.info(`[turn] dispatch topic=${entry.topic_key} client=${entry.client_msg_id} context=full`);
+    try {
+      return await this.upstream.rpc("sessions.send", entry.params);
+    } catch (error) {
+      if (!String(error.message || error).toLowerCase().includes("session not found")) throw error;
+      await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
+      this.registerRuntimeTopic(topic);
+      return await this.upstream.rpc("sessions.send", entry.params);
+    }
+  }
+
   async sendText({ device, topicKey, clientMsgId, text, upstreamText = null, waitForUpstream = false, inputMode = "text" }) {
     const topic = this.store.getTopic(topicKey);
     if (!topic) {
@@ -5575,6 +5620,10 @@ class BridgeRuntime {
       return existing;
     }
     const expectedRunId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
+    const params = { key: topic.session_key, message: upstreamText || text, idempotencyKey: expectedRunId };
+    const thinking = voiceThinking(text, inputMode);
+    if (thinking) params.thinking = thinking;
+    this.turnOutbox.assertCapacity(topic.session_key, params);
     const message = this.store.appendMessage(topicKey, {
       id: makeId("msg"),
       created_at: nowIso(),
@@ -5606,45 +5655,15 @@ class BridgeRuntime {
     };
     this.store.setIdempotent(topicKey, clientMsgId, ack);
     this.rememberPendingMirror(topicKey, message);
-    await this.store.save();
+    const ticket = await this.turnOutbox.enqueue({
+      id: expectedRunId, run_id: expectedRunId, topic_key: topicKey,
+      session_key: topic.session_key, device_id: device.device_id,
+      client_msg_id: clientMsgId, params
+    });
     this.broadcast(topicKey, {
-      type: "new_message",
-      topic_key: topicKey,
-      session_key: topic.session_key,
-      message
+      type: "new_message", topic_key: topicKey, session_key: topic.session_key, message
     });
 
-    const sendToUpstream = async () => {
-      const params = {
-        key: topic.session_key,
-        message: upstreamText || text,
-        idempotencyKey: expectedRunId
-      };
-      const thinking = voiceThinking(text, inputMode);
-      if (thinking) params.thinking = thinking;
-      console.info(`[turn] dispatch topic=${topicKey} client=${clientMsgId} mode=${inputMode} thinking=${thinking || "session-default"} context=full`);
-      let sent;
-      try {
-        sent = await this.upstream.rpc("sessions.send", params);
-      } catch (error) {
-        const message = String(error.message || error || "");
-        if (!message.toLowerCase().includes("session not found")) {
-          throw error;
-        }
-        await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
-        this.registerRuntimeTopic(topic);
-        sent = await this.upstream.rpc("sessions.send", params);
-      }
-      // Some gateways return an opaque run ID rather than the idempotency key.
-      // Persist the actual receipt before any HTTP waiter reads the answer.
-      if (typeof sent?.runId === "string" && sent.runId.length > 0 && sent.runId.length <= 1024) {
-        ack.upstream_run_id = sent.runId;
-        message.source.upstream_run_id = sent.runId;
-      }
-      ack.upstream_accepted = true;
-      this.store.setIdempotent(topicKey, clientMsgId, ack);
-      await this.store.save();
-    };
     const mirrorToTelegram = async () => {
       const mirroredMessageId = await maybeRelayTelegramText(this.config, topic, text);
       this.broadcast(topicKey, {
@@ -5687,7 +5706,7 @@ class BridgeRuntime {
     });
     if (waitForUpstream) {
       try {
-        await sendToUpstream();
+        if (ticket.dispatched) await ticket.dispatched;
         void mirrorOptional();
       } catch (error) {
         failDelivery(error);
@@ -5696,7 +5715,7 @@ class BridgeRuntime {
     } else {
       void (async () => {
         try {
-          await sendToUpstream();
+          if (ticket.dispatched) await ticket.dispatched;
           await mirrorOptional();
         } catch (error) {
           failDelivery(error);
@@ -5810,11 +5829,15 @@ class BridgeRuntime {
     void (async () => {
       try {
         const transcription = await maybeTranscribeVoice(this.config, uploadPath).catch(() => "");
-        await this.upstream.rpc("sessions.send", {
-          key: topic.session_key,
-          message: transcription || `[Voice message from Cardputer, ${Math.round(durationMs / 1000)}s]`,
-          idempotencyKey: `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`
+        const runId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
+        const ticket = await this.turnOutbox.enqueue({
+          id: runId, run_id: runId, topic_key: topicKey, session_key: topic.session_key,
+          device_id: device.device_id, client_msg_id: clientMsgId,
+          params: { key: topic.session_key,
+            message: transcription || `[Voice message from Cardputer, ${Math.round(durationMs / 1000)}s]`,
+            idempotencyKey: runId }
         });
+        if (ticket.dispatched) await ticket.dispatched;
         const mirroredMessageId = await maybeRelayTelegramVoice(this.config, topic, canonicalPath);
         this.broadcast(topicKey, {
           type: "delivery_status",
