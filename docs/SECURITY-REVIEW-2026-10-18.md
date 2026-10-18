@@ -17,6 +17,7 @@ regressions. It is not an independent penetration test or a safety guarantee.
 | Legacy compatibility text bypassed turn admission | Compatibility is off by default. When explicitly enabled it shares the request start/concurrency controller and waits for upstream dispatch before releasing its lease. |
 | Plugin CLI used top-level await incompatible with the native synchronous loader | The CLI entry uses promise completion; the actual Linux OpenClaw loader was exercised. |
 | An explicit enable config path was not passed into the native CLI | Native config writes now receive the intended `OPENCLAW_CONFIG_PATH`, with a private backup and no automatic restart. |
+| Overlapping requests could consume a neighboring response | Waiters follow the persisted Gateway run receipt. Final-chat events support older Gateway transports; unbound Codex transcript mirrors are not guessed into a request or published twice. |
 
 ## Defaults and privileges
 
@@ -84,6 +85,13 @@ Arduino/ESP-IDF dependency boundary from the earlier review also remains.
 Model/provider latency, physical-device behavior and a clean fresh-owner hardware
 installation require separate acceptance. See [validation](VALIDATION.md) and the
 [earlier firmware/network review](SECURITY-REVIEW.md).
+
+Some older Gateway/provider combinations omit run ownership from stored history.
+Their live final-chat event supplies it, and the bridge persists received replies
+for retries. If the reply finishes while the bridge is disconnected, missing
+ownership in that legacy history can prevent recovery. The bridge refuses to
+associate it by timing or text; inspect/upgrade that Gateway rather than treating
+an unrelated answer as success.
 
 The legacy research harness was also corrected to report only measured property
 transitions and model limitations. It no longer manufactures Cartesian coverage

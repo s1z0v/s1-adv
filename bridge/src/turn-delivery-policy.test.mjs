@@ -124,6 +124,3 @@ test('actual Realtime callback and pacer finish the device turn while history st
  assert.equal(stored[0].clientMsgId,'test:turn:1:assistant');
  assert.equal(stored[0].text,'ready');
 });
-
-// Keep the request-correlation regressions in the existing CI boundary suite.
-import './turn-correlation.test.mjs';

@@ -106,3 +106,64 @@ test('gateway history message ID fallback deduplicates a restart replay', async 
   assert.equal(first.source.upstream_message_id, 'stable-history-message');
   assert.equal(await runtime.ingestUpstreamMessage(topic, raw), null);
 }));
+
+test('an in-flight idempotent retry follows the eventual opaque gateway receipt', async () => withRuntime(async ({ runtime, send, deliver, wait }) => {
+  let release; let sends = 0;
+  const dispatched = new Promise(resolve => {
+    runtime.upstream.rpc = () => new Promise(complete => {
+      ++sends; release = complete; resolve();
+    });
+  });
+  const sending = send('pending-opaque');
+  await dispatched;
+  const retry = await send('pending-opaque');
+  assert.notEqual(retry.upstream_run_id, 'eventual-opaque-run');
+  const waiting = wait(retry);
+  release({ runId:'eventual-opaque-run' });
+  const receipt = await sending;
+  await deliver(receipt, 'The retry owns this answer', {
+    __openclaw:{ id:'eventual-opaque-message',runId:'eventual-opaque-run' }
+  });
+  assert.equal((await waiting)?.content.text, 'The retry owns this answer');
+  assert.equal(sends, 1);
+}));
+
+test('legacy Gateway final chat events return each overlapping turn without mirrored duplicates', async () => withRuntime(async ({ runtime, topic, send, wait }) => {
+  const first = await send('legacy-first'); const second = await send('legacy-second');
+  const waitingFirst = wait(first); const waitingSecond = wait(second);
+  const final = (ack,text) => ({event:'chat',payload:{sessionKey:topic.session_key,
+    runId:ack.upstream_run_id,state:'final',message:{role:'assistant',content:[{type:'text',text}],timestamp:Date.now()}}});
+  const mirror = text => ({event:'session.message',payload:{sessionKey:topic.session_key,
+    messageId:`mirror-${text}`,message:{role:'assistant',content:[{type:'text',text}],stopReason:'stop',
+      __openclaw:{mirrorOrigin:'codex-app-server',id:`mirror-${text}`}}}});
+  await runtime.handleUpstreamEvent(mirror('Second legacy answer'));
+  await runtime.handleUpstreamEvent(final(second,'Second legacy answer'));
+  await runtime.handleUpstreamEvent(final(first,'First legacy answer'));
+  await runtime.handleUpstreamEvent(mirror('First legacy answer'));
+  await runtime.handleUpstreamEvent(final(second,'Second legacy answer'));
+  assert.equal((await waitingFirst).content.text,'First legacy answer');
+  assert.equal((await waitingSecond).content.text,'Second legacy answer');
+  assert.equal(runtime.store.getHistory(topic.topic_key,0,100).items.filter(x=>x.sender.kind==='assistant').length,2);
+}));
+
+test('final chat adapter ignores deltas, unrelated sessions, aborted and conflicting runs', async () => withRuntime(async ({ runtime, topic, send, wait }) => {
+  const ack = await send('strict-final');
+  const base = {event:'chat',payload:{sessionKey:topic.session_key,runId:ack.upstream_run_id,
+    state:'final',message:{role:'assistant',content:[{type:'text',text:'Correct final'}]}}};
+  for (const payload of [
+    {...base.payload,state:'delta'}, {...base.payload,sessionKey:'agent:other:private'},
+    {...base.payload,stopReason:'aborted'}, {...base.payload,runId:undefined},
+    {...base.payload,message:{...base.payload.message,__openclaw:{runId:'different-run'}}}
+  ]) await runtime.handleUpstreamEvent({event:'chat',payload});
+  assert.equal(runtime.store.getHistory(topic.topic_key,0,100).items.length,1);
+  await runtime.handleUpstreamEvent(base);
+  assert.equal((await wait(ack)).content.text,'Correct final');
+}));
+
+test('session-message and final-chat transports publish a completed run only once', async () => withRuntime(async ({ runtime, topic, send, deliver }) => {
+  const ack = await send('dual-transport');
+  await deliver(ack,'One final answer');
+  await runtime.handleUpstreamEvent({event:'chat',payload:{sessionKey:topic.session_key,runId:ack.upstream_run_id,
+    state:'final',message:{role:'assistant',content:[{type:'text',text:'One final answer'}]}}});
+  assert.equal(runtime.store.getHistory(topic.topic_key,0,100).items.filter(x=>x.sender.kind==='assistant').length,1);
+}));

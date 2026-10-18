@@ -5056,10 +5056,21 @@ class BridgeRuntime {
 
   async ingestUpstreamMessage(topic, raw, meta = {}) {
     const normalized = this.normalizeGatewayMessage(topic, raw, meta);
+    // Older Codex-backed Gateways mirror an unbound transcript before emitting
+    // the authoritative chat.final event. Do not publish that duplicate as a
+    // separate reply or guess its owner from text/timestamps.
+    if (normalized.sender?.kind === "assistant" &&
+        raw?.__openclaw?.mirrorOrigin === "codex-app-server" &&
+        !normalized.source?.upstream_run_id) return null;
     const upstreamMessageId = normalized.source?.upstream_message_id;
     if (upstreamMessageId && this.store.findMessageByUpstream(topic.topic_key, upstreamMessageId)) {
       return null;
     }
+    const runId = normalized.source?.upstream_run_id;
+    if (runId && assistantReplyMatchesTurn(normalized, { runId }) &&
+        this.store.getHistory(topic.topic_key, 0, 100000).items.some(item =>
+          assistantReplyMatchesTurn(item, { runId }) &&
+          item.content.text === normalized.content.text)) return null;
     const normalizedTextFingerprint = this.makeMirrorFingerprint(normalized);
     if (
       normalized.sender?.kind === "human" &&
@@ -5131,7 +5142,8 @@ class BridgeRuntime {
   }
 
   async handleUpstreamEvent(frame) {
-    if (frame.event !== "session.message") {
+    const finalChat = frame.event === "chat" && frame.payload?.state === "final";
+    if (frame.event !== "session.message" && !finalChat) {
       return;
     }
     const sessionKey = frame.payload?.sessionKey;
@@ -5139,10 +5151,19 @@ class BridgeRuntime {
     if (!topic) {
       return;
     }
-    const appended = await this.ingestUpstreamMessage(topic, frame.payload?.message || {}, {
-      messageId: frame.payload?.messageId || null,
-      runId: frame.payload?.runId
-    });
+    let raw = frame.payload?.message || {};
+    let messageId = frame.payload?.messageId || null;
+    const runId = gatewayTurnCorrelation({}, { runId:frame.payload?.runId }).upstream_run_id;
+    if (finalChat) {
+      if (!runId || raw.role !== "assistant") return;
+      const rawRunId = gatewayTurnCorrelation(raw).upstream_run_id;
+      if (rawRunId && rawRunId !== runId) return;
+      const stopReason = frame.payload?.stopReason || raw.stopReason || "stop";
+      if (!/^(stop|end_turn|completed)$/iu.test(stopReason)) return;
+      raw = { ...raw, stopReason };
+      messageId = `gateway-run:${runId}:final`;
+    }
+    const appended = await this.ingestUpstreamMessage(topic, raw, { messageId, runId });
     if (
       appended &&
       topic.mirror_topic_key &&
@@ -5483,11 +5504,15 @@ class BridgeRuntime {
     const clientMsgId = turnReceipt?.client_msg_id || request?.client_msg_id;
     const deviceId = String(request?.sender?.id || "").startsWith("cardputer:")
       ? request.sender.id.slice("cardputer:".length) : null;
-    const runId = turnReceipt?.upstream_run_id || request?.source?.upstream_run_id ||
-      (deviceId && clientMsgId ? `cardputer:${deviceId}:${topicKey}:${clientMsgId}` : null);
-    if (!runId && !clientMsgId) return null;
+    const expectedRunId = deviceId && clientMsgId ? `cardputer:${deviceId}:${topicKey}:${clientMsgId}` : null;
+    if (!turnReceipt?.upstream_run_id && !request?.source?.upstream_run_id && !clientMsgId) return null;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      // A retry can start waiting before the first dispatch receives an opaque
+      // Gateway run ID. Follow its persisted receipt without changing ownership.
+      const persistedReceipt = clientMsgId ? this.store.getIdempotent(topicKey, clientMsgId) : null;
+      const runId = persistedReceipt?.upstream_run_id || request?.source?.upstream_run_id ||
+        turnReceipt?.upstream_run_id || expectedRunId;
       const items = this.store.getHistory(topicKey, 0, 100000).items;
       const reply = items.find(item =>
         Number(item.seq || 0) > Number(afterSeq || 0) &&

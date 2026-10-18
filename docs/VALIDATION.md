@@ -6,7 +6,7 @@ The bridge package is `openclaw-s1-adv@0.2.0`, native plugin ID `s1-adv`.
 Local Node host tests cover private/dry-run setup, native config targeting,
 agent routing, build/release ownership and source/hash fences, lifecycle races,
 HTTP/WS authorization, audio ownership/remapping, upload cleanup and storage
-budgets. The final boundary suite has 50 tests; installer/release/lifecycle has
+budgets. The final boundary suite has 47 tests; installer/release/lifecycle has
 12; gateway interruption has 3. Mock, opted-in compatibility and Realtime
 contract smokes pass. Package allowlist and dependency audit are checked too.
 These are different checks, not one large certification count.
@@ -14,7 +14,8 @@ These are different checks, not one large certification count.
 Turn ownership tests cover overlapping requests in one session, late replies
 after HTTP timeout, restart/idempotent retry, opaque Gateway run receipts and
 tool commentary. Matching uses the persisted Gateway run ID rather than the
-first assistant message after a timestamp.
+first assistant message after a timestamp. Eleven focused cases also cover
+legacy final-chat events, duplicate transports and an in-flight opaque receipt.
 
 On a second Linux host, the tarball was installed with the native OpenClaw
 installer in an isolated profile. OpenClaw `2026.7.2-beta.1` and Node `22.23.0`
