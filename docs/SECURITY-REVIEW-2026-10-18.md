@@ -1,5 +1,9 @@
 # Bridge and plugin security review, 2026-10-18
 
+Latest: the [2026-10-19 integration review](SECURITY-REVIEW-2026-10-19.md)
+records plugin 0.3.4, root-worker isolation, provider-key scoping, explicit plugin
+allowlisting and actual deployment/readback checks.
+
 Scope: the community OpenClaw plugin, private setup, bridge HTTP/WS boundaries,
 stored audio, process lifecycle and optional firmware release commands. This is
 a bounded maintainer review with a separate source-review pass and executable

@@ -1,5 +1,22 @@
 # Public source validation
 
+## Isolated integration and security, plugin 0.3.4, 2026-10-19
+
+Source `1674ca1`, tag `bridge-v0.3.4`, passed 119 host tests, policy/model checks,
+integration smoke, Realtime contract, package inspection and dependency audit.
+Bridge and firmware CI passed. ClawHub published 34 files with an aggregate Clean
+assessment. Both the native installation and isolated HTTP runtime matched all
+34 published hashes. The root Gateway retains the plugin/skills with native
+autoStart disabled; a dedicated unprivileged service owns the HTTP worker.
+
+Actual worker namespace checks proved that Gateway/model credentials, firmware
+checkout and provisioning were unreadable while its private state remained
+writable. Text and synthetic speech through the configured providers received
+their own replies and exact terminal receipts; a retry did not duplicate work.
+TTS returned PCM. A following real root publication was readable through the
+unprivileged service. Full scope, remaining trust and physical-acceptance limits
+are recorded in the [integration security review](SECURITY-REVIEW-2026-10-19.md).
+
 ## Firmware skills and native deployment, plugin 0.3.3, 2026-10-19
 
 ClawHub published source `fd8f4de`, tag `bridge-v0.3.3`, as **ESP32 S1-ADV**.
