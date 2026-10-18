@@ -72,7 +72,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.170-dev"
+#define APP_VERSION "0.2.171-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -93,7 +93,6 @@ constexpr const char* kPostInstallStoryVersion = "0.2.117-dev";
 constexpr const char* kPostInstallStoryPrefsKey = "story_02117";
 constexpr const char* kPostInstallStoryText =
     "Firmware installed. RFID Lab now targets the 8-pin SPI RFID-RC522 module on the EXT header. Use D to copy and W to write.";
-constexpr const char* kPomodoroAssetSyncVersion = "0.2.170-dev";
 constexpr const char* kPomodoroAssetSyncPrefsKey = "pomasset_02112";
 constexpr const char* kWsPath = "/ws/stream";
 constexpr const char* kDeviceTextTurnPath = "/api/device-text-turn";

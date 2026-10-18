@@ -60,7 +60,8 @@ void pushVoiceHistoryLine(String,String s,LineKind,String,String,String,unsigned
 unsigned millis(){return 1000;}void showVoiceNotice(String,bool){}bool playLastInboxMessage(){return false;}
 bool executeInlineDeviceActionsFromText(String){return false;}
 void applyFirmwareJobState(String s,String){jobState=s;}
-struct{struct{void tone(int,int){}}Speaker;}M5Cardputer;
+int highTones=0,updateKnocks=0;bool playUpdateChime(){++updateKnocks;return true;}
+struct{struct{void tone(int,int){++highTones;}}Speaker;}M5Cardputer;
 '''
 for f,s in [('065_main.cpp.inc','void rememberStoredAssistantSeq('),('065_main.cpp.inc','bool consumeStoredAssistantSeq('),('020_main.cpp.inc','bool handleInboxHistoryItem('),('020_main.cpp.inc','bool ackDeviceEvent('),('020_main.cpp.inc','bool applyInboxResponse(')]:code+=function(f,s)+'\n'
 code+=r'''
@@ -82,6 +83,10 @@ int main(){
  assert(stored.size()==3&&gStoredAssistantSeqs.empty()&&gInboxAckQueue.size()==3);
  assert(!poll({event("receipt",30,"Second request accepted")}));assert(stored.size()==3);
  assert(poll({event("new-final",51,"Second job final")}));assert(gInboxLastSeq==51&&stored.size()==4);
+ // OTA notices use the soft update sound instead of the high inbox alert.
+ JsonObject ota=event("ota",52,"Firmware ready");JsonObject source;
+ set(source,"transport","cardputer_ota_release");set(ota["message"].as<JsonObject>(),"source",source);
+ int beforeHigh=highTones;assert(poll({ota}));assert(updateKnocks==1&&highTones==beforeHigh);
  // Status sync is delivered even when there is no new chat item.
  decoded=JsonObject();set(decoded,"items",JsonArray{});JsonObject job;set(job,"state","building");set(job,"request_id","two");set(decoded,"firmware_job",job);
  String body="decoded JSON";assert(!applyInboxResponse(body,false,false,true,true));assert(jobState=="building");

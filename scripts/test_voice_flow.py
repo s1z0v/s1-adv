@@ -39,7 +39,7 @@ bool gVoiceNoticeVisible=false,gRecording=false,gSubmitting=false,gThinking=fals
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
 bool gRealtimeScreenVisible=false;
 struct UiFrameTrace{};void presentUiFrame(){}
-struct{bool needsFullFrame(bool,unsigned,bool){return true;}void invalidate(){}}gUiFramePolicy;
+struct{bool full=true;bool needsFullFrame(bool,unsigned,bool){return full;}void invalidate(){}}gUiFramePolicy;
 unsigned uiSceneKey(){return 0;}bool gUiInputPending=false;
 bool gCanvasSpriteActive=true,gSetupPortalActive=false,gVoiceNoticePending=false;
 bool gLauncherVisible=false,gChatCommandsVisible=false;
@@ -96,6 +96,9 @@ code += render
 code += r'''
 void expect(std::initializer_list<std::string> expected){trace.clear();render();assert(trace==std::vector<std::string>(expected));}
 int main(){
+ gCanvasSpriteActive=false;gUiFramePolicy.full=false;
+ trace.clear();render();assert(trace.empty()&&gCanvas.pushed==0);
+ gUiFramePolicy.full=true;gCanvasSpriteActive=true;
  for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}){
   gUiMode=mode;beginVoiceRequestUi();gRecording=true;expect({"REC"});
   gRecording=false;gVoiceRequestPhase=VoiceRequestPhase::Sending;

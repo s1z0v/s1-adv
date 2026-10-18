@@ -90,7 +90,6 @@
   }
   renderChatCommandsOverlay();
   renderVoiceNotice();
-  renderStatusBar();
   presentUiFrame();
   uint32_t renderCostMs = millis() - renderStartMs;
   if (renderCostMs >= 45U && millis() - gLastUiSlowLogMs >= 2000U) {

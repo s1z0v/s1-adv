@@ -201,6 +201,16 @@ String focusTimeString(uint32_t seconds) {
   return String(buf);
 }
 
+bool playUpdateChime() {
+  if(!gDeviceSettings.beepOnUpdate || !gCanvasSpriteActive || gRecording ||
+     gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode ||
+     gVoiceCapturePreparing || gVoiceDialBusy || gRealtimeDialBusy ||
+     gVoiceReplySpeechBusy || M5Cardputer.Speaker.isPlaying()) return false;
+  release_delivery::makeUpdateChime(gUpdateChime);
+  return M5Cardputer.Speaker.playRaw(gUpdateChime,release_delivery::kChimeSamples,
+                                   release_delivery::kChimeRate,false,1,0);
+}
+
 void focusTone(uint16_t freq, uint16_t durationMs) {
   if (gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
     return;

@@ -262,12 +262,7 @@ bool applyRemoteOtaManifestBody(const String& body) {
   if (gDeviceSettings.beepOnUpdate && gOtaManifest.parsed && !gOtaManifest.version.isEmpty() &&
       release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion) &&
       gOtaManifest.version != gOtaNotifiedVersion) {
-    if (!gRecording && !gPlaybackActive && !gRealtimeActive && !M5Cardputer.Speaker.isPlaying()) {
-      release_delivery::makeUpdateChime(gUpdateChime);
-      M5Cardputer.Speaker.playRaw(gUpdateChime, release_delivery::kChimeSamples,
-                                release_delivery::kChimeRate, false, 1, 0);
-      gOtaNotifiedVersion = gOtaManifest.version;
-    }
+    if(playUpdateChime()) gOtaNotifiedVersion=gOtaManifest.version;
   }
   return gOtaManifest.parsed;
 }

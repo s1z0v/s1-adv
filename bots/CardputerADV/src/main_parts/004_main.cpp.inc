@@ -152,7 +152,7 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
      {{"Library", UiMode::Library}, {"Folders", UiMode::AudioFolders}, {"Voice Notes", UiMode::Voice},
       {"Notes", UiMode::Notes}, {"Assets", UiMode::Assets}}},
     {"Focus", "25", "Time and attention", rgb565_local(246, 194, 74), 4,
-     {{"Focus Space", UiMode::Focus}, {"Alarm", UiMode::Alarm},
+     {{"Pomodoro", UiMode::Focus}, {"Alarm", UiMode::Alarm},
       {"Stopwatch", UiMode::Stopwatch}, {"Calendar", UiMode::Calendar}}},
     {"Tools", "UTIL", "Local hardware tools", rgb565_local(255, 150, 80), 5,
      {{"Calculator", UiMode::Calculator}, {"RFID Lab", UiMode::RfidLab},
@@ -161,10 +161,9 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
      {{"KeyRush", UiMode::KeyRush}, {"Tetris", UiMode::Tetris}, {"BrainFlow", UiMode::BrainFlow}, {"NES", UiMode::Nes}}},
     {"Settings", "SET", "All device settings", rgb565_local(203, 216, 226), 3,
      {{"Device settings", UiMode::Settings}, {"Display settings", UiMode::ScreenSettings},
-      {"Focus settings", UiMode::FocusSettings}}},
-    {"System", "SYS", "Firmware and diagnostics", rgb565_local(180, 150, 255), 5,
-     {{"Firmware", UiMode::Ota}, {"Logs", UiMode::Logs}, {"Clock", UiMode::Clock},
-      {"Battery", UiMode::Battery}, {"C-Matrix", UiMode::CMatrix}}},
+      {"Pomodoro settings", UiMode::FocusSettings}}},
+    {"System", "SYS", "Firmware and diagnostics", rgb565_local(180, 150, 255), 3,
+     {{"Firmware", UiMode::Ota}, {"Logs", UiMode::Logs}, {"C-Matrix", UiMode::CMatrix}}},
 };
 
 Preferences gPrefs;

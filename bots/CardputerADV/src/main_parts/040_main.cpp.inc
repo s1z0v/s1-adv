@@ -495,7 +495,7 @@ void markPomodoroMeditationAssetsSynced() {
 void maybeSyncPomodoroMeditationAssetsOnBoot() {
   if (!gFocusSettings.guidedAudio) return;
   if (!gSdReady) {setStatus("Focus audio needs SD",1600);return;}
-  if (strcmp(kAppVersion, kPomodoroAssetSyncVersion) != 0 || !gWifiReady || gHubHost.isEmpty()) {
+  if (!gWifiReady || gHubHost.isEmpty()) {
     return;
   }
   gPrefs.begin(kPrefsDeviceNs, true);

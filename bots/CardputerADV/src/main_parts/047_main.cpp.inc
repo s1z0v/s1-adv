@@ -14,7 +14,7 @@ uint8_t currentSettingsItemCount() {
 
 const char* currentSettingsTitle() {
   if (gUiMode == UiMode::FocusSettings) {
-    return "Focus Settings";
+    return "Pomodoro Settings";
   }
   if (gUiMode == UiMode::ScreenSettings) {
     return "Display Settings";

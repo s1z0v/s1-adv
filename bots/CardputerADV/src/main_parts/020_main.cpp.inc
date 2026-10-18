@@ -108,6 +108,7 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
     applyFirmwareJobState(doc["firmware_job"]["state"] | "idle",
                           doc["firmware_job"]["request_id"] | "");
   bool found = false;
+  bool firmwareNotice = false;
   String eventId = "";
   if (doc["items"].is<JsonArray>()) {
     JsonArray items = doc["items"].as<JsonArray>();
@@ -128,6 +129,8 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
       }
       if (handleInboxHistoryItem(item, !candidateEventId.isEmpty(), assistantOnly)) {
         eventId = candidateEventId;
+        const String transport=item["source"]["transport"] | "";
+        firmwareNotice=transport=="cardputer_ota_release" || transport=="cardputer_firmware_job_mirror";
         found = true;
         break;
       }
@@ -142,6 +145,8 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
   } else if (doc["item"].is<JsonObject>()) {
     JsonObject item = doc["item"].as<JsonObject>();
     if (handleInboxHistoryItem(item, forcePlay, assistantOnly)) {
+      const String transport=item["source"]["transport"] | "";
+      firmwareNotice=transport=="cardputer_ota_release" || transport=="cardputer_firmware_job_mirror";
       found = true;
     }
   }
@@ -154,7 +159,8 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
         showVoiceNotice(gInboxLastText, false);
       if (voiceReplyArrived || static_cast<int32_t>(gVoiceReplyNotifyUntilMs - millis()) > 0)
         gQueuedVoiceReplySpeech = cleanReplyForDevice(gInboxLastText);
-      M5Cardputer.Speaker.tone(1319,90);
+      if(firmwareNotice) playUpdateChime();
+      else M5Cardputer.Speaker.tone(1319,90);
       setStatus("AI Agent replied",4000);
     }
     if (speak) {

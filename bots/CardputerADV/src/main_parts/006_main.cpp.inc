@@ -73,11 +73,6 @@ uint32_t uiSceneKey() {
 }
 
 void presentUiFrame() {
-  if (gInboxHttpBusy) {
-    // Small live indicator; the actual screen and inputs continue updating.
-    const uint16_t color = (millis() / 200U) % 2U ? rgb565_local(47,227,255) : rgb565_local(12,60,72);
-    uiCanvas().drawFastHLine(226, 1, 10, color);
-  }
   if (gCanvasSpriteActive) {
     gCanvasBuffer.pushSprite(0, 0);
     // The sprite is loaned to TLS later. Never free a buffer still owned by DMA.

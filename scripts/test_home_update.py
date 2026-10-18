@@ -58,6 +58,8 @@ void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOt
 firmware_job_display::State gFirmwareJobState=firmware_job_display::State::Idle;
 auto& state=gFirmwareJobState;uint32_t gFirmwareJobLastSyncMs=1000;
 bool gVoiceCapturePreparing=false,gG0VoicePending=false;
+enum class FocusState{Stopped,Focus,ShortBreak,LongBreak,Reflect,Paused};
+struct{FocusState state=FocusState::Stopped;unsigned remainingSec=0;}gFocus;
 bool applyOtaFromManifest(){++applied;return true;}
 void setUiMode(UiMode m){gUiMode=m;}
 void render(){++painted;}
@@ -136,12 +138,30 @@ int main(){
   assert(gCanvas.y+gCanvas.h<124); // battery starts at 124
   assert(gCanvas.font==&fonts::Font2);
   assert(gCanvas.labels==(update?std::vector<std::string>{"NEW UPDATE","Ctrl+U"}:std::vector<std::string>{"READY"}));
-  assert(gCanvas.border==(update?rgb565_local(255,159,42):rgb565_local(47,227,255)));
+  assert(gCanvas.border==(update?rgb565_local(255,136,64):rgb565_local(47,227,255)));
  }
  for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled}){
   state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
   assert(gCanvas.w==72&&gCanvas.h==18&&gCanvas.labels.size()==2);
  }
+ // The actual timer badge supersedes firmware states, then restores them on pause.
+ state=firmware_job_display::State::Building;gFocus.state=FocusState::Focus;
+ for(unsigned seconds:{0U,1U,59U,60U,1477U,3599U,3600U}) {
+  gFocus.remainingSec=seconds;gCanvas=Canvas{};drawHomeReadyStatus(true,false);
+  char t[12];snprintf(t,sizeof(t),"%02u:%02u",seconds/60,seconds%60);
+  assert(gCanvas.labels==std::vector<std::string>{t});
+  assert(gCanvas.border==rgb565_local(255,136,64)&&gCanvas.w==62);
+ }
+ for(auto phase:{FocusState::ShortBreak,FocusState::LongBreak,FocusState::Reflect}) {
+  gFocus.state=phase;gCanvas=Canvas{};drawHomeReadyStatus(true,false);
+  assert(gCanvas.labels==std::vector<std::string>{"BREAK"});
+  assert(gCanvas.border==rgb565_local(88,240,141));
+ }
+ for(auto phase:{FocusState::Paused,FocusState::Stopped}) {
+  gFocus.state=phase;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+  assert((gCanvas.labels==std::vector<std::string>{"BUILDING","Please wait"}));
+ }
+ gFocus.state=FocusState::Focus;
  gVoiceCapturePreparing=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"MIC SETUP","Starting"}));
  gVoiceCapturePreparing=false;gG0VoicePending=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);

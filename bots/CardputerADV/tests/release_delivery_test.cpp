@@ -20,7 +20,13 @@ int main() {
   int16_t pcm[release_delivery::kChimeSamples];
   release_delivery::makeUpdateChime(pcm);
   assert(pcm[0]==0 && std::abs(pcm[release_delivery::kChimeSamples-1])<=1);
-  int peak=0; for(auto sample:pcm) {peak=std::max(peak,std::abs(static_cast<int>(sample)));assert(std::abs(static_cast<int>(sample))<5400);}
+  int peak=0; for(auto sample:pcm) {peak=std::max(peak,std::abs(static_cast<int>(sample)));assert(std::abs(static_cast<int>(sample))<2200);}
   assert(peak>1000);
+  long long first=0,second=0;
+  for(size_t i=0;i<608;++i)first+=static_cast<long long>(pcm[i])*pcm[i];
+  for(size_t i=944;i<1552;++i)second+=static_cast<long long>(pcm[i])*pcm[i];
+  for(size_t i=608;i<944;++i)assert(pcm[i]==0);
+  for(size_t i=1552;i<release_delivery::kChimeSamples;++i)assert(pcm[i]==0);
+  assert(first>0 && second>0 && second<first);
   std::printf("PASS OTA power/chime: %u power boundaries, %zu samples, peak=%d\n",tests,release_delivery::kChimeSamples,peak);
 }

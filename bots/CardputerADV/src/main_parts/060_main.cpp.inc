@@ -250,26 +250,6 @@ void renderSmartLampUi() {
   renderDebugOverlay();
 }
 
-void renderStatusBar() {
-  auto& d = gCanvas;
-  d.fillRect(0, 126, 240, 9, 0x18C3);
-  d.setFont(&fonts::Font0);
-  d.setTextColor(TFT_LIGHTGREY, 0x18C3);
-  const bool timer=gFocus.state!=FocusState::Stopped;
-  d.setCursor(4,127);
-  const String status=gRealtimeScreenVisible ? (gRealtimeClassicView?"RT Classic  Ctrl+B view":"RT Eyes  Ctrl+B view") :
-    (!timer && gStatusText=="Ready" && (gUiMode==UiMode::Home || gUiMode==UiMode::Clock))?"Ready  Ctrl+T focus":gStatusText;
-  d.print(fitCurrentFontToWidth(status, timer?152:230));
-  if(timer) {
-    char timeText[16];snprintf(timeText,sizeof(timeText),"%02u:%02u",unsigned(gFocus.remainingSec/60),unsigned(gFocus.remainingSec%60));
-    const char* phase=gFocus.state==FocusState::Paused?"PAUSE":
-      gFocus.state==FocusState::Focus?"FOCUS":gFocus.state==FocusState::Reflect?"REST":"BREAK";
-    String label=String(phase)+" "+timeText;
-    d.setTextColor(gFocus.state==FocusState::Focus?rgb565_local(246,194,74):rgb565_local(88,240,141),0x18C3);
-    d.setCursor(236-d.textWidth(label),127);d.print(label);
-  }
-  d.setFont(&fonts::Font2);
-}
 
 void renderSetupPortalUi() {
   auto& d = gCanvas;
@@ -324,9 +304,9 @@ void render() {
     }
   }
   if (!gUiFramePolicy.needsFullFrame(gCanvasSpriteActive,uiSceneKey(),gUiInputPending)) {
-    // The TFT retains the last image during a TLS memory loan. Repainting a
-    // complete scene directly would clear it repeatedly and visibly flash.
-    renderStatusBar();presentUiFrame();return;
+    // Hold the complete TFT frame during a TLS memory loan. An unchanged
+    // scene does not repaint even a footer or network indicator over a menu.
+    return;
   }
   if (gSetupPortalActive) {
     renderSetupPortalUi();
@@ -334,7 +314,6 @@ void render() {
   }
   if (!gRealtimeScreenVisible && voiceRequestBusyUi()) {
     renderAssistantPulseUi();
-    renderStatusBar();
     presentUiFrame();
     return;
   }

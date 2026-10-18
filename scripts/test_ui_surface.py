@@ -22,12 +22,12 @@ int main(){
  assert(&uiCanvas()==static_cast<lgfx::LGFXBase*>(&gCanvasBuffer));presentUiFrame();assert(gCanvasBuffer.pushes==1);
  gCanvasSpriteActive=false;gInboxHttpBusy=true;
  assert(&uiCanvas()==&M5Cardputer.Display);uiCanvas().drawFastHLine(1,2,3,0);presentUiFrame();
- assert(M5Cardputer.Display.draws==2&&gCanvasBuffer.pushes==1);
- gCanvasSpriteActive=true;presentUiFrame();assert(gCanvasBuffer.pushes==2&&gCanvasBuffer.draws==1);
+ assert(M5Cardputer.Display.draws==1&&gCanvasBuffer.pushes==1);
+ gCanvasSpriteActive=true;presentUiFrame();assert(gCanvasBuffer.pushes==2&&gCanvasBuffer.draws==0);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-ui-surface-') as d:
  p=Path(d);(p/'test.cpp').write_text(code)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-print('PASS actual UI surface: sprite and direct display both draw, background indicator paints, restored sprite presents once')
+print('PASS actual UI surface: sprite and direct display both draw, no network indicator overwrites a scene, restored sprite presents once')

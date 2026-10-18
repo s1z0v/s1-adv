@@ -30,14 +30,19 @@ inline bool otaPowerAllowed(int level, bool external, unsigned minimum) {
 constexpr size_t kChimeSamples = 1920;
 constexpr uint32_t kChimeRate = 8000;
 inline void makeUpdateChime(int16_t* samples) {
-  // Quiet A-major chord, soft attack/release; not a square-wave alert.
-  for (size_t i = 0; i < kChimeSamples; ++i) {
-    const float t = static_cast<float>(i) / kChimeRate;
-    const float envelope = sinf(3.14159265f * i / (kChimeSamples - 1));
-    const float chord = sinf(6.2831853f * 220.0f * t) +
-                        0.7f * sinf(6.2831853f * 277.1826f * t) +
-                        0.5f * sinf(6.2831853f * 329.6276f * t);
-    samples[i] = static_cast<int16_t>(2400.0f * envelope * envelope * chord);
+  // Two low, damped wooden taps. Peak stays below 6% of PCM full scale.
+  for (size_t i=0;i<kChimeSamples;++i) {
+    const float t=static_cast<float>(i)/kChimeRate;
+    float local=t, gain=1.0f;
+    if(t>=0.118f){local=t-0.118f;gain=0.72f;}
+    if(local<0.0f || local>=0.076f){samples[i]=0;continue;}
+    const float attack=1.0f-expf(-local/0.0018f);
+    const float tail=fminf(1.0f,(0.076f-local)/0.008f);
+    const float envelope=attack*expf(-local/0.018f)*tail;
+    const float body=sinf(6.2831853f*(310.0f*local+1.8f*(1.0f-expf(-65.0f*local))));
+    const float wood=body+0.24f*sinf(6.2831853f*740.0f*local)+
+                          0.08f*sinf(6.2831853f*1200.0f*local);
+    samples[i]=static_cast<int16_t>(1800.0f*gain*envelope*wood);
   }
 }
 }
