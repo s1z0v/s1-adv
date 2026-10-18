@@ -72,6 +72,11 @@ void prepareNetworkMemory(const char* reason, bool forceTtsBuffer) {
        static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
 }
 
+bool tlsHandshakeNeedsCanvas() {
+  return ESP.getFreeHeap()<96U*1024U ||
+      heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)<48U*1024U;
+}
+
 bool releaseUiCanvasForNetwork(const char* reason) {
   if (!gCanvasSpriteActive) {
     return false;

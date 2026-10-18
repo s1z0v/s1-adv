@@ -194,7 +194,7 @@ void serviceVoiceReplySpeech() {
   gVoiceReplySpeechBusy = true;
   clearEmojiCache();
   M5Cardputer.Speaker.end();
-  if ((ESP.getFreeHeap() < 80000 || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 20000))
+  if (tlsHandshakeNeedsCanvas())
     gVoiceSpeechCanvasReleased = releaseUiCanvasForNetwork("speech memory");
   VoiceSpeechPayload* raw = payload.release();
   if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 12288, raw, 1, nullptr) != pdPASS) {
@@ -253,19 +253,26 @@ void serviceVoicePreconnect() {
     logf("[VOICE] preconnect ready=%d current=%d", static_cast<int>(gVoiceReadySocket != nullptr), current);
   }
   if (gVoiceDialAllocationFailed) { gVoiceDialAllocationFailed = false; gVoiceDialBusy = false; }
+  if (!gVoiceDialBusy && gVoiceDialCanvasReleased) {
+    restoreUiCanvasAfterNetwork();gVoiceDialCanvasReleased=false;
+  }
 }
 void beginVoicePreconnect() {
   clearEmojiCache();
   serviceVoicePreconnect();
   cancelVoicePreconnect();
-  if (gVoiceDialBusy || gVoiceReplySpeechBusy || gInboxHttpBusy || !gWifiReady || gHubHost.isEmpty() ||
-      (ESP.getFreeHeap() < 80000 || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 20000)) return;
+  if (gVoiceDialBusy || gVoiceReplySpeechBusy || gInboxHttpBusy || gRealtimeDialBusy || !gWifiReady || gHubHost.isEmpty()) return;
   std::unique_ptr<VoiceDialPayload> payload(new (std::nothrow) VoiceDialPayload());
   if (!payload) return;
   payload->host = gHubHost; payload->port = gHubPort; payload->tls = hubUsesTls(); payload->generation = gVoiceDialGeneration;
+  if (payload->tls && tlsHandshakeNeedsCanvas())
+    gVoiceDialCanvasReleased=releaseUiCanvasForNetwork("voice preconnect TLS");
   gVoiceDialBusy = true;
   VoiceDialPayload* raw = payload.release();
-  if (xTaskCreate(voicePreconnectTask, "voice-connect", 12288, raw, 1, nullptr) != pdPASS) { delete raw; gVoiceDialBusy = false; }
+  if (xTaskCreate(voicePreconnectTask, "voice-connect", 12288, raw, 1, nullptr) != pdPASS) {
+    delete raw; gVoiceDialBusy = false;
+    if(gVoiceDialCanvasReleased){restoreUiCanvasAfterNetwork();gVoiceDialCanvasReleased=false;}
+  }
 }
 std::unique_ptr<WiFiClient> takeVoicePreconnect() {
   const uint32_t started = millis();

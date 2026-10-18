@@ -5,8 +5,8 @@ import os, subprocess, tempfile
 
 root=Path(__file__).resolve().parents[1]
 parts=root/'bots/CardputerADV/src/main_parts'
-def function(signature):
-    text=(parts/'064_main.cpp.inc').read_text()
+def function(signature,file='064_main.cpp.inc'):
+    text=(parts/file).read_text()
     start=text.index(signature); opening=text.index('{',start); end=opening+1; depth=1
     while depth:
         depth+=(text[end]=='{')-(text[end]=='}');end+=1
@@ -102,6 +102,10 @@ bool gRealtimeDialAllocationFailed=false,gRealtimeDialBusy=true,gRealtimeActive=
 bool gRealtimeDialCanvasReleased=true;
 int restored=0;
 void restoreUiCanvasAfterNetwork(){++restored;}
+unsigned freeHeap=105944,largestBlock=94196;
+struct {unsigned getFreeHeap(){return freeHeap;}} ESP;
+constexpr int MALLOC_CAP_8BIT=0;
+unsigned heap_caps_get_largest_free_block(int){return largestBlock;}
 unsigned gRealtimeDialGeneration=3;
 int gRealtimeDialMux;
 #define portENTER_CRITICAL(x) ((void)0)
@@ -110,10 +114,17 @@ void failRealtimeSession(const String&){++failed;}
 void logf(const char*,...){}
 struct {std::unique_ptr<Tls> owned;void adopt(Tls* socket,const String&){owned.reset(socket);++adopted;}} gRealtimeWs;
 '''
+    source+=function('bool tlsHandshakeNeedsCanvas()','006_main.cpp.inc')
     source+=function('void serviceRealtimeDialCompletion()')
     source+=r'''
 RealtimeDialResult* result(unsigned generation){auto* r=new RealtimeDialResult();r->generation=generation;r->socket.reset(new Tls());return r;}
 int main(){
+ assert(!tlsHandshakeNeedsCanvas());
+ // Exact observed post-Realtime failure: plenty of total free SRAM but no
+ // large enough contiguous block for the TLS record/certificate allocations.
+ freeHeap=104376;largestBlock=20468;assert(tlsHandshakeNeedsCanvas());
+ freeHeap=70000;largestBlock=60000;assert(tlsHandshakeNeedsCanvas());
+ freeHeap=105944;largestBlock=94196;assert(!tlsHandshakeNeedsCanvas());
  gRealtimeDialResult=result(2);serviceRealtimeDialCompletion();
  assert(!gRealtimeDialBusy && destroyed==1 && adopted==0);
  assert(restored==1 && !gRealtimeDialCanvasReleased);

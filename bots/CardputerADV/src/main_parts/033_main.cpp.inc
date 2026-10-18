@@ -98,7 +98,6 @@ void startRecording() {
 
   beginVoiceWifiPerformance();
   startMic();
-  beginVoicePreconnect();
   if (gRecordingToFile) {
     serviceRecordingToFile();
     setVoiceDiag("voice: recording fs");
@@ -109,6 +108,7 @@ void startRecording() {
   setFaceMode(FaceMode::Listening);
   setStatus("Listening...");
   render();
+  beginVoicePreconnect(); // Preserve the recording frame during TLS memory borrowing.
   logf("[VOICE] recording started mode=%s", gRecordingToFile ? "file" : "ram");
 }
 

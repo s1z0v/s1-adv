@@ -42,6 +42,7 @@ void renderVoiceNotice();
 void serviceVoiceReplySpeech();
 void initSpeaker();
 bool gVoiceDialBusy = false;
+bool gVoiceDialCanvasReleased = false;
 bool gInboxCanvasReleased = false;
 bool gVoiceSpeechCanvasReleased = false;
 void beginVoicePreconnect();
