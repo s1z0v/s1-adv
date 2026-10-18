@@ -1,4 +1,4 @@
-# Firmware request and UI stability, 0.2.167-dev
+# Firmware request and UI stability, 0.2.168-dev
 
 This candidate retains the compact Home frame, REC/THINK graphics, battery,
 eyes, and the requested yellow idle clock. RFID implementation is unchanged.
@@ -54,7 +54,8 @@ checks. They remain due after a busy period. Errors retry without a tight loop.
 Manual checks also use this worker; only a successful fresh result can schedule
 an explicitly requested apply. Escape cancels the queued apply/check result.
 
-G0 paints feedback before storage/microphone initialization. A press during an
+G0 paints `MIC SETUP / Starting` before storage/microphone initialization; an
+in-flight poll shows `VOICE WAIT / Hold G0` in the same compact frame. A press during an
 inbox poll requests cancellation at safe worker boundaries and keeps a queued
 capture while held; release/Escape cancels that queued capture. The worker is
 never killed during TLS. Its handshake/socket timeouts bound ordinary poll waits;

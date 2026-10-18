@@ -8,6 +8,7 @@ InboxHttpResult* gInboxHttpResult = nullptr;
 bool gInboxHttpBusy = false;
 volatile bool gInboxCancelRequested = false;
 bool gG0VoicePending = false;
+bool gVoiceCapturePreparing = false;
 uint32_t gG0VoiceRequestedMs = 0;
 bool gUiInputPending = false;
 uint32_t gUiInputAtMs = 0, gUiInputMaxMs = 0;

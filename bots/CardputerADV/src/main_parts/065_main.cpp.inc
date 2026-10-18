@@ -90,6 +90,8 @@ void applyFirmwareJobState(const String& state, const String& requestId) {
 }
 
 const char* homeStatusLabel(bool updateReady) {
+  if (gG0VoicePending) return "VOICE WAIT";
+  if (gVoiceCapturePreparing) return "MIC SETUP";
   return firmware_job_display::label(gFirmwareJobState, updateReady, millis() - gFirmwareJobLastSyncMs);
 }
 

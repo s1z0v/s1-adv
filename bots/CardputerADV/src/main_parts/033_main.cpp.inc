@@ -39,6 +39,10 @@ void startRecording() {
     releaseTtsBuffer();
   }
   dismissVoiceNotice();
+  struct PreparationScope {
+    PreparationScope() { gVoiceCapturePreparing = true; }
+    ~PreparationScope() { gVoiceCapturePreparing = false; }
+  } preparation;
   setStatus("Preparing microphone...", 0);
   render(); // First feedback precedes SD open and I2S setup; REC means capture.
   if (gRecordFileWriteFailed) {

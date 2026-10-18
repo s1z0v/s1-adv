@@ -74,6 +74,7 @@ void beginVoicePreconnect(){++networkCalls;gCanvasSpriteActive=false;now+=6000;}
 bool handleScreensaverWake(){++wakes;bool was=sleeping;sleeping=false;return was;}
 struct {void printf(const char*,...){} } Serial;
 void noteUiInput(const char*){}
+bool gVoiceCapturePreparing=false;
 bool gG0VoicePending=false,gInboxCancelRequested=false;uint32_t gG0VoiceRequestedMs=0;
 bool gG0VoiceHeld=false,gCtrlSoloCandidate=false;uint32_t gLastCtrlTapMs=0;
 bool stopRecordingAndSend(){++stops;gRecording=false;return true;}

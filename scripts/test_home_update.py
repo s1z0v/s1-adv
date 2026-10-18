@@ -55,8 +55,9 @@ bool checkResult=true;
 bool applyAfter=false;
 bool startBackgroundManifestCheck(bool apply,bool){++fetched;gInboxHttpBusy=true;applyAfter=apply;return true;}
 void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOtaApplyAction=true;gPendingOtaActionAfterMs=now;}}
-firmware_job_display::State state=firmware_job_display::State::Idle;
-const char* homeStatusLabel(bool update){return firmware_job_display::label(state,update,0);}
+firmware_job_display::State gFirmwareJobState=firmware_job_display::State::Idle;
+auto& state=gFirmwareJobState;uint32_t gFirmwareJobLastSyncMs=1000;
+bool gVoiceCapturePreparing=false,gG0VoicePending=false;
 bool applyOtaFromManifest(){++applied;return true;}
 void setUiMode(UiMode m){gUiMode=m;}
 void render(){++painted;}
@@ -85,6 +86,7 @@ struct Canvas {
 code += function('015_main.cpp.inc', 'bool homeFirmwareUpdateAvailable()')
 code += function('064_main.cpp.inc', 'bool handleHomeUpdateKey(')
 code += function('024_main.cpp.inc', 'void servicePendingOtaAction()')
+code += function('065_main.cpp.inc', 'const char* homeStatusLabel(')
 code += function('058_main.cpp.inc', 'void drawHomeReadyStatus(')
 code += r'''
 void candidate(){gOtaManifest.parsed=true;gOtaManifest.url="https://bridge.test/fw.bin";
@@ -140,6 +142,10 @@ int main(){
   state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
   assert(gCanvas.w==72&&gCanvas.h==18&&gCanvas.labels.size()==2);
  }
+ gVoiceCapturePreparing=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+ assert((gCanvas.labels==std::vector<std::string>{"MIC SETUP","Starting"}));
+ gVoiceCapturePreparing=false;gG0VoicePending=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+ assert((gCanvas.labels==std::vector<std::string>{"VOICE WAIT","Hold G0"}));
  assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,false,90001))=="CHECK LINK");
 }
 '''

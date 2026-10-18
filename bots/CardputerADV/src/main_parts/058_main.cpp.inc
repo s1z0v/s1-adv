@@ -149,6 +149,8 @@ void drawHomeReadyStatus(bool updateReady, bool pressed) {
   const bool ready = strcmp(label, "READY") == 0;
   const bool building = strcmp(label, "BUILDING") == 0;
   const bool update = strcmp(label, "NEW UPDATE") == 0;
+  const bool preparing = strcmp(label, "MIC SETUP") == 0;
+  const bool voiceWait = strcmp(label, "VOICE WAIT") == 0;
   const int y = 103 + (pressed ? 1 : 0);
   const int x = ready ? 154 : 149, w = ready ? 62 : 72;
   const uint16_t fill = ready ? rgb565_local(7,20,26) : rgb565_local(36,22,7);
@@ -161,7 +163,7 @@ void drawHomeReadyStatus(bool updateReady, bool pressed) {
     d.setFont(&fonts::Font0);
     d.setCursor(x+(w-d.textWidth(label))/2,y+1);d.print(label);
     d.setTextColor(rgb565_local(255,240,214),fill);
-    const char* hint = update ? "Ctrl+U" : building ? "Please wait" : "Enter chat";
+    const char* hint = preparing ? "Starting" : voiceWait ? "Hold G0" : update ? "Ctrl+U" : building ? "Please wait" : "Enter chat";
     d.setCursor(x+(w-d.textWidth(hint))/2,y+9);d.print(hint);
   } else {
     d.setFont(&fonts::Font2);
