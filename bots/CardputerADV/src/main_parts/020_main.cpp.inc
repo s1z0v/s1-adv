@@ -35,7 +35,7 @@ bool handleInboxHistoryItem(JsonObject item, bool forcePlay, bool assistantOnly 
     return false;
   }
 
-  gInboxLastSeq = seq;
+  if (seq > gInboxLastSeq) gInboxLastSeq = seq;
   if (senderKind == "assistant") {
     gInboxUnread = true;
     if (gVoiceReplyPending && seq > gVoiceReplyAfterSeq) {
@@ -115,20 +115,18 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
       String candidateEventId = String(event["event_id"] | "");
       JsonObject item = event["message"].as<JsonObject>();
       uint32_t seq = item["seq"] | 0;
-      if (!candidateEventId.isEmpty() && seq != 0 && consumeStoredAssistantSeq(seq)) {
-        ackDeviceEvent(candidateEventId);
-        if (seq > gInboxLastSeq) gInboxLastSeq = seq;
-        logf("[INBOX] stored reply event seq=%u acked without a duplicate", static_cast<unsigned>(seq));
+      // Durable events may be delivered urgent-first. A global sequence
+      // watermark cannot prove that an older, still-unacknowledged event was
+      // shown. Dedupe by the actual event/receipt, not by that watermark.
+      const bool ackQueued = std::find(gInboxAckQueue.begin(), gInboxAckQueue.end(), candidateEventId) != gInboxAckQueue.end();
+      if (!candidateEventId.isEmpty() && ackQueued) continue;
+      const bool stored = seq && std::find(gStoredAssistantSeqs.begin(), gStoredAssistantSeqs.end(), seq) != gStoredAssistantSeqs.end();
+      if (!candidateEventId.isEmpty() && stored) {
+        if (ackDeviceEvent(candidateEventId)) consumeStoredAssistantSeq(seq);
+        logf("[INBOX] stored reply event seq=%u ACK queued without duplicate", static_cast<unsigned>(seq));
         continue;
       }
-      if (!candidateEventId.isEmpty() && seq != 0 && seq <= gInboxLastSeq) {
-        bool acked = ackDeviceEvent(candidateEventId);
-        logf("[INBOX] stale event id=%s seq=%u last_seq=%u ack=%d",
-             candidateEventId.c_str(), static_cast<unsigned>(seq),
-             static_cast<unsigned>(gInboxLastSeq), static_cast<int>(acked));
-        continue;
-      }
-      if (handleInboxHistoryItem(item, false, assistantOnly)) {
+      if (handleInboxHistoryItem(item, !candidateEventId.isEmpty(), assistantOnly)) {
         eventId = candidateEventId;
         found = true;
         break;
