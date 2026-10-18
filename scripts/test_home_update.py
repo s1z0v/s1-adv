@@ -174,6 +174,7 @@ int main(){
  gInboxUnread=false;state=firmware_job_display::State::Building;now=gFirmwareJobLastSyncMs+90001;
  gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"CHECK LINK","F retry"}));
+ gOtaManifest.parsed=false; // No candidate: the real shortcut sees the stale-build badge.
  keys.ctrl=false;resetQueue();assert(handleHomeLinkRetryKey('f',keys));
  assert(gPendingOtaCheckAction&&!gPendingOtaApplyAction);
  resetQueue();gInputBuffer="draft";assert(!handleHomeLinkRetryKey('f',keys));gInputBuffer.clear();
