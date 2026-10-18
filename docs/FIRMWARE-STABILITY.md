@@ -9,6 +9,9 @@ Voice and asynchronous text acceptance share one handler. It stores the actual
 server acknowledgement in assistant history before advancing the inbox cursor,
 shows the receipt on Home/Clock or inline in chat, and never sends it to TTS.
 An inbox replay can therefore be acknowledged without losing the receipt body.
+A bounded set remembers directly stored reply sequences. Only the ordered inbox
+drain advances its cursor, so a later HTTP receipt cannot skip an older final
+reply from another queued turn.
 Final text replies queue the existing background speech worker rather than
 blocking loopTask inside HTTPS/TTS.
 

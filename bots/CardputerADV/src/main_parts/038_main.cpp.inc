@@ -56,7 +56,7 @@ void processCompletedTextTurn() {
   } else if (done->ok && done->hasReply) {
     gVoiceReplyPending = false;
     appendAssistantReply(done->reply);
-    if (done->replySeq > gInboxLastSeq) gInboxLastSeq = done->replySeq;
+    rememberStoredAssistantSeq(done->replySeq);
     if (gUiMode != UiMode::ChatFull && gUiMode != UiMode::ChatFace)
       showVoiceNotice(done->reply, false);
     // Speech uses the existing cancellable worker. A synchronous HTTPS/TTS

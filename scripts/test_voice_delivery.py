@@ -110,7 +110,7 @@ assert 'voiceReplyWasPending && !gVoiceReplyPending' in inbox
 pending=(parts/'039_main.cpp.inc').read_text().split('if (resp["pending"] | false)')[1].split('gVoiceReplyPending = false')[0]
 assert 'acceptPendingAssistantRequest(transcript, reply,' in pending
 helper=function('065_main.cpp.inc','void acceptPendingAssistantRequest(')
-assert helper.index('appendAssistantReply(receipt)')<helper.index('gInboxLastSeq = receiptSeq')
+assert helper.index('appendAssistantReply(receipt)')<helper.index('rememberStoredAssistantSeq(receiptSeq)')
 assert 'showVoiceNotice(receipt, true)' in helper
 assert 'setUiMode(UiMode::ChatFull)' not in pending
 print('PASS actual drained/rebuffered playback and 12/24h boundaries; connected TCP_NODELAY; visible voice receipt and delayed reply')

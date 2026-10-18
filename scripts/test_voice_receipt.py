@@ -27,6 +27,7 @@ code = r'''
 #include <vector>
 #include <memory>
 #include <deque>
+#include <algorithm>
 struct String:std::string {
  using std::string::string;String(const std::string& s):std::string(s){}
  String(int n):std::string(std::to_string(n)){}bool isEmpty()const{return empty();}
@@ -72,6 +73,9 @@ bool deserializeJson(DynamicJsonDocument&,const String&){return badJson;}
 void serializeJson(Value,String& out){out="actions";}
 '''
 code += function('065_main.cpp.inc', 'void showVoiceNotice(')
+code += 'std::deque<uint32_t> gStoredAssistantSeqs;\n'
+code += function('065_main.cpp.inc', 'void rememberStoredAssistantSeq(')
+code += function('065_main.cpp.inc', 'bool consumeStoredAssistantSeq(')
 code += function('065_main.cpp.inc', 'void acceptPendingAssistantRequest(')
 code += function('065_main.cpp.inc', 'void showVoiceRequestError(')
 code += function('039_main.cpp.inc', 'bool finishVoiceSubmission(')
@@ -94,7 +98,7 @@ void requestAndPlayTts(String){++tts;}
 '''
 code += function('038_main.cpp.inc', 'void processCompletedTextTurn()')
 code += r'''
-void reset(){history.clear();gInboxLastSeq=20;decoded.clear();badJson=false;errors=actions=tones=0;painted=false;gVoiceRequestPhase=VoiceRequestPhase::Processing;
+void reset(){gStoredAssistantSeqs.clear();history.clear();gInboxLastSeq=20;decoded.clear();badJson=false;errors=actions=tones=0;painted=false;gVoiceRequestPhase=VoiceRequestPhase::Processing;
  gVoiceNoticeVisible=true;gVoiceReplyPending=false;gAssistantPendingVisible=true;
  gVoiceNoticeText="";gVoiceRequestTranscript="";gLastHttpDiag="";gQueuedVoiceReplySpeech="";replyText="";userText="";}
 int main(){
@@ -104,7 +108,7 @@ int main(){
   decoded["reply"]={"Request accepted. Firmware is building on the server.",0,false,false};
   assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceReplyPending&&!gAssistantPendingVisible);
-  assert(tones==1&&gQueuedVoiceReplySpeech.empty()&&gInboxLastSeq==30&&userText=="Change the battery");
+  assert(tones==1&&gQueuedVoiceReplySpeech.empty()&&gInboxLastSeq==20&&gStoredAssistantSeqs.back()==30&&userText=="Change the battery");
   assert(gVoiceNoticeVisible==(mode==UiMode::Home||mode==UiMode::Clock));
   assert(history.size()==1&&replyText==decoded["reply"].text&&gVoiceNoticeText==replyText);
   assert(cursorAtStorage==20); // Persist first, then skip/ACK the duplicated inbox receipt.
@@ -131,16 +135,20 @@ int main(){
   accepted->reply="Accepted by the real firmware agent";accepted->replySeq=31;accepted->afterSeq=31;
   gCompletedTextTurn=accepted;processCompletedTextTurn();
   assert(!gSubmitting&&!gThinking&&gVoiceReplyPending&&tts==0&&history.size()==1);
-  assert(replyText=="Accepted by the real firmware agent"&&cursorAtStorage==20&&gInboxLastSeq==31);
+  assert(replyText=="Accepted by the real firmware agent"&&cursorAtStorage==20&&gInboxLastSeq==20&&gStoredAssistantSeqs.back()==31);
   assert(gVoiceNoticeVisible==(mode==UiMode::Home||mode==UiMode::Clock));
   auto* final=new TextTurnTaskResult();final->ok=final->hasReply=true;final->reply="Published";final->replySeq=32;
   gCompletedTextTurn=final;processCompletedTextTurn();assert(replyText=="Published"&&tts==0&&gQueuedVoiceReplySpeech=="Published");
-  assert(cursorAtStorage==31&&gInboxLastSeq==32);
+  assert(cursorAtStorage==20&&gInboxLastSeq==20&&gStoredAssistantSeqs.back()==32);
   auto* empty=new TextTurnTaskResult();empty->ok=true;gCompletedTextTurn=empty;
   gThinking=gSubmitting=true;processCompletedTextTurn();assert(!gSubmitting&&!gThinking);
   auto* error=new TextTurnTaskResult();error->error="HTTP 503";error->statusCode=503;
   gThinking=gSubmitting=true;gCompletedTextTurn=error;processCompletedTextTurn();assert(!gSubmitting&&!gThinking);
  }
+ // A later HTTP receipt must not advance past an unseen earlier final.
+ reset();acceptPendingAssistantRequest("second","Second accepted",30,30);
+ assert(gInboxLastSeq==20&&consumeStoredAssistantSeq(30)&&!consumeStoredAssistantSeq(29));
+ assert(!consumeStoredAssistantSeq(30));
  reset();gPendingTextTurns.push_back("second");gActiveTextTurn="first";
  auto* first=new TextTurnTaskResult();first->ok=first->pending=true;first->reply="First accepted";
  gCompletedTextTurn=first;processCompletedTextTurn();

@@ -124,7 +124,7 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
   const uint32_t replySeq = resp["reply_seq"] | 0;
   if (!reply.isEmpty()) {
     appendAssistantReply(reply);
-    if (replySeq > gInboxLastSeq) gInboxLastSeq = replySeq;
+    rememberStoredAssistantSeq(replySeq);
     showVoiceNotice(reply, false);
     gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
   } else {

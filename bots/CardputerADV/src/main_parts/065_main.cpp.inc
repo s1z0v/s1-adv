@@ -33,6 +33,19 @@ void showVoiceNotice(const String& text, bool pending) {
        static_cast<int>(gUiMode),static_cast<int>(gCanvasSpriteActive));
 }
 
+void rememberStoredAssistantSeq(uint32_t seq) {
+  if (!seq || std::find(gStoredAssistantSeqs.begin(), gStoredAssistantSeqs.end(), seq) != gStoredAssistantSeqs.end()) return;
+  gStoredAssistantSeqs.push_back(seq);
+  while (gStoredAssistantSeqs.size() > 32) gStoredAssistantSeqs.pop_front();
+}
+
+bool consumeStoredAssistantSeq(uint32_t seq) {
+  auto found = std::find(gStoredAssistantSeqs.begin(), gStoredAssistantSeqs.end(), seq);
+  if (found == gStoredAssistantSeqs.end()) return false;
+  gStoredAssistantSeqs.erase(found);
+  return true;
+}
+
 void acceptPendingAssistantRequest(const String& transcript, const String& acknowledgement,
                                    uint32_t afterSeq, uint32_t receiptSeq) {
   gVoiceRequestTranscript = cleanReplyForDevice(transcript);
@@ -47,7 +60,9 @@ void acceptPendingAssistantRequest(const String& transcript, const String& ackno
   // Persist the acknowledgement in the conversation before advancing the inbox
   // cursor. Its durable device event can then be ACKed without hiding its text.
   appendAssistantReply(receipt);
-  if (receiptSeq > gInboxLastSeq) gInboxLastSeq = receiptSeq;
+  // Do not skip an older final reply that raced this HTTP acknowledgement.
+  // The ordered inbox drain advances its cursor when it sees this stored seq.
+  rememberStoredAssistantSeq(receiptSeq);
   setFaceMode(FaceMode::Idle);
   setStatus("Request accepted", 4000);
   showVoiceNotice(receipt, true);
