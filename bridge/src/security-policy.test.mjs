@@ -14,17 +14,17 @@ assert.equal(isLoopbackAddress("203.0.113.9"), false);
 assert.equal(requestClientIp(request("203.0.113.9", "198.51.100.1")), "203.0.113.9");
 assert.equal(
   requestClientIp(
-    request("217.216.33.46", "198.51.100.123, 203.0.113.44"),
-    { security: { trustedProxyAddresses: ["217.216.33.46"] } }
+    request("192.0.2.10", "198.51.100.123, 203.0.113.44"),
+    { security: { trustedProxyAddresses: ["192.0.2.10"] } }
   ),
   "203.0.113.44"
 );
 assert.equal(
   requestClientIp(
-    request("217.216.33.47", "198.51.100.123, 203.0.113.44"),
-    { security: { trustedProxyAddresses: ["217.216.33.46"] } }
+    request("192.0.2.11", "198.51.100.123, 203.0.113.44"),
+    { security: { trustedProxyAddresses: ["192.0.2.10"] } }
   ),
-  "217.216.33.47"
+  "192.0.2.11"
 );
 
 let now = 0;

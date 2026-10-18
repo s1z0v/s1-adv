@@ -9,12 +9,14 @@
 
 # S1-ADV for Cardputer ADV
 
-Security update: [2026-10-16 review and fixes](docs/SECURITY-REVIEW.md).
+Security: [bridge/plugin review and fixes](docs/SECURITY-REVIEW-2026-10-18.md).
 
 **S1-ADV** turns a M5Stack Cardputer ADV into a pocket workspace for your
 **OpenClaw** agent: keyboard, voice, local tools and firmware you can extend.
 Type a question, hold the talk button, check a reply, or use the offline apps.
 The agent runs on your computer or server; the Cardputer runs this firmware.
+
+**Video walkthrough coming soon.** Follow [s1z0v on YouTube](https://www.youtube.com/@s1z0v).
 
 S1-ADV is experimental firmware built on Arduino/FreeRTOS, with an included
 OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover details.
@@ -47,16 +49,21 @@ keyboard / mic / speaker       Node.js on your host                  your agent
 ```
 
 The repository includes both sides: [firmware](bots/CardputerADV) and
-[bridge](bridge). The bridge is a standalone companion service. The included
-[OpenClaw skill](skills/s1-adv) gives your agent the setup instructions;
-it does not install or start the bridge by itself.
+[bridge](bridge). Install it as an OpenClaw plugin with setup/doctor commands,
+or run the same bridge as a standalone service. The included
+[setup skill](skills/s1-adv) guides your agent through the reviewed configuration;
+no personal server settings or model account are bundled.
+
+Use one device identity per bridge instance, with separate private storage for
+each device. Start with a restricted chat agent; enable firmware-building rights
+only when you deliberately need them. Read the [security model](SECURITY.md).
 
 ## What you need
 
 - **M5Stack Cardputer ADV**, with ESP32-S3 and 8 MB flash. Other Cardputer models are untested.
 - A USB data cable and a 2.4 GHz Wi-Fi network.
 - A computer for the first USB flash: Python 3 and PlatformIO.
-- An existing OpenClaw installation and a host for the bridge: Node.js 22+.
+- An existing OpenClaw installation with its supported Node.js runtime. The standalone bridge needs Node.js 22+.
 - A reachable bridge address. Use HTTPS/WSS for remote access. The firmware trusts ISRG Root X1 by default.
 - For voice: FFmpeg, an STT backend and a TTS backend on the bridge host.
 - Optional microSD for saved audio and extra assets.
@@ -83,10 +90,11 @@ Prefer asking your OpenClaw agent to help? Copy the
 
 S1-ADV is an independent experimental project. Its firmware began with
 OmniBot; [Credits](CREDITS.md) records that origin and the retained notices.
-Current source is `0.2.161-dev`: app menu on Tab, assistant commands on Ctrl+K,
-visible Realtime connection/microphone states, one configured chat and an SD
-NES game library and a compact, broad-stroke Home battery gauge. See
-[controls](docs/CONTROLS.md) and [release notes](docs/RELEASE-0.2.161.md).
+The exact source version is defined in
+[platformio.ini](bots/CardputerADV/platformio.ini). The UI includes an app menu,
+assistant commands, visible Realtime microphone states, one configured chat,
+an SD game library and a compact Home battery gauge. See
+[controls](docs/CONTROLS.md) and [validation](docs/VALIDATION.md).
 The public security fixes are retained. Public builds have not yet been tested
 on a freshly provisioned physical device.
 

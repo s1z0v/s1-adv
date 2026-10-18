@@ -1,161 +1,168 @@
-# Connect S1-ADV to your OpenClaw
+# Install the S1-ADV OpenClaw integration
 
-The integration is a **standalone Node.js bridge** plus an optional setup skill.
-It is not an npm OpenClaw plugin, so `openclaw plugins install` is not the
-installation path. The skill alone cannot provide the network endpoints.
+S1-ADV includes a community OpenClaw plugin and the same bridge as a standalone
+Node.js service. Use the plugin for Gateway-managed startup and setup commands,
+or follow the [manual service guide](OPENCLAW-MANUAL.md). The plugin is maintained
+by the S1-ADV project; it is not an official bundled OpenClaw module.
 
-## 1. Prepare OpenClaw
+## Requirements
 
-Use your existing OpenClaw installation. Check `openclaw --version` and confirm
-that a normal agent conversation works. The bridge uses the gateway WebSocket
-protocol, including `sessions.send`, `chat.history` and session subscriptions.
-Compatibility is exercised against the included mock and the maintainer's
-gateway; arbitrary future gateway releases may need adapter changes.
+- An existing working OpenClaw installation with its supported Node.js runtime.
+  Node.js 22+ is the standalone bridge minimum. OpenClaw 2026.10.4 itself requires
+  Node.js 24.16+ within the 24.x line, or Node.js 26.1+.
+- A Cardputer ADV with S1-ADV firmware and 2.4 GHz Wi-Fi.
+- A selected OpenClaw agent. Prefer a dedicated restricted `cardputer` agent.
+- One device identity per bridge instance, with separate private storage for each device.
+- A device-reachable HTTPS origin, with a certificate trusted by the firmware.
+  The default CA is ISRG Root X1. The raw bridge stays on loopback.
+- Optional speech providers and optional firmware-build permissions, configured
+  separately. There is no shared hosted bridge or bundled model account.
 
-Keep the gateway on loopback (normally `ws://127.0.0.1:18789`) when bridge and
-gateway share a host. Obtain its existing gateway token through your local
-OpenClaw configuration. Do not copy provider API keys or OAuth stores to the
-Cardputer, and do not create competing OAuth refresh stores for this bridge.
+The declared minimum plugin API is 2026.7.2-beta.1. See
+[validation](VALIDATION.md) for the exact versions actually exercised; a minimum
+API declaration is not proof that every newer or older Gateway works.
 
-## 2. Install the bridge
-
-Requirements: Node.js **22+**, npm; FFmpeg for smoke tests/media conversion.
+## Install from reviewed source
 
 ```bash
-cd bridge
-npm ci
-cp config.example.json config.json
-chmod 600 config.json
+git clone https://github.com/srg0/s1-adv.git
+cd s1-adv
+openclaw plugins install ./bridge
 ```
 
-Edit the local `config.json`:
+Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
+network service. There are no npm install hooks, automatic model downloads or
+root installation scripts. The published artifact contains source and templates,
+not the maintainer's configuration, credentials or personal firmware binary.
 
-| Field | Set it to |
+Recent OpenClaw releases also require capability consent. Review this exact
+artifact's native report and source: the integration registers its CLI, setup
+skill and bridge service. If a noninteractive install requests consent, repeat
+the same reviewed command with `--accept-capabilities`. A local archive/path may
+also require `--force` to acknowledge its source. These are separate reviews;
+`--yes` does not approve capabilities. See
+[OpenClaw capability consent](https://docs.openclaw.ai/plugins/manage-plugins#capability-consent).
+
+If you need a dedicated agent, inspect `openclaw agents add --help`, then create
+one with a private workspace and the tool permissions appropriate to your device.
+For example:
+
+```bash
+openclaw agents add cardputer --workspace "$HOME/.openclaw/workspace-cardputer"
+```
+
+Configure its model/auth using your installed OpenClaw workflow. Do not copy a
+rotating OAuth profile into a second independently writable credential store.
+Setup refuses to apply a route to a nonexistent agent. To deliberately use your
+existing private agent instead, choose `--agent main`; possession of the device
+token then grants access to that agent and its permitted tools.
+
+For ordinary chat, set that agent's `tools` to
+`{ "profile": "minimal", "deny": ["*"] }` using your installed schema and native
+config validation. Do not replace the whole agents configuration. See the
+[security review](SECURITY-REVIEW-2026-10-18.md) for the exact privilege boundary,
+storage limits and migration requirements. Building firmware needs a separately
+reviewed tool/OS policy; the chat-only setting deliberately grants no build tools.
+
+## Preview and create private settings
+
+```bash
+openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
+# Review paths, agent and capabilities, then create private files:
+openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply
+```
+
+Replace `YOUR_BRIDGE` with your HTTPS hostname. Add `--gateway-config PATH` or
+`--state-dir PATH` for a custom installation. For an external secret provider,
+use `--gateway-token-file PATH` or an environment SecretRef; never put a token
+on the command line or in a chat. JSON5 OpenClaw configuration is supported.
+
+By default, setup creates `~/.openclaw/s1-adv/` with:
+
+| File | Purpose |
 | --- | --- |
-| `upstream.url` | Your gateway WebSocket URL |
-| `upstream.token` | Your existing gateway token, stored only on this host |
-| `devices[0].device_id` | `cardputer-adv-01`, matching the firmware build |
-| `devices[0].device_token` | A unique random device token |
-| `devices[0].topics` / `default_topic_key` | `cardputer:main` |
-| `topics[0].topic_key` | `cardputer:main`, matching firmware `DEFAULT_TOPIC_KEY` |
-| `topics[0].session_key` | Your selected agent session, default `agent:main:cardputer` |
+| `config.json` | Loopback bridge, selected agent, private gateway token and unique device token |
+| `firmware.env` | Device provisioning; set Wi-Fi privately or use device setup |
+| `openclaw-plugin-config.json` | Reviewable plugin-entry template |
 
-Treat possession of a device token as permission to speak to that agent. A
-topic allowlist does not restrict the agent's tools. For a shared device or a
-gateway with powerful host tools, create a dedicated restricted `cardputer`
-agent and set the session key to `agent:cardputer:main`. Configure its tool
-policy/sandbox in your installed OpenClaw version; check with
-`openclaw security audit`. Session creation preserves that configured agent.
+The directory is private; generated files are mode 0600. Repeating setup retains
+the existing device token and configuration. It does not overwrite your agents,
+channels, provider settings, OAuth files, firewall or reverse proxy.
 
-Generate a device token locally, for example with `openssl rand -hex 32`.
-Paste it into `config.json` and your private firmware `.env`, never into a chat
-or issue. Use a different token for each device.
-
-Run from the `bridge` directory:
+## Enable and verify
 
 ```bash
-npm start
+openclaw s1-adv enable --config "$HOME/.openclaw/s1-adv/config.json"
+# Review the exact plugin-entry change, then save it:
+openclaw s1-adv enable --config "$HOME/.openclaw/s1-adv/config.json" --apply
+# Restart the intended Gateway when ready to load the service:
+openclaw gateway restart
+openclaw s1-adv doctor --config "$HOME/.openclaw/s1-adv/config.json"
 ```
 
-The bridge creates a local identity under `data/`. Your gateway may require
-approval of this newly connected device. Inspect `openclaw devices --help`,
-then use its list/approve workflow for the request belonging to this bridge.
-Preserve the identity file between restarts.
+`enable` saves a private backup first and changes only this plugin's entry and,
+when present, its membership in the existing plugin allowlist. It does not
+restart anything itself. Global plugin disablement remains your choice.
+The bridge child starts/stops with the Gateway, as the Gateway user. Runtime
+logs redact configured tokens/passwords; configuration and recordings remain
+private host data. A failed bridge process is reported for diagnosis.
 
-## 3. Make the bridge reachable
+Your Gateway may request approval of the bridge's newly generated identity.
+Use `openclaw devices list` and approve that exact request; do not approve every
+pending device. Preserve the identity under the bridge data directory.
 
-The example binds to `127.0.0.1:31889`. Put it behind a TLS reverse proxy on
-your bridge host. See [Nginx example](nginx-cardputer.conf.example).
-Install the service using [the systemd template](openclaw-cardputer-bridge.service.example),
-replacing paths, creating its unprivileged service user and granting only the
-required directory access. With that template, set `stateDir`, `assets.rootDir`,
-`assets.logsDir`, `firmware.rootDir` and every `media.*Dir` path under
-`/var/lib/cardputer/`, then create those directories owned by `cardputer`.
-Keep `config.json` readable by that user only. The protected service cannot
-write inside `/opt` or read `/root`. These are templates, not an automatic root install.
+Doctor separates configuration, HTTP, upstream connection, audio dependencies
+and firmware automation. A healthy HTTP server is not a model answer or a
+successful physical installation. Verify one typed question and its answer.
 
-The Cardputer must be able to reach the proxy, and the proxy must forward
-WebSocket upgrades. It must replace client-supplied forwarding headers;
-set `security.trustedProxyAddresses` to the actual proxy addresses if needed.
-Do not expose the raw OpenClaw gateway publicly. The template uses Let's
-Encrypt, compatible with the firmware's ISRG Root X1 CA.
+## TLS and device setup
 
-Firmware bridge connections require verified HTTPS/WSS, including on a LAN.
-Custom HTTPS ports are supported. The gateway connection may use WS only on
-loopback; a remote gateway requires WSS. Browser WebSocket origins are denied
-unless explicitly listed in `security.allowedOrigins`.
+The bridge listens on `127.0.0.1:31889` by default. Configure your own TLS reverse
+proxy using [the Nginx template](nginx-cardputer.conf.example), preserving
+WebSocket upgrades and blocking `/internal/`. Set trusted proxy addresses only
+for your actual proxy. Do not expose the raw OpenClaw Gateway.
 
-The `/internal/` namespace is blocked by the Nginx template. Local automatic
-OTA enqueue is disabled by default. If deliberately needed, set
-`security.internalOtaEnabled: true` and supply a separate random admin token
-through `CARDPUTER_INTERNAL_OTA_TOKEN` in the service environment (or private
-`security.internalOtaToken`). The enqueue script needs this admin token as well
-as the device token. Forwarded requests are rejected. Never put the admin token
-on the Cardputer.
+Use [the USB guide](FLASHING.md) to build for ESP32-S3 with 8 MB flash. The private
+`firmware.env` has the matching device ID, token and topic; keep it outside Git.
+The device setup portal can supply Wi-Fi and bridge settings. Then verify a
+keyboard response, followed by ordinary push-to-talk if speech is configured.
 
-## 4. Verify before flashing
+## Optional speech and firmware automation
 
-```bash
-curl --fail https://YOUR_BRIDGE/healthz
-```
+Ordinary voice requires STT and TTS on the host. The sample selects local Whisper
+and eSpeak; these are dependencies, not included binaries or models. Follow
+[the local speech recipe](OPENCLAW-VOICE.md). Realtime remains off until its
+provider authentication and model are explicitly configured. A ChatGPT/OpenClaw
+model login alone does not imply a usable audio endpoint.
 
-Use `python3 scripts/check_bridge.py https://YOUR_BRIDGE` from the repository
-root for authenticated topics and history checks. It asks for the device
-token through a hidden terminal prompt and does not log the token or history
-text. Health means the HTTP service is live; the upstream-ready field and an
-actual round trip confirm the agent path.
-
-Then follow [firmware flashing](FLASHING.md). The default sample session is a
-dedicated Cardputer session, with no personal Telegram IDs.
-
-## Voice
-
-Start with text. Ordinary voice uses `omnibotShim.sttProvider` and
-`ttsFallbackProvider`. The example selects local Whisper and eSpeak. Install
-`whisper-cli`, a compatible model and eSpeak on the bridge host, then set their
-actual paths in the config; install FFmpeg as well. Other supported provider
-routes require their own server-side credentials and may incur charges.
-Review the source/configuration before enabling them.
-
-`realtimeVoice.enabled` and `fastLane.enabled` are off by default. Realtime voice
-requires separate provider authentication and a compatible model. It is an
-advanced experiment, not required for OpenClaw text or ordinary voice.
-
-## Optional agent skill
-
-Find your actual OpenClaw workspace, then copy the skill there:
-
-```bash
-mkdir -p /path/to/openclaw-workspace/skills
-cp -R skills/s1-adv /path/to/openclaw-workspace/skills/
-```
-
-Run these commands from the repository root. Open a new agent session or follow
-your version's skill refresh workflow. See the official
-[OpenClaw skills guide](https://docs.openclaw.ai/tools/skills).
-This only installs documentation for the agent; install/start the bridge above.
+For voice/text requests that modify firmware, provision the
+[optional firmware workflow](OPENCLAW-MANUAL.md#optional-autonomous-firmware-workflow).
+It requires your writable fork, Python/PlatformIO, private provisioning and
+appropriate agent tool/exec permissions. These rights are not enabled by basic
+plugin installation. The bridge checks capability before accepting such work.
 
 ## Give this to your OpenClaw agent
 
 ```text
-Help me set up S1-ADV on my M5Stack Cardputer ADV from this repository:
-https://github.com/srg0/s1-adv
-
-Read README.md, docs/OPENCLAW.md and docs/FLASHING.md from the checked-out source.
-Use the bridge/ service in this repository and my existing OpenClaw gateway.
-Inspect my installed gateway version and configuration before changing anything.
-Create a dedicated Cardputer session and a device token in private local files.
-Keep the gateway token and model credentials on the server. Never print secrets.
-Configure a bridge address reachable from my 2.4 GHz Wi-Fi, with verified TLS
-for remote access. Preserve my other agent and channel settings.
-Install the optional skills/s1-adv skill into my actual agent workspace.
-Run local bridge smoke/security checks, then check authenticated topics/history.
-Prepare a private firmware .env matching the bridge device ID, token and topic.
-Build for ESP32-S3 / 8 MB with scripts/cardputer.py. Let me connect the device
-for the USB flash and report the exact port and build result.
-Finally test one typed question and one ordinary push-to-talk response on the
-device. Report what was actually observed and any remaining hardware steps.
-Keep realtime voice off until the basic OpenClaw route works.
+Set up S1-ADV from https://github.com/srg0/s1-adv for my Cardputer ADV.
+Read docs/OPENCLAW.md, docs/FLASHING.md and the packaged s1-adv setup skill.
+Inspect my actual OpenClaw version/configuration before changes. Install the
+reviewed bridge/ plugin using the native OpenClaw plugin installer. Use a
+working dedicated restricted cardputer agent; preserve my other agents/channels.
+Run s1-adv init in preview mode, then apply the private settings authorized by
+this setup request. Never print tokens or provider credentials. Use my existing
+host authentication; do not duplicate rotating OAuth stores. Review and enable
+only this plugin entry. Arrange verified HTTPS reachability and keep the raw
+Gateway private. Run doctor, one real agent round trip and a device text test.
+If I request local speech, install/configure the documented providers and test
+STT/TTS separately. If I request autonomous firmware work, provision the reviewed
+build/publish/verify wrappers against my own fork and exact branch, with only
+the agent file/exec/push permissions needed. Do not promise firmware execution
+while those capabilities are unavailable. Build and flash using my private
+device provisioning. Record exact source, artifact hash, boot version and
+observed device reply. Keep Realtime off until ordinary chat/voice is verified.
 ```
 
-No Hermes/Kermes adapter is shipped or claimed by this project.
+For manual settings and a service-user installation, use
+[the standalone guide](OPENCLAW-MANUAL.md). A directory of instructions alone
+cannot serve the device endpoints. No Hermes/Kermes adapter is claimed.

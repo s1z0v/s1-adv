@@ -1,4 +1,6 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
+import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
+import { PrivateStorageBudget } from "./storage-budget.mjs";
 import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -25,6 +27,7 @@ import {
 } from "./security-policy.mjs";
 import {
   ensureDir,
+  writeJsonAtomic,
   extractMetadataBlock,
   isTelegramVoiceTranscript,
   json,
@@ -38,7 +41,8 @@ import {
   stripMarkdownForDevice,
   stripTelegramEnvelope
 } from "./utils.mjs";
-import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs } from "./turn-delivery-policy.mjs";
+import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs, gatewayTurnCorrelation, assistantReplyMatchesTurn } from "./turn-delivery-policy.mjs";
+import { DurableTurnOutbox } from "./turn-outbox.mjs";
 import { decodeVoiceUpload } from "./voice-upload-codec.mjs";
 import { RealtimePacingBudget, REALTIME_MAX_AUDIO_LEAD_MS } from "./realtime-pacing-budget.mjs";
 
@@ -154,6 +158,7 @@ async function loadConfig() {
   }
   const baseDir = path.dirname(configPath);
   config.stateDir = resolvePath(baseDir, config.stateDir);
+  config.media.inboundDir = resolvePath(baseDir, config.media.inboundDir || path.join(config.stateDir,"inbound"));
   config.media.canonicalDir = resolvePath(baseDir, config.media.canonicalDir);
   config.media.playbackDir = resolvePath(baseDir, config.media.playbackDir);
   config.media.tmpDir = resolvePath(baseDir, config.media.tmpDir);
@@ -330,10 +335,10 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
     firmware_repo: CARDPUTER_FIRMWARE_REPO,
     bridge_repo: path.join(CARDPUTER_FIRMWARE_REPO,"bridge"),
     build_command: CARDPUTER_FIRMWARE_BUILD_BIN,
-    server_firmware_repo: "/root/.openclaw/workspace/repos/cardputer-firmware",
-    server_build_wrapper: "/root/.openclaw/workspace/bin/cardputer_adv_pio.sh",
-    server_publish_wrapper: "/root/.openclaw/workspace/bin/cardputer_publish_firmware.sh",
-    publish_route: "build, commit, publish OTA through your configured bridge firmware manifest"
+    server_firmware_repo: CARDPUTER_FIRMWARE_REPO,
+    server_build_wrapper: CARDPUTER_FIRMWARE_BUILD_BIN,
+    server_publish_wrapper: CARDPUTER_FIRMWARE_PUBLISH_BIN,
+    publish_route: "review, commit source, build, push source, publish OTA, verify manifest and image"
   },
   implemented_features: [
     "Pomodoro/focus timer: start, pause, resume, reset, set focus duration, breaks, cycles, autostart, metronome, BPM",
@@ -354,10 +359,10 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
   behavior_rules: [
     "If the user asks to run an implemented feature, execute it with supported device_actions when possible.",
     "If the user asks to run a feature that is absent, say it is not in the current firmware and ask whether to develop and publish it.",
-    "If the user confirms developing an absent feature, treat it as firmware work: create a concise implementation task for the firmware repo, build with the wrapper, commit, publish an OTA candidate, and report the version.",
+    "If the user confirms developing an absent feature, treat it as firmware work: inspect and edit the configured checkout, commit reviewed source, build that commit, push it, publish an OTA candidate, verify it, and report the version.",
     "Do not claim a firmware feature exists unless it appears in implemented_features or the current manifest/release notes.",
     "For firmware analysis/build/release requests, use the dedicated Cardputer Firmware topic/session with repo path, branch/runbook, build command, OTA publish route, and verification expectations.",
-    "Use exactly one firmware build at a time. On the live server, prefer /root/.openclaw/workspace/bin/cardputer_adv_pio.sh because it provides the correct environment and lock.",
+    "Use exactly one firmware build at a time with the configured job_session_contract.build_wrapper, which provides private provisioning and the release lock.",
     "Never run parallel PlatformIO builds against the same CardputerADV .pio/build directory; use the wrapper/lock or an isolated build dir."
   ]
 };
@@ -1020,7 +1025,7 @@ async function streamRequestToFile(req, filePath, maxBytes) {
     if (!writer.destroyed) {
       writer.destroy();
     }
-    await once(writer, "close").catch(() => {});
+    if (!writer.closed) await once(writer, "close").catch(() => {});
     await rm(filePath, { force: true }).catch(() => {});
     throw error;
   }
@@ -1083,6 +1088,9 @@ async function readMultipartUpload(req, config, { toFilePath = null } = {}) {
           writer.on("finish", resolveWriter);
           writer.on("error", rejectWriter);
         });
+        // The body may still be arriving when the filesystem fails.
+        // Keep rejection handled until the parser's close handler joins it.
+        writerDone.catch(() => {});
       }
       stream.on("limit", () => {
         limited = true;
@@ -1611,7 +1619,8 @@ async function runRealtimeS1Tool({ runtime, device, topic, sessionId, call, inpu
     ack.seq,
     Math.max(3000, Number(config.realtimeVoice?.s1ToolTimeoutMs) || DEFAULT_REALTIME_VOICE.s1ToolTimeoutMs),
     config.omnibotShim?.turnPollMs,
-    replyStartedAtMs
+    replyStartedAtMs,
+    ack
   );
   if (!reply) {
     throw new Error("S1 did not answer before the Realtime tool timeout");
@@ -3317,12 +3326,15 @@ async function transcode({ inputPath, outputPath, args }) {
 
 async function walkFiles(rootDir) {
   const files = [];
-  async function visit(currentDir) {
+  let visited=0;
+  async function visit(currentDir,depth=0) {
+    if(depth>12)throw new Error("asset_tree_depth_limit");
     const entries = await readdir(currentDir, { withFileTypes: true });
     for (const entry of entries) {
+      if(++visited>10000)throw new Error("asset_tree_entry_limit");
       const currentPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
-        await visit(currentPath);
+        await visit(currentPath,depth+1);
         continue;
       }
       if (entry.isFile()) {
@@ -3342,10 +3354,12 @@ async function walkFiles(rootDir) {
 }
 
 async function writeBufferAtomic(filePath, buffer) {
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tmpPath = `${filePath}.${process.pid}.${makeId("tmp")}.tmp`;
   await ensureDir(path.dirname(filePath));
-  await writeFile(tmpPath, buffer);
-  await rename(tmpPath, filePath);
+  try {
+    await writeFile(tmpPath, buffer,{mode:0o600,flag:"wx"});
+    await rename(tmpPath, filePath);
+  } finally { await rm(tmpPath,{force:true}); }
 }
 
 async function maybeTranscribeVoice(config, filePath) {
@@ -3536,10 +3550,27 @@ class BridgeRuntime {
     this.deviceFirmwareReports = new Map();
     this.lastSessionTopicSyncMs = 0;
     this.startedAtMs = Date.now();
+    this.turnOutbox = new DurableTurnOutbox({
+      store: this.store,
+      dispatch: entry => this.dispatchOutboxTurn(entry),
+      wait: runId => this.upstream.rpc("agent.wait", { runId, timeoutMs: 1000 }),
+      valid: entry => {
+        const topic = this.store.getTopic(entry.topic_key);
+        const device = this.store.state.devices[entry.device_id];
+        return topic?.session_key === entry.session_key && device && !device.revoked_at &&
+          device.topics?.includes(entry.topic_key);
+      },
+      changed: entry => this.updateOutboxReceipt(entry),
+      terminal: entry => this.recordOutboxFailure(entry)
+    });
 	  }
 
   async start() {
+    const legacyState = await readJsonFile(path.join(this.config.stateDir, "state.json"), null);
+    if (Object.keys(legacyState?.devices || {}).length > 1)
+      throw new Error("Legacy multi-device data cannot be reused by this single-device bridge. Migrate to separate private state, media, assets and firmware directories.");
     await ensureDir(this.config.stateDir);
+    await ensureDir(this.config.media.inboundDir);
     await ensureDir(this.config.media.canonicalDir);
     await ensureDir(this.config.media.playbackDir);
     await ensureDir(this.config.media.tmpDir);
@@ -3549,7 +3580,11 @@ class BridgeRuntime {
     await ensureDir(this.firmwareRootDir());
     await this.store.load();
     this.upstream.on("event", (frame) => void this.handleUpstreamEvent(frame));
-    this.upstream.on("reconnected", () => void this.scheduleBootstrap());
+    this.upstream.on("reconnected", () => {
+      void this.scheduleBootstrap();
+      this.turnOutbox.kick();
+    });
+    await this.turnOutbox.resume();
     // The HTTP service must stay observable while the gateway is unavailable.
     // UpstreamGatewayClient retries with bounded handshakes in the background.
     void this.upstream.start().then(() => {
@@ -3594,11 +3629,20 @@ class BridgeRuntime {
       }
     }
     console.info(`[topics] creating upstream session key=${topic.session_key}`);
-    await this.upstream.rpc("sessions.create", {
+    const params = {
       key: topic.session_key,
       agentId: agentIdForSession(topic.session_key),
       label: topic.display_title || topic.title || `Topic ${topic.thread_id || ""}`.trim()
-    });
+    };
+    try {
+      await this.upstream.rpc("sessions.create", params);
+    } catch (error) {
+      if (!String(error.message || error).toLowerCase().includes("label already in use")) throw error;
+      // Labels are cosmetic and can be unique per agent on older Gateways.
+      // Keep the exact requested session; never adopt another session by label.
+      const { label, ...unlabeled } = params;
+      await this.upstream.rpc("sessions.create", unlabeled);
+    }
   }
 
   assetsAudioRootDir() {
@@ -3627,7 +3671,14 @@ class BridgeRuntime {
 	    return `${base}/api/cardputer/firmware/file/${filename}`;
 	  }
 
+  firmwareWorkflowPaths() {
+    return firmwareWorkflowPaths(this.config, { repoDir: CARDPUTER_FIRMWARE_REPO,
+      build: CARDPUTER_FIRMWARE_BUILD_BIN, publish: CARDPUTER_FIRMWARE_PUBLISH_BIN,
+      smoke: CARDPUTER_FIRMWARE_SMOKE_BIN });
+  }
+
   buildFirmwarePromptContext() {
+    const workflow = this.firmwareWorkflowPaths();
     const manifest = readJsonFileSyncSafe(this.firmwareManifestPath(), null);
     return {
       context_version: CARDPUTER_FIRMWARE_CONTEXT_VERSION,
@@ -3642,7 +3693,12 @@ class BridgeRuntime {
             notes: String(manifest.notes || "")
           }
         : null,
-      capabilities: CARDPUTER_FIRMWARE_CAPABILITIES,
+      capabilities: { ...CARDPUTER_FIRMWARE_CAPABILITIES, hardware: {
+        ...CARDPUTER_FIRMWARE_CAPABILITIES.hardware,
+        firmware_repo: workflow.repoDir, bridge_repo: path.join(workflow.repoDir, "bridge"),
+        build_command: workflow.build, server_firmware_repo: workflow.repoDir,
+        server_build_wrapper: workflow.build, server_publish_wrapper: workflow.publish
+      } },
       supported_device_actions: {
         catalog_version: DEVICE_ACTION_CATALOG_VERSION,
         types: DEVICE_ACTION_CATALOG.map((action) => action.type)
@@ -3873,6 +3929,7 @@ class BridgeRuntime {
   }
 
   buildFirmwareJobUpstreamText({ device, sourceTopic, jobTopic, text, inputMode = "text", clientMsgId = "" }) {
+    const workflow = this.firmwareWorkflowPaths();
     const language = languageNameForText(text);
     const immediateInstall = wantsImmediateFirmwareInstall(text);
     const firmware = this.buildFirmwarePromptContext();
@@ -3907,11 +3964,13 @@ class BridgeRuntime {
         purpose: "Disposable short-lived firmware implementation session. Do not rely on older Cardputer Firmware topic history.",
         architecture:
           "Cardputer -> bridge firmware-route -> fresh OpenClaw job session -> firmware repo patch/build/commit/publish -> bridge OTA manifest -> device inbox event -> spoken reply -> ota.check/ota.apply.",
-        repo: CARDPUTER_FIRMWARE_REPO,
-        app_dir: CARDPUTER_FIRMWARE_APP_DIR,
-        build_wrapper: CARDPUTER_FIRMWARE_BUILD_BIN,
-        publish_wrapper: CARDPUTER_FIRMWARE_PUBLISH_BIN,
-        smoke_wrapper: CARDPUTER_FIRMWARE_SMOKE_BIN,
+        repo: workflow.repoDir,
+        branch: workflow.branch,
+        push_remote: workflow.pushRemote,
+        app_dir: path.join(workflow.repoDir, "bots/CardputerADV"),
+        build_wrapper: workflow.build,
+        publish_wrapper: workflow.publish,
+        smoke_wrapper: workflow.smoke,
         safety_gate: {
           mode: "fail_closed",
           app_slot_limit_bytes: 3145728,
@@ -3939,14 +3998,14 @@ class BridgeRuntime {
       "Implement the requested firmware change in the repo. Background-color requests are only smoke tests; the same route must handle real features such as calculator, alarm, stopwatch, Tamagotchi, or utility screens.",
       "Keep the implementation scoped and production-grade. Follow existing firmware UI/code patterns and avoid unrelated refactors.",
       "Before editing, inspect the relevant files. Use the server repo path from job_session_contract.repo.",
-      "Fetch origin main and fast-forward a clean checkout before editing. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
+      "Fetch job_session_contract.push_remote and job_session_contract.branch, then fast-forward that exact clean checkout before editing. Stop if the checkout is on another branch; do not switch or reset it. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
       "Bump APP_VERSION in both platformio.ini and src/main_parts/001_main.cpp.inc.",
       "SAFETY GATE: treat firmware publishing as fail-closed. If any required safety check is missing, ambiguous, or failed, stop and report the blocker; do not publish, do not append ota.apply, and do not claim success.",
       "Before build/publish, review git diff for unrelated changes, destructive storage operations, hardcoded secrets, disabled TLS/auth, bootloader/partition/OTA-slot changes, rollback/boot-guard changes, watchdog-disabling loops, boot-blocking network loops, or unbounded memory allocations.",
       "Do not modify partition tables, bootloader, OTA slot layout, rollback/boot guard, credential handling, TLS verification, or storage migration/wipe behavior unless the user explicitly requested that exact area and you can explain the safety impact.",
       "Verify the produced firmware.bin is below the app slot limit from job_session_contract.safety_gate.app_slot_limit_bytes with reasonable headroom. If the image is too large or close enough to threaten OTA reliability, stop and report it instead of publishing.",
+      "After review, commit source locally BEFORE building, so the binary embeds the exact source SHA. Build that clean commit, then push it only after the build passes. Never publish an unpushed or changed candidate.",
       "Build exactly once at a time with job_session_contract.build_wrapper. Do not run parallel PlatformIO builds against the same .pio directory.",
-      "Commit and push the firmware change on the current branch after a successful build.",
       "Publish the OTA candidate with job_session_contract.publish_wrapper and verify it with job_session_contract.smoke_wrapper or an equivalent manifest/file sha smoke.",
       "When publishing succeeds, send one concise final assistant message in this job topic. It must be suitable for spoken playback on the device.",
       immediateInstall
@@ -4004,6 +4063,7 @@ class BridgeRuntime {
     const files = await walkFiles(rootDir);
     const assetFiles = [];
     for (const filePath of files) {
+      if(assetFiles.length>=this.config.assets.maxManifestFiles)break;
       if (!filePath.endsWith(".wav")) {
         continue;
       }
@@ -4012,6 +4072,8 @@ class BridgeRuntime {
       if (!segments || segments.length < 2) {
         continue;
       }
+      if (!this.canReadAsset(device, segments, filePath)) continue;
+      if ((await stat(filePath)).size > this.config.assets.maxFileBytes) continue;
       const wavBytes = await readFile(filePath);
       const relativeUrlPath = segments.join("/");
       const filename = segments.at(-1);
@@ -4044,7 +4106,7 @@ class BridgeRuntime {
 
   resolveAssetDownload(device, relativeUrlPath) {
     const segments = sanitizeAssetSegments(String(relativeUrlPath || "").split("/"));
-    if (!segments || segments.length < 2) {
+    if (!segments || segments.length < 2 || !segments.at(-1).endsWith(".wav")) {
       return null;
     }
     const filePath = path.join(this.assetsAudioRootDir(), ...segments);
@@ -4052,12 +4114,20 @@ class BridgeRuntime {
     if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
       return null;
     }
+    if (!this.canReadAsset(device, segments, filePath)) return null;
     return {
       filePath,
       relativeUrlPath: segments.join("/"),
       category: segments[0],
       filename: segments.at(-1)
     };
+  }
+
+  canReadAsset(device, segments, filePath) {
+    if (segments[0] !== this.config.assets.replyCategory) return true;
+    const owner = readJsonFileSyncSafe(`${filePath}.owner.json`, null);
+    return !!owner?.session_key && !!device?.topics?.includes(owner.topic_key) &&
+      this.store.getTopic(owner.topic_key)?.session_key === owner.session_key;
   }
 
   resolveFirmwareDownload(device, filename) {
@@ -4195,9 +4265,9 @@ class BridgeRuntime {
     };
   }
 
-  async saveReplyAudioAsset(req, replyText, traceId) {
+  async saveReplyAudioAsset(req, replyText, traceId, topic) {
     const cleaned = String(replyText || "").trim();
-    if (!cleaned) {
+    if (!cleaned || !topic?.session_key || this.store.getTopic(topic.topic_key)?.session_key !== topic.session_key) {
       return null;
     }
     const startedAt = Date.now();
@@ -4237,11 +4307,12 @@ class BridgeRuntime {
     if (!wavBytes?.length) {
       return null;
     }
-    const baseSlug = safeSlug(cleaned, "reply", 32);
-    const filename = `${baseSlug}-${String(traceId || makeId("tr")).replace(/^tr_/u, "").slice(0, 6)}.wav`;
+    const baseSlug = safeSlug(cleaned, "reply", 31);
+    const filename = `${baseSlug}-${makeId("audio").slice(-12)}.wav`;
     const relativeUrlPath = `${this.config.assets.replyCategory}/${filename}`;
     const filePath = path.join(this.assetsAudioRootDir(), this.config.assets.replyCategory, filename);
     await writeBufferAtomic(filePath, wavBytes);
+    await writeJsonAtomic(`${filePath}.owner.json`, { topic_key:topic.topic_key, session_key:topic.session_key });
     const durationSec = readWavDurationSeconds(wavBytes);
     console.info(
       `[tts] reply_audio trace=${traceId || "-"} provider=${provider} model=${this.config.omnibotShim.ttsModel} ` +
@@ -4453,7 +4524,9 @@ class BridgeRuntime {
     text,
     clientMsgId,
     source = "cardputer_fast_lane",
-    queueDeviceEvent = true
+    queueDeviceEvent = true,
+    upstreamRunId = null,
+    terminalError = false
   }) {
     const topic = this.store.getTopic(topicKey);
     if (!topic) {
@@ -4470,7 +4543,9 @@ class BridgeRuntime {
         display_name: "OpenClaw"
       },
       source: {
-        transport: source
+        transport: source,
+        ...(upstreamRunId ? { upstream_run_id: upstreamRunId } : {}),
+        ...(terminalError ? { terminal_error: true } : {})
       },
       content: {
         kind: "text",
@@ -4585,6 +4660,18 @@ class BridgeRuntime {
   async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
     const continuation=this.firmwareClarificationTopic(topic,transcript);
     if (wantsFirmwareWork(transcript) || continuation) {
+      const capability = await firmwareCapability(this.config, {
+        CARDPUTER_FIRMWARE_REPO, CARDPUTER_FIRMWARE_BUILD_BIN,
+        CARDPUTER_FIRMWARE_PUBLISH_BIN, CARDPUTER_FIRMWARE_SMOKE_BIN
+      });
+      if (!capability.ready) {
+        await this.appendDeviceText({ device, topicKey: topic.topic_key, text: transcript, clientMsgId });
+        const replyMessage = await this.appendAssistantReply({ topicKey: topic.topic_key,
+          text: capability.reason, clientMsgId, source: "cardputer_firmware_unavailable" });
+        return { response: { ...await this.buildTurnResponse({ req, topic, transcript,
+          replyText: capability.reason, replyMessage, includeAudio: false }),
+          ok: false, status: "unavailable", pending: false } };
+      }
       const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
       const routeTopic = continuation || await this.createFirmwareJobTopicForDevice(device, transcript);
       console.info(
@@ -4763,6 +4850,34 @@ class BridgeRuntime {
     }
   }
 
+  async buildPendingTurnResponse({ req, device, topic, transcript, ack }) {
+    if (ack.upstream_terminal?.status === "error") {
+      const failure = "The request failed on the server. Check Inbox for details before retrying.";
+      return { ...await this.buildTurnResponse({ req, topic, transcript, replyText: failure, includeAudio: false }),
+        ok: false, status: "failed", pending: false, client_msg_id: ack.client_msg_id,
+        upstream_run_id: ack.upstream_run_id, upstream_terminal: ack.upstream_terminal,
+        delivery_state: "terminal", status_text: failure, inbox_hint: true };
+    }
+    const confirmed = ack.upstream_accepted === true;
+    const queued = ack.delivery_state === "queued";
+    const receipt = queued ? "Request queued. The reply will arrive in Inbox."
+      : (confirmed ? "Request accepted. The reply will arrive in Inbox."
+        : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
+    return {
+      ...await this.buildTurnResponse({ req, device, topic, transcript, replyText: receipt, includeAudio: false }),
+      status: "pending",
+      pending: true,
+      after_seq: ack.seq,
+      client_msg_id: ack.client_msg_id,
+      upstream_run_id: ack.upstream_run_id,
+      upstream_accepted: confirmed,
+      delivery_state: ack.delivery_state,
+      reply_seq: 0,
+      status_text: receipt,
+      inbox_hint: true
+    };
+  }
+
   async buildTurnResponse({ req, topic, transcript = "", replyText = "", replyMessage = null, includeAudio = false }) {
     const extracted = extractDeviceActionsFromText(replyText);
     const actions = alignFocusActionMinutes(extracted.actions, extracted.visibleText, replyText, transcript);
@@ -4783,6 +4898,9 @@ class BridgeRuntime {
       reply_seq: replyMessage?.seq || 0,
       markdown_text: markdownText && markdownText !== fullText ? markdownText : undefined
     };
+    if (replyMessage?.source?.terminal_error) {
+      response.ok = false; response.status = "failed"; response.pending = false;
+    }
     if (actions.length > 0) {
       response.device_actions = actions;
       console.log(
@@ -4792,7 +4910,7 @@ class BridgeRuntime {
     }
     if (includeAudio) {
       try {
-        response.audio = await this.saveReplyAudioAsset(req, fullText, traceId);
+        response.audio = await this.saveReplyAudioAsset(req, fullText, traceId, topic);
         response.audio_status = response.audio ? "ready" : "unavailable";
       } catch (error) {
         console.warn(`[tts] reply_audio_skipped trace=${traceId || "-"} err=${String(error.message || error).slice(0, 240)}`);
@@ -4813,13 +4931,20 @@ class BridgeRuntime {
   async appendDeviceLogs(device, payload) {
     const deviceId = safeSlug(device?.device_id || "unknown-device", "unknown-device", 64);
     const logPath = path.join(this.config.assets.logsDir, `${deviceId}.jsonl`);
-    await ensureDir(path.dirname(logPath));
-    await appendFile(logPath, `${JSON.stringify({
+    const line=`${JSON.stringify({
       ...payload,
       device_id: deviceId,
       received_at: nowIso()
-    })}\n`, "utf8");
-    return logPath;
+    })}\n`;
+    const write=(this.deviceLogWrites||Promise.resolve()).then(async()=>{
+      await ensureDir(path.dirname(logPath));
+      let size=0;try{size=(await stat(logPath)).size;}catch(error){if(error.code!=="ENOENT")throw error;}
+      if(size+Buffer.byteLength(line)>8*1024*1024)await rename(logPath,`${logPath}.previous`);
+      await appendFile(logPath,line,{encoding:"utf8",mode:0o600});
+      await chmod(logPath,0o600);
+      return logPath;
+    });
+    this.deviceLogWrites=write.catch(()=>{});return write;
   }
 
   scheduleBootstrap() {
@@ -4893,6 +5018,8 @@ class BridgeRuntime {
           ? "openclaw:main"
           : "operator";
     const createdAt = normalizeTimestamp(raw?.timestamp || metadata.timestamp);
+    const correlation = gatewayTurnCorrelation(raw, meta);
+    const gatewayMessageId = meta.messageId || raw?.__openclaw?.id || raw?.id;
     const normalized = {
       id: meta.localId || makeId("msg"),
       created_at: createdAt,
@@ -4905,10 +5032,11 @@ class BridgeRuntime {
           (senderKind === "assistant" ? "OpenClaw" : senderKind === "device" ? "Cardputer" : "User")
       },
       source:
-        metadata.message_id || meta.messageId
+        metadata.message_id || gatewayMessageId || correlation.upstream_run_id
           ? {
               transport: metadata.message_id ? "telegram" : "upstream",
-              upstream_message_id: String(metadata.message_id || meta.messageId)
+              upstream_message_id: metadata.message_id || gatewayMessageId ? String(metadata.message_id || gatewayMessageId) : undefined,
+              ...correlation
             }
           : undefined,
       reply_to_message_id: metadata.reply_to_id ? String(metadata.reply_to_id) : undefined,
@@ -4990,10 +5118,21 @@ class BridgeRuntime {
 
   async ingestUpstreamMessage(topic, raw, meta = {}) {
     const normalized = this.normalizeGatewayMessage(topic, raw, meta);
+    // Older Codex-backed Gateways mirror an unbound transcript before emitting
+    // the authoritative chat.final event. Do not publish that duplicate as a
+    // separate reply or guess its owner from text/timestamps.
+    if (normalized.sender?.kind === "assistant" &&
+        raw?.__openclaw?.mirrorOrigin === "codex-app-server" &&
+        !normalized.source?.upstream_run_id) return null;
     const upstreamMessageId = normalized.source?.upstream_message_id;
     if (upstreamMessageId && this.store.findMessageByUpstream(topic.topic_key, upstreamMessageId)) {
       return null;
     }
+    const runId = normalized.source?.upstream_run_id;
+    if (runId && assistantReplyMatchesTurn(normalized, { runId }) &&
+        this.store.getHistory(topic.topic_key, 0, 100000).items.some(item =>
+          assistantReplyMatchesTurn(item, { runId }) &&
+          item.content.text === normalized.content.text)) return null;
     const normalizedTextFingerprint = this.makeMirrorFingerprint(normalized);
     if (
       normalized.sender?.kind === "human" &&
@@ -5011,10 +5150,11 @@ class BridgeRuntime {
         return null;
       }
     }
-    if (this.isSuppressedMirror(topic.topic_key, normalized, upstreamMessageId)) {
+    const outboundEcho = ["human", "device"].includes(normalized.sender?.kind);
+    if (outboundEcho && this.isSuppressedMirror(topic.topic_key, normalized, upstreamMessageId)) {
       return null;
     }
-    if (this.consumePendingMirror(topic.topic_key, normalized)) {
+    if (outboundEcho && this.consumePendingMirror(topic.topic_key, normalized)) {
       await this.store.save();
       return null;
     }
@@ -5065,7 +5205,8 @@ class BridgeRuntime {
   }
 
   async handleUpstreamEvent(frame) {
-    if (frame.event !== "session.message") {
+    const finalChat = frame.event === "chat" && frame.payload?.state === "final";
+    if (frame.event !== "session.message" && !finalChat) {
       return;
     }
     const sessionKey = frame.payload?.sessionKey;
@@ -5073,9 +5214,19 @@ class BridgeRuntime {
     if (!topic) {
       return;
     }
-    const appended = await this.ingestUpstreamMessage(topic, frame.payload?.message || {}, {
-      messageId: frame.payload?.messageId || null
-    });
+    let raw = frame.payload?.message || {};
+    let messageId = frame.payload?.messageId || null;
+    const runId = gatewayTurnCorrelation({}, { runId:frame.payload?.runId }).upstream_run_id;
+    if (finalChat) {
+      if (!runId || raw.role !== "assistant") return;
+      const rawRunId = gatewayTurnCorrelation(raw).upstream_run_id;
+      if (rawRunId && rawRunId !== runId) return;
+      const stopReason = frame.payload?.stopReason || raw.stopReason || "stop";
+      if (!/^(stop|end_turn|completed)$/iu.test(stopReason)) return;
+      raw = { ...raw, stopReason };
+      messageId = `gateway-run:${runId}:final`;
+    }
+    const appended = await this.ingestUpstreamMessage(topic, raw, { messageId, runId });
     if (
       appended &&
       topic.mirror_topic_key &&
@@ -5408,31 +5559,33 @@ class BridgeRuntime {
     return null;
   }
 
-  async waitForAssistantReply(topicKey, afterSeq, waitMs, pollMs, replyStartedAtMs = 0) {
+  async waitForAssistantReply(topicKey, afterSeq, waitMs, pollMs, _replyStartedAtMs = 0, turnReceipt = null) {
     const timeoutMs = Math.max(1000, Number(waitMs) || this.config.omnibotShim.turnWaitMs);
     const intervalMs = Math.max(50, Number(pollMs) || this.config.omnibotShim.turnPollMs);
+    const request = this.store.getHistory(topicKey, 0, 100000).items.find(item =>
+      Number(item.seq) === Number(afterSeq) && item.sender?.kind === "device");
+    const clientMsgId = turnReceipt?.client_msg_id || request?.client_msg_id;
+    const deviceId = String(request?.sender?.id || "").startsWith("cardputer:")
+      ? request.sender.id.slice("cardputer:".length) : null;
+    const expectedRunId = deviceId && clientMsgId ? `cardputer:${deviceId}:${topicKey}:${clientMsgId}` : null;
+    if (!turnReceipt?.upstream_run_id && !request?.source?.upstream_run_id && !clientMsgId) return null;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      // A retry can start waiting before the first dispatch receives an opaque
+      // Gateway run ID. Follow its persisted receipt without changing ownership.
+      const persistedReceipt = clientMsgId ? this.store.getIdempotent(topicKey, clientMsgId) : null;
+      const runId = persistedReceipt?.upstream_run_id || request?.source?.upstream_run_id ||
+        turnReceipt?.upstream_run_id || expectedRunId;
       const items = this.store.getHistory(topicKey, 0, 100000).items;
-      const reply = items.find(
-        (item) =>
-          Number(item.seq || 0) > Number(afterSeq || 0) &&
-          item.sender?.kind === "assistant" &&
-          item.content?.kind === "text" &&
-          isMeaningfulAssistantReplyText(item.content?.text) &&
-          (() => {
-            if (!Number.isFinite(replyStartedAtMs) || replyStartedAtMs <= 0) {
-              return true;
-            }
-            const createdAtMs = Date.parse(item.created_at || item.updated_at || "");
-            if (!Number.isFinite(createdAtMs)) {
-              return false;
-            }
-            return createdAtMs >= replyStartedAtMs - 1000;
-          })()
-      );
-      if (reply) {
-        return reply;
+      const reply = items.find(item =>
+        Number(item.seq || 0) > Number(afterSeq || 0) &&
+        assistantReplyMatchesTurn(item, { runId, clientMsgId }) &&
+        isMeaningfulAssistantReplyText(item.content?.text));
+      if (reply) return reply;
+      if (persistedReceipt?.upstream_terminal?.status === "error") {
+        const entry = this.turnOutbox?.entries().find(item => item.topic_key === topicKey && item.client_msg_id === clientMsgId);
+        const failure = entry && await this.recordOutboxFailure(entry);
+        if (failure) return failure;
       }
       await sleep(intervalMs);
     }
@@ -5502,6 +5655,49 @@ class BridgeRuntime {
     );
   }
 
+  updateOutboxReceipt(entry) {
+    const ack = this.store.getIdempotent(entry.topic_key, entry.client_msg_id) || entry.receipt;
+    if (!ack) return;
+    ack.upstream_run_id = entry.run_id;
+    ack.upstream_accepted = entry.upstream_accepted === true;
+    ack.delivery_state = entry.phase;
+    if (entry.terminal) ack.upstream_terminal = entry.terminal;
+    entry.receipt = { ...ack };
+    this.store.setIdempotent(entry.topic_key, entry.client_msg_id, ack);
+    const message = this.store.getHistory(entry.topic_key, 0, 100000).items.find(item => item.id === ack.message_id);
+    if (message) message.source.upstream_run_id = entry.run_id;
+  }
+
+  async recordOutboxFailure(entry) {
+    if (entry.terminal?.status !== "error" || entry.terminal.operator_audit) return null;
+    const topic = this.store.getTopic(entry.topic_key);
+    const device = this.store.state.devices[entry.device_id];
+    if (topic?.session_key !== entry.session_key || !device || device.revoked_at || !device.topics?.includes(entry.topic_key)) return null;
+    const history = this.store.getHistory(entry.topic_key, 0, 100000).items;
+    const existing = history.find(message => assistantReplyMatchesTurn(message, { runId: entry.run_id,
+      clientMsgId: entry.client_msg_id }) && isMeaningfulAssistantReplyText(message.content?.text));
+    if (existing || entry.failure_message_id) return existing || null;
+    const failure = await this.appendAssistantReply({ topicKey: entry.topic_key,
+      text: "The request failed on the server. No completed answer was received. Check this request before submitting it again.",
+      clientMsgId: entry.client_msg_id, source: "cardputer_turn_failed", upstreamRunId: entry.run_id, terminalError: true });
+    entry.failure_message_id = failure.id;
+    await this.store.save();
+    return failure;
+  }
+
+  async dispatchOutboxTurn(entry) {
+    const topic = this.store.getTopic(entry.topic_key);
+    console.info(`[turn] dispatch topic=${entry.topic_key} client=${entry.client_msg_id} context=full`);
+    try {
+      return await this.upstream.rpc("sessions.send", entry.params);
+    } catch (error) {
+      if (!String(error.message || error).toLowerCase().includes("session not found")) throw error;
+      await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
+      this.registerRuntimeTopic(topic);
+      return await this.upstream.rpc("sessions.send", entry.params);
+    }
+  }
+
   async sendText({ device, topicKey, clientMsgId, text, upstreamText = null, waitForUpstream = false, inputMode = "text" }) {
     const topic = this.store.getTopic(topicKey);
     if (!topic) {
@@ -5511,6 +5707,21 @@ class BridgeRuntime {
     if (existing) {
       return existing;
     }
+    const expectedRunId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
+    const retained = this.turnOutbox.entries().find(entry => entry.id === expectedRunId);
+    if (retained) {
+      if (retained.device_id !== device.device_id || retained.session_key !== topic.session_key || retained.topic_key !== topicKey)
+        throw new Error("Persisted turn owner changed; reconciliation is required before retrying.");
+      this.updateOutboxReceipt(retained);
+      const receipt = this.store.getIdempotent(topicKey, clientMsgId);
+      if (!receipt) throw new Error("Persisted turn receipt requires reconciliation; the request will not be resent.");
+      await this.store.save();
+      return receipt;
+    }
+    const params = { key: topic.session_key, message: upstreamText || text, idempotencyKey: expectedRunId };
+    const thinking = voiceThinking(text, inputMode);
+    if (thinking) params.thinking = thinking;
+    this.turnOutbox.assertCapacity(topic.session_key, params);
     const message = this.store.appendMessage(topicKey, {
       id: makeId("msg"),
       created_at: nowIso(),
@@ -5522,7 +5733,8 @@ class BridgeRuntime {
         display_name: "Cardputer"
       },
       source: {
-        transport: "cardputer"
+        transport: "cardputer",
+        upstream_run_id: expectedRunId
       },
       content: {
         kind: "text",
@@ -5533,41 +5745,23 @@ class BridgeRuntime {
       type: "ack",
       topic_key: topicKey,
       client_msg_id: clientMsgId,
+      upstream_run_id: expectedRunId,
+      upstream_accepted: false,
       message_id: message.id,
       seq: message.seq,
       accepted_at: nowIso()
     };
     this.store.setIdempotent(topicKey, clientMsgId, ack);
     this.rememberPendingMirror(topicKey, message);
-    await this.store.save();
+    const ticket = await this.turnOutbox.enqueue({
+      id: expectedRunId, run_id: expectedRunId, topic_key: topicKey,
+      session_key: topic.session_key, device_id: device.device_id,
+      client_msg_id: clientMsgId, params, receipt: { ...ack }
+    });
     this.broadcast(topicKey, {
-      type: "new_message",
-      topic_key: topicKey,
-      session_key: topic.session_key,
-      message
+      type: "new_message", topic_key: topicKey, session_key: topic.session_key, message
     });
 
-    const sendToUpstream = async () => {
-      const params = {
-        key: topic.session_key,
-        message: upstreamText || text,
-        idempotencyKey: `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`
-      };
-      const thinking = voiceThinking(text, inputMode);
-      if (thinking) params.thinking = thinking;
-      console.info(`[turn] dispatch topic=${topicKey} client=${clientMsgId} mode=${inputMode} thinking=${thinking || "session-default"} context=full`);
-      try {
-        await this.upstream.rpc("sessions.send", params);
-      } catch (error) {
-        const message = String(error.message || error || "");
-        if (!message.toLowerCase().includes("session not found")) {
-          throw error;
-        }
-        await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
-        this.registerRuntimeTopic(topic);
-        await this.upstream.rpc("sessions.send", params);
-      }
-    };
     const mirrorToTelegram = async () => {
       const mirroredMessageId = await maybeRelayTelegramText(this.config, topic, text);
       this.broadcast(topicKey, {
@@ -5598,7 +5792,7 @@ class BridgeRuntime {
     };
     if (waitForUpstream) {
       try {
-        await sendToUpstream();
+        if (ticket.dispatched) await ticket.dispatched;
         void mirrorToTelegram().catch((error) => failDelivery(error));
       } catch (error) {
         failDelivery(error);
@@ -5607,7 +5801,7 @@ class BridgeRuntime {
     } else {
       void (async () => {
         try {
-          await sendToUpstream();
+          if (ticket.dispatched) await ticket.dispatched;
           await mirrorToTelegram();
         } catch (error) {
           failDelivery(error);
@@ -5720,12 +5914,16 @@ class BridgeRuntime {
 
     void (async () => {
       try {
-        const transcription = await maybeTranscribeVoice(this.config, uploadPath).catch(() => "");
-        await this.upstream.rpc("sessions.send", {
-          key: topic.session_key,
-          message: transcription || `[Voice message from Cardputer, ${Math.round(durationMs / 1000)}s]`,
-          idempotencyKey: `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`
+        const transcription = await maybeTranscribeVoice(this.config, playbackPath).catch(() => "");
+        const runId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
+        const ticket = await this.turnOutbox.enqueue({
+          id: runId, run_id: runId, topic_key: topicKey, session_key: topic.session_key,
+          device_id: device.device_id, client_msg_id: clientMsgId,
+          params: { key: topic.session_key,
+            message: transcription || `[Voice message from Cardputer, ${Math.round(durationMs / 1000)}s]`,
+            idempotencyKey: runId }
         });
+        if (ticket.dispatched) await ticket.dispatched;
         const mirroredMessageId = await maybeRelayTelegramVoice(this.config, topic, canonicalPath);
         this.broadcast(topicKey, {
           type: "delivery_status",
@@ -5767,8 +5965,10 @@ async function main() {
     maxActiveGlobal: config.security.maxActiveRequestsGlobal,
     startLimitPerDevice: config.security.requestStartLimitPerDevice
   } });
+  const storageBudget = new PrivateStorageBudget(config);
   await runtime.start();
-  runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures });
+  if (config.mininervaCompat?.enabled === true)
+    runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures, requestAdmission, storageBudget });
 
   const server = createServer((req, res) => {
     let releaseRequest = () => {};
@@ -5837,6 +6037,7 @@ async function main() {
         ? {
             ok: true,
             upstream_connected: runtime.upstream.connected,
+            ...runtime.turnOutbox.diagnostics(),
             device_firmware: runtime.deviceFirmwareReports.get(device.device_id) || null,
             ...buildConnectPayload(config, req)
           }
@@ -5860,14 +6061,23 @@ async function main() {
       return;
     }
 
-    if (device && req.method === "POST" &&
-        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname))) {
+    const persistentRequest = req.method === "POST" &&
+        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname));
+    if (device && (persistentRequest || (req.method==="GET"&&url.pathname==="/api/cardputer/assets/manifest"))) {
       const lease = requestAdmission.acquire(device.device_id);
       if (!lease.ok) {
         json(res, 429, { error: "device_request_limit", retryable: true, retry_after_ms: lease.retryAfterMs });
         return;
       }
       releaseRequest = lease.release;
+      if (persistentRequest) {
+        const storage = await storageBudget.acquire();
+        if (!storage.ok) {
+          json(res, 507, { error:"bridge_storage_limit", detail:"Private storage is full or unavailable. Archive old bridge data or increase the reviewed storage budget before retrying." });
+          return;
+        }
+        releaseRequest = () => { lease.release(); storage.release(); };
+      }
     }
 
     if (req.method === "GET" && url.pathname === "/api/cardputer/device-actions") {
@@ -5945,11 +6155,13 @@ async function main() {
           ack.seq,
           config.omnibotShim.turnWaitMs,
           config.omnibotShim.turnPollMs,
-          replyStartedAtMs
+          replyStartedAtMs,
+          ack
         );
         if (!reply) {
-          console.warn(`[turn] assistant timeout topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          requestError(res, 504, "assistant reply timeout");
+          console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
+          const receipt = await runtime.buildPendingTurnResponse({ req, device, topic, transcript: message, ack });
+          json(res, receipt.pending ? 202 : 200, receipt);
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6050,11 +6262,13 @@ async function main() {
           ack.seq,
           config.omnibotShim.turnWaitMs,
           config.omnibotShim.turnPollMs,
-          replyStartedAtMs
+          replyStartedAtMs,
+          ack
         );
         if (!reply) {
-          console.warn(`[turn] assistant timeout topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          requestError(res, 504, "assistant reply timeout");
+          console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
+          const receipt = await runtime.buildPendingTurnResponse({ req, device, topic, transcript: transcript, ack });
+          json(res, receipt.pending ? 202 : 200, receipt);
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6098,16 +6312,17 @@ async function main() {
         throw error;
       }
       if (!uploadedBytes) {
+        await rm(rawUploadPath,{force:true});
         requestError(res, 400, "audio body cannot be empty");
         return;
       }
       if (uploadedBytes > config.maxUploadBytes) {
+        await rm(rawUploadPath,{force:true});
         requestError(res, 413, "upload_too_large");
         return;
       }
       console.info(`[voice-raw] uploaded device=${device.device_id} turn=${turnId || "-"} bytes=${uploadedBytes} sample=${sampleRate} type=${contentType || "-"} reply_audio=${wantsReplyAudio ? "1" : "0"}`);
-      const audioBytesRaw = await readFile(rawUploadPath);
-      await rm(rawUploadPath, { force: true });
+      const audioBytesRaw = await readFile(rawUploadPath).finally(()=>rm(rawUploadPath,{force:true}));
       let audioBytes =
         contentType === "application/octet-stream" || contentType === "audio/pcm" || contentType === "audio/l16"
           ? Buffer.concat([createWavHeader(audioBytesRaw.length, sampleRate), audioBytesRaw])
@@ -6184,24 +6399,13 @@ async function main() {
           ack.seq,
           voiceWaitMs,
           config.omnibotShim.turnPollMs,
-          replyStartedAtMs
+          replyStartedAtMs,
+          ack
         );
         if (!reply) {
-          console.warn(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${voiceWaitMs}`);
-          json(res, 200, {
-            ...(await runtime.buildTurnResponse({
-              req,
-              topic,
-              transcript,
-              replyText: "",
-              includeAudio: false
-            })),
-            status: "pending",
-            pending: true,
-            after_seq: ack.seq,
-            status_text: languageNameForText(transcript) === "Russian" ? "Принято. Ответ появится в Inbox." : "Accepted. Reply will appear in Inbox.",
-            inbox_hint: true
-          });
+          console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${voiceWaitMs}`);
+          // Keep the existing raw-voice HTTP 200 transport contract.
+          json(res, 200, await runtime.buildPendingTurnResponse({ req, device, topic, transcript, ack }));
           return;
         }
         console.info(`[voice-raw] reply device=${device.device_id} turn=${turnId || "-"} topic=${topic.topic_key} seq=${reply.seq}`);
@@ -6676,6 +6880,7 @@ async function main() {
         return;
       }
       const uploadPath = path.join(config.media.tmpDir, `${makeId("upload")}.wav`);
+      try {
       const upload = await readMultipartUpload(req, config, { toFilePath: uploadPath })
         .catch((error) => ({ error }));
       if (upload?.error) {
@@ -6710,6 +6915,9 @@ async function main() {
         bytes: upload.bytes
       });
       json(res, 200, ack);
+      } finally {
+        await rm(uploadPath, { force:true });
+      }
       return;
     }
 
@@ -6776,6 +6984,7 @@ async function main() {
       ws.close();
     }, Number(config.security.wsAuthTimeoutMs) || 5000);
     ws.on("message", (raw) => {
+      if (connected) { ws.close(1008,"connect already completed"); return; }
       let payload;
       try {
         payload = JSON.parse(raw.toString("utf8"));
@@ -7087,7 +7296,7 @@ async function main() {
       return;
     }
     if (url.pathname !== "/api/cardputer/v1/stream") {
-      socket.destroy();
+      socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {

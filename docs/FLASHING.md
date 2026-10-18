@@ -8,6 +8,9 @@ Do not substitute an old 2 MB Plai partition layout or a generic ESP32 target.
 Install Python 3, Git and [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html).
 A virtual environment avoids changing your system Python:
 
+On Debian/Ubuntu, install `python3-venv` first if `venv` reports that `ensurepip`
+is unavailable. Keep the build environment private, separate from the plugin.
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
