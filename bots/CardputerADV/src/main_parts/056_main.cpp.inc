@@ -272,8 +272,11 @@ String settingLabel(uint8_t index) {
         return "Auto focus";
       case 5:
         return "Metronome";
-      case 6:
-        return "BPM";
+      case 6: return "BPM";
+      case 7: return "SmartLamp link";
+      case 8: return "Focus preset";
+      case 9: return "Break preset";
+      case 10: return "Guided audio";
       default:
         return "-";
     }

@@ -147,6 +147,7 @@ void setUiMode(UiMode mode){gUiMode=mode;}void logf(const char*,...){}
 '''
 notice+='\n'+function('065_main.cpp.inc','void dismissVoiceNotice()')
 notice+='\n'+function('065_main.cpp.inc','void beginVoiceRequestUi()')
+notice+='\nstruct{void invalidate(){}}gUiFramePolicy;\n'
 notice+='\n'+function('065_main.cpp.inc','void showVoiceNotice(')
 notice+='\n'+function('065_main.cpp.inc','void showVoiceRequestError(')
 notice+='\n'+function('065_main.cpp.inc','bool handleVoiceRequestEscape()')
@@ -265,7 +266,8 @@ canvas=r'''
 #include <cstdint>
 bool gCanvasSpriteActive=false;uint32_t gLastRenderMs=5;bool allocation=false;int configured=0;
 namespace fonts {int Font2;}
-struct {void setColorDepth(int){};void* createSprite(int,int){return allocation?(void*)1:nullptr;}
+bool psramFound(){return false;}
+struct {void setPsram(bool){};void setColorDepth(int){};void* createSprite(int,int){return allocation?(void*)1:nullptr;}
  void setTextWrap(bool){};void setFont(int*){};void setTextSize(int){};} gCanvasBuffer;
 struct {int getFreeHeap(){return 10000;}} ESP;
 constexpr int MALLOC_CAP_8BIT=0;int heap_caps_get_largest_free_block(int){return 4000;}

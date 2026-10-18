@@ -43,6 +43,7 @@ String gVoiceRequestTranscript,gVoiceNoticeText,gQueuedVoiceReplySpeech,gLastHtt
 String userText,replyText;int errors=0,actions=0,tones=0;
 unsigned millis(){return 1000;}void markUserActivity(){}void logf(const char*,...){}
 bool gScreensaverActive=false,gScreensaverDimmed=false,gScreenOffActive=false,gCanvasSpriteActive=true;
+struct{void invalidate(){}}gUiFramePolicy;
 unsigned gLastRenderMs=0;bool painted=false;void render(){painted=true;}
 bool handleScreensaverWake(){return false;}
 String cleanReplyForDevice(String s){return s;}void removeLastUtf8Char(String& s){s.pop_back();}

@@ -1,3 +1,14 @@
+bool handleFocusShortcut(char lowerKey,const Keyboard_Class::KeysState& keys) {
+  if (keys.ctrl && lowerKey=='t' && !keys.alt && !keys.fn && !gLauncherVisible &&
+      (gUiMode==UiMode::Home || gUiMode==UiMode::Clock || gUiMode==UiMode::Face || gUiMode==UiMode::Focus)) {
+    if(gRecording || gSubmitting || gRealtimeActive || gRealtimeExclusiveMode) {setStatus("Finish voice first",900);return true;}
+    if(gFocus.state==FocusState::Stopped || gFocus.state==FocusState::Paused) focusStartOrResume();
+    setUiMode(UiMode::Focus);
+    return true;
+  }
+  return false;
+}
+
 void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
   char lowerKey = static_cast<char>(tolower(static_cast<unsigned char>(key)));
   if (gUiMode==UiMode::BrainFlow &&
@@ -10,6 +21,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
+  if (handleFocusShortcut(lowerKey,keys)) return;
   if (handleVoiceNoticeKey(key, keys)) return;
   if (handleHomeUpdateKey(key, keys)) return;
   if (handleAssistantMenuKey(key,keys)) return;
@@ -20,6 +32,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     else if (lowerKey=='c') runChatCommand(1);
     else if (lowerKey=='e') runChatCommand(2);
     else if (lowerKey=='f') runChatCommand(3);
+    else if (lowerKey=='b') runChatCommand(6);
     else if (key=='[') runChatCommand(4);
     else if (key==']') runChatCommand(5);
     return;

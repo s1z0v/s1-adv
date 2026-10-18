@@ -211,6 +211,9 @@ void renderEyeSkinRegion(int16_t x,int16_t y,int16_t w,int16_t h) {
 }
 
 void renderUncannyEyesUi() {
+  // Reset a compact chat viewport before painting a complete eye frame.
+  gCanvas.clearClipRect();
+  gEyeSkinViewport={0,0,240,135};
   uint32_t now = millis();
   EyeSkinPalette palette = eyeSkinPalette(gDeviceSettings.eyeSkin);
   drawEyeSkinBackdrop(gDeviceSettings.eyeSkin, palette);

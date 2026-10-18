@@ -11,6 +11,20 @@ bool gBrainFinishSoundPlayed = false;
 bool gBrainStartSoundPending = false;
 uint32_t gBrainStartSoundAtMs = 0;
 
+bool appAllowsBackgroundNetwork() {
+  switch(gUiMode) {
+    case UiMode::Nes: // The emulator owns RAM, audio and Wi-Fi until it exits.
+    case UiMode::Sonar:
+    case UiMode::RfidLab:
+    case UiMode::IrRemote: return false;
+    case UiMode::Tetris: return !gTetrisStarted || gTetrisPaused || gTetrisGameOver;
+    case UiMode::KeyRush: return !gKeyRush.running;
+    case UiMode::BrainFlow: return gBrainFlow.phase!=brainflow::Phase::Playing &&
+                                  gBrainFlow.phase!=brainflow::Phase::Feedback;
+    default: return true;
+  }
+}
+
 uint16_t brainAccent(uint8_t game) {
   const uint16_t colors[brainflow::kGameCount] = {
       rgb565_local(47,227,255), rgb565_local(157,102,255),

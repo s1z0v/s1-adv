@@ -25,7 +25,9 @@ namespace fonts {int Font0,Font2;}
 uint32_t millis(){return 100;}
 uint16_t rgb565_local(uint8_t r,uint8_t g,uint8_t b){return ((r>>3)<<11)|((g>>2)<<5)|(b>>3);}
 struct {bool requested=false;uint8_t level=0;uint8_t visibleLevel(bool on,uint32_t){requested=on;return on?level:0;}} gMicInputMeter;
-std::vector<std::string> labels;std::vector<int> widths;int base=0,bars=0,cursorX=0,cursorY=0;
+std::vector<std::string> labels;std::vector<int> widths;int base=0,classic=0,bars=0,cursorX=0,cursorY=0;
+bool gRealtimeClassicView=false,gLauncherVisible=false,gDebugOverlayVisible=false;
+void renderAssistantPulseUi(){++classic;}
 void renderUncannyEyesUi(){++base;}
 struct {
  void setFont(int*){}void setTextSize(int){}int textWidth(const char* s){return strlen(s)*6;}
@@ -38,7 +40,9 @@ struct {
 String fitCurrentFontToWidth(const String& s,int w){return s.substr(0,w/6);}
 '''
 code+='\n'+function('const char* realtimeStageLabel()')
+code+='\n'+function('void renderRealtimeBadges()')
 code+='\n'+function('void renderRealtimeEyesUi()')
+code+='\n'+function('void renderRealtimeUi()')
 code+=r'''
 void check(const char* stage,bool mic){
  labels.clear();widths.clear();base=bars=0;renderRealtimeEyesUi();assert(base==1&&gMicInputMeter.requested==mic);
@@ -54,6 +58,12 @@ int main(){
  gRealtimeRecording=false;gRealtimeAwaiting=true;check("THINK",false);gRealtimeAwaiting=false;
  gPlaybackActive=true;check("SPEAK",false);gPlaybackActive=false;
  gRealtimeRestartAfterPlayback=true;check("PREPARE",false);
+ // Changing presentation never touches connection/mic/audio flags.
+ for(int i=0;i<10;++i){
+  gRealtimeClassicView=i%2;labels.clear();base=classic=0;renderRealtimeUi();
+  assert(base==(!gRealtimeClassicView)&&classic==gRealtimeClassicView);
+  assert(gRealtimeActive&&gRealtimeConnected&&gRealtimeRestartAfterPlayback);
+ }
  gRealtimeUiError="Connection lost. Ctrl+R retry";check("ERROR",false);assert(labels.size()==3);
 }
 '''

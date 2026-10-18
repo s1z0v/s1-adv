@@ -13,7 +13,8 @@ code=r'''
 #include <cstdint>
 namespace lgfx {struct LGFXBase{int draws=0;void drawFastHLine(int,int,int,uint16_t){++draws;}};}
 struct Sprite:lgfx::LGFXBase{int pushes=0;void pushSprite(int,int){++pushes;}}gCanvasBuffer;
-struct{lgfx::LGFXBase Display;}M5Cardputer;
+struct Display:lgfx::LGFXBase{int waits=0;void waitDMA(){++waits;}};struct{struct Display Display;}M5Cardputer;
+struct{void presented(uint32_t){}}gUiFramePolicy;uint32_t uiSceneKey(){return 1;}
 bool gCanvasSpriteActive=true,gInboxHttpBusy=false;
 unsigned millis(){return 1000;}uint16_t rgb565_local(int,int,int){return 1;}
 '''+function('lgfx::LGFXBase& uiCanvas()')+function('void presentUiFrame()')+r'''

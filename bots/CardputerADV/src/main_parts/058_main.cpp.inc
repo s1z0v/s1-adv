@@ -16,7 +16,7 @@ void renderModeFooter(const String& left, const String& right = "") {
 }
 
 void renderFaceOnlyUi() {
-  if (gRealtimeScreenVisible) renderRealtimeEyesUi();
+  if (gRealtimeScreenVisible) renderRealtimeUi();
   else renderUncannyEyesUi();
   if (!gScreensaverActive && !gRealtimeScreenVisible) {
     uint16_t bg=rgb565_local(3,7,13);
@@ -26,8 +26,10 @@ void renderFaceOnlyUi() {
     gCanvas.setCursor(8,128);
     gCanvas.print(gRealtimeActive?"LIVE   Tab menu  Esc end":"Tab menu  Ctrl+K commands");
   }
-  renderLauncherOverlay();
-  renderDebugOverlay();
+  if (!gRealtimeScreenVisible || !gRealtimeClassicView) {
+    renderLauncherOverlay();
+    renderDebugOverlay();
+  }
 }
 
 void drawPetStatBar(int16_t x, int16_t y, int16_t w, const char* label, uint8_t value, uint16_t color, uint16_t bg) {

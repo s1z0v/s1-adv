@@ -35,6 +35,7 @@ def environment():
         'DEFAULT_HUB_HOST': '', 'DEFAULT_HUB_PORT': '443',
         'DEFAULT_DEVICE_ID': 'cardputer-adv-01', 'DEFAULT_DEVICE_TOKEN': '',
         'DEFAULT_TOPIC_KEY': 'cardputer:main',
+        'DEFAULT_FOCUS_LAMP_ENABLED': '0',
         'BUILD_TIME': datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'),
     }
     for key, value in defaults.items():
@@ -42,6 +43,8 @@ def environment():
     for key in defaults:
         if any(c in env[key] for c in ('"', '\\', '\n', '\r')):
             raise SystemExit(f'{key} contains characters unsupported by compiler flags. Use device setup for credentials.')
+    if env['DEFAULT_FOCUS_LAMP_ENABLED'] not in ('0', '1'):
+        raise SystemExit('DEFAULT_FOCUS_LAMP_ENABLED must be 0 or 1.')
     if not env['DEFAULT_TOPIC_KEY'] or not env['DEFAULT_DEVICE_ID']:
         raise SystemExit('Device ID and topic key must be nonempty.')
     try:

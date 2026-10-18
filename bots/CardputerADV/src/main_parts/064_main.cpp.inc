@@ -134,6 +134,7 @@ void serviceRealtimeDialCompletion() {
 bool handleAssistantMenuKey(char key,const Keyboard_Class::KeysState& keys) {
   if (!isAssistantUi()) return false;
   char lower=static_cast<char>(tolower(static_cast<unsigned char>(key)));
+  if (keys.ctrl && lower=='b') {toggleRealtimeView();return true;}
   if (keys.ctrl && lower=='k') {
     gVoiceNoticeVisible=false;
     gChatCommandsVisible=!gChatCommandsVisible;
@@ -178,8 +179,7 @@ const char* realtimeStageLabel() {
   return "READY";
 }
 
-void renderRealtimeEyesUi() {
-  renderUncannyEyesUi();
+void renderRealtimeBadges() {
   auto& d=gCanvas;
   const bool error=!gRealtimeUiError.isEmpty();
   const bool micOn=gRealtimeRecording && gRealtimeActive && gRealtimeConnected && !error;
@@ -213,6 +213,26 @@ void renderRealtimeEyesUi() {
   d.setFont(&fonts::Font2);
 }
 
+void renderRealtimeEyesUi() {
+  renderUncannyEyesUi();
+  renderRealtimeBadges();
+}
+
+void renderRealtimeUi() {
+  // One renderer shares the existing transport, microphone and playback state.
+  if (gRealtimeClassicView) {
+    renderAssistantPulseUi();
+    if (!gLauncherVisible && !gDebugOverlayVisible) renderRealtimeBadges();
+  } else renderRealtimeEyesUi();
+}
+
+void toggleRealtimeView() {
+  gRealtimeClassicView=!gRealtimeClassicView;
+  gUiFramePolicy.invalidate();
+  gLastRenderMs=0;
+  setStatus(gRealtimeClassicView?"Realtime view: Classic":"Realtime view: Eyes",900);
+}
+
 void servicePendingRealtimeStart() {
   if (!gPendingRealtimeStart || gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy || gRealtimeDialBusy || gTextTurnTaskHandle || gCompletedTextTurn ||
       gSubmitting || !gPendingTextTurns.empty()) return;
@@ -223,6 +243,7 @@ void servicePendingRealtimeStart() {
 void runChatCommand(uint8_t index) {
   gChatCommandsVisible = false;
   gLauncherVisible = false;
+  if (index==6) {toggleRealtimeView();return;}
   if (index<=3 && gRecording) cancelRecordingDiscard();
   if (index == 0) { toggleRealtimeVoice(); return; }
   if (index <= 3) {
@@ -247,13 +268,14 @@ void renderChatCommandsOverlay() {
   d.drawRoundRect(16,12,208,113,6,accent);
   d.setFont(&fonts::Font0); d.setTextSize(1);
   d.setTextColor(accent,bg); d.setCursor(24,18); d.print("COMMANDS        Esc close");
-  static const char* labels[] = {"R  Realtime / large eyes", "C  Full Chat", "E  Chat Eyes",
-                                "F  Big Eyes", "[  Previous animal", "]  Next animal"};
-  for (uint8_t i=0;i<6;++i) {
+  const char* labels[] = {"R  Realtime", "C  Full Chat", "E  Chat Eyes",
+                         "F  Big Eyes", "[  Previous animal", "]  Next animal",
+                         gRealtimeClassicView?"B  RT view: Classic (Ctrl+B)":"B  RT view: Eyes (Ctrl+B)"};
+  for (uint8_t i=0;i<kChatCommandCount;++i) {
     uint16_t row = i == gChatCommandSelection ? rgb565_local(18,53,59) : bg;
-    d.fillRoundRect(21,30+i*15,198,14,3,row);
+    d.fillRoundRect(21,30+i*13,198,12,3,row);
     d.setTextColor(i == gChatCommandSelection ? TFT_WHITE : rgb565_local(160,180,190),row);
-    d.setCursor(26,33+i*15); d.print(labels[i]);
+    d.setCursor(26,33+i*13); d.print(labels[i]);
   }
 }
 

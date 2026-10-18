@@ -13,8 +13,11 @@ String settingValue(uint8_t index) {
         return gFocusSettings.autoStart ? "on" : "off";
       case 5:
         return gFocusSettings.metronome ? "on" : "off";
-      case 6:
-        return String(gFocusSettings.bpm);
+      case 6: return String(gFocusSettings.bpm);
+      case 7: return gFocusSettings.lampSync?"on":"off";
+      case 8: return gFocusSettings.lampFocusPreset<0?"not set":"#"+String(gFocusSettings.lampFocusPreset+1);
+      case 9: return gFocusSettings.lampBreakPreset<0?"not set":"#"+String(gFocusSettings.lampBreakPreset+1);
+      case 10: return gFocusSettings.guidedAudio?"on":"off";
       default:
         return "-";
     }
@@ -94,7 +97,7 @@ void renderSettingsUi() {
     d.print(fittedValue);
   }
   d.setFont(&fonts::Font2);
-  drawTinyFooter(0x0841, TFT_LIGHTGREY, "< > pick  +/- edit  Space toggle", 16, 116, 208);
+  drawTinyFooter(0x0841, TFT_LIGHTGREY, "^v pick  <> edit  Enter OK  Esc", 16, 116, 208);
   renderLauncherOverlay();
   renderDebugOverlay();
 }

@@ -6,7 +6,11 @@ void loadFocusSettings() {
   gFocusSettings.cyclesPerRound = static_cast<uint8_t>(gPrefs.getUChar("cycles", kFocusDefaultCycles));
   gFocusSettings.autoStart = gPrefs.getBool("auto", false);
   gFocusSettings.metronome = gPrefs.getBool("metro", false);
+  gFocusSettings.guidedAudio = gPrefs.getBool("guided_audio", true);
   gFocusSettings.bpm = static_cast<uint16_t>(gPrefs.getUShort("bpm", 60));
+  gFocusSettings.lampSync = gPrefs.getBool("lamp_link", DEFAULT_FOCUS_LAMP_ENABLED != 0);
+  gFocusSettings.lampFocusPreset = static_cast<int8_t>(clampValue<int>(gPrefs.getChar("lamp_focus", 1), -1, 39));
+  gFocusSettings.lampBreakPreset = static_cast<int8_t>(clampValue<int>(gPrefs.getChar("lamp_break", 5), -1, 39));
   gPrefs.end();
 
   gFocusSettings.focusSec = clampValue<uint32_t>(gFocusSettings.focusSec, kFocusMinDurationSec, kFocusMaxDurationSec);
@@ -20,17 +24,22 @@ void loadFocusSettings() {
 
 void saveFocusSettings() {
   gPrefs.begin(kPrefsFocusNs, false);
+  gPrefs.putBool("lamp_link", gFocusSettings.lampSync);
+  gPrefs.putChar("lamp_focus", gFocusSettings.lampFocusPreset);
+  gPrefs.putChar("lamp_break", gFocusSettings.lampBreakPreset);
   gPrefs.putUInt("focus", gFocusSettings.focusSec);
   gPrefs.putUInt("short", gFocusSettings.shortBreakSec);
   gPrefs.putUInt("long", gFocusSettings.longBreakSec);
   gPrefs.putUChar("cycles", gFocusSettings.cyclesPerRound);
   gPrefs.putBool("auto", gFocusSettings.autoStart);
   gPrefs.putBool("metro", gFocusSettings.metronome);
+  gPrefs.putBool("guided_audio", gFocusSettings.guidedAudio);
   gPrefs.putUShort("bpm", gFocusSettings.bpm);
   gPrefs.end();
 }
 
 void focusEnterState(FocusState state, bool resetTimer = true) {
+  gFocusCompletionTonePending=false;
   gFocus.state = state;
   if (state != FocusState::Paused && state != FocusState::Stopped) {
     gFocus.stateBeforePause = state;
@@ -42,16 +51,9 @@ void focusEnterState(FocusState state, bool resetTimer = true) {
   gFocus.lastTickMs = millis();
   gFocus.nextMetronomeMs = millis() + 100;
   setStatus(String("Focus ") + focusStateName(state), 1000);
-  if (!playFocusCue(state)) {
-    if (state == FocusState::Focus) {
-      focusTone(1047, 120);
-    } else if (state == FocusState::Reflect) {
-      focusTone(659, 160);
-    } else if (state == FocusState::ShortBreak || state == FocusState::LongBreak) {
-      focusTone(880, 120);
-    }
-  }
-  logf("[FOCUS] state=%s remain=%u cycle=%u/%u",
+  gPendingFocusCue = state;
+  gPendingFocusCueAtMs = millis();
+  Serial.printf("[FOCUS] state=%s remain=%u cycle=%u/%u\n",
        focusStateName(state),
        static_cast<unsigned>(gFocus.remainingSec),
        static_cast<unsigned>(gFocus.cycle),
@@ -59,6 +61,7 @@ void focusEnterState(FocusState state, bool resetTimer = true) {
 }
 
 void focusStartOrResume() {
+  if (gFocus.state == FocusState::Stopped || gFocus.state == FocusState::Paused) gFocusLampLink.allow();
   if (gFocus.state == FocusState::Paused) {
     focusEnterState(gFocus.stateBeforePause, false);
     return;
@@ -74,12 +77,16 @@ void focusStartOrResume() {
   if (focusStateRuns(gFocus.state)) {
     gFocus.stateBeforePause = gFocus.state;
     gFocus.state = FocusState::Paused;
+    gFocusCompletionTonePending=false;
+    gPendingFocusCue = FocusState::Stopped;
     setStatus("Focus paused", 1000);
     focusTone(523, 90);
   }
 }
 
 void focusReset() {
+  gFocusCompletionTonePending=false;
+  gPendingFocusCue = FocusState::Stopped;
   gFocus.state = FocusState::Stopped;
   gFocus.stateBeforePause = FocusState::Focus;
   gFocus.remainingSec = gFocusSettings.focusSec;
@@ -113,6 +120,8 @@ void focusAdvance() {
       focusEnterState(FocusState::Focus);
     } else {
       gFocus.state = FocusState::Stopped;
+      gPendingFocusCue = FocusState::Stopped;
+      gFocusCompletionTonePending=true;gPendingFocusCueAtMs=millis();
       gFocus.remainingSec = gFocusSettings.focusSec;
       gFocus.sessionTotalSec = gFocusSettings.focusSec;
       setStatus("Next focus ready", 1200);
@@ -129,6 +138,8 @@ void focusAdvance() {
       focusEnterState(FocusState::Focus);
     } else {
       gFocus.state = FocusState::Stopped;
+      gPendingFocusCue = FocusState::Stopped;
+      gFocusCompletionTonePending=true;gPendingFocusCueAtMs=millis();
       gFocus.remainingSec = gFocusSettings.focusSec;
       gFocus.sessionTotalSec = gFocusSettings.focusSec;
       setStatus("Round complete", 1400);
@@ -224,4 +235,21 @@ const char* petMoodName(PetMood mood) {
     default:
       return "CALM";
   }
+}
+
+void toggleFocusGuidedAudio() {
+  gFocusSettings.guidedAudio=!gFocusSettings.guidedAudio;
+  if(!gFocusSettings.guidedAudio && isPomodoroMeditationAssetPath(gPlaybackStreamPath)) {
+    stopPlaybackStream();gPlaybackActive=false;
+  }
+}
+
+void serviceFocusCue() {
+  if (gPendingFocusCue == FocusState::Stopped && !gFocusCompletionTonePending) return;
+  if (millis()-gPendingFocusCueAtMs > 15000U) {gPendingFocusCue=FocusState::Stopped;gFocusCompletionTonePending=false;return;}
+  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) return;
+  if(gFocusCompletionTonePending){gFocusCompletionTonePending=false;focusTone(880,180);return;}
+  const FocusState state=gPendingFocusCue;
+  gPendingFocusCue=FocusState::Stopped;
+  if (!playFocusCue(state)) focusTone(state==FocusState::Focus?1047:state==FocusState::Reflect?659:880,120);
 }

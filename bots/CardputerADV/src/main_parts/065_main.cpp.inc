@@ -16,6 +16,7 @@ void endVoiceWifiPerformance() {
   }
 }
 void showVoiceNotice(const String& text, bool pending) {
+  gUiFramePolicy.invalidate();
   while(gVoiceRequestTranscript.length()>512) removeLastUtf8Char(gVoiceRequestTranscript);
   gVoiceNoticeText = cleanReplyForDevice(text);
   while (gVoiceNoticeText.length() > 1200) removeLastUtf8Char(gVoiceNoticeText);

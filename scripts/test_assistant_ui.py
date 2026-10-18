@@ -44,6 +44,8 @@ struct Keyboard_Class {struct KeysState {bool ctrl=false,tab=false;};};
 int launcherMoves=0;
 void moveLauncherSubSelection(int){++launcherMoves;}
 uint8_t gChatCommandSelection=0;
+bool gRealtimeClassicView=false;uint32_t gLastRenderMs=0;
+struct{void invalidate(){}}gUiFramePolicy;
 constexpr int kEyeSkinCount=6;
 struct {uint8_t eyeSkin=0;} gDeviceSettings;
 int started=0,closed=0,saved=0;
@@ -68,6 +70,7 @@ bool gCtrlSoloHeld=false,gCtrlSoloCandidate=false;uint32_t gLastCtrlTapMs=0;
 struct{bool helpVisible=false;}gFocus;String gQueuedVoiceReplySpeech,gNoteInputBuffer;
 enum class NotesMode{List,Edit};NotesMode gNotesMode=NotesMode::List;
 int gChatScrollOffset=0,gLogScrollOffset=0,gNoteScrollOffset=0,gNoteListScrollOffset=0;
+bool returnToSettingsHub(){return false;}
 bool handleVoiceRequestEscape(){return false;}void dismissVoiceNotice(){gVoiceNoticeVisible=false;}
 void dismissAlarm(const char*){gAlarmRinging=false;}void stopPlaybackStream(){}
 enum class FaceMode{Idle};void setFaceMode(FaceMode){}void setKeyDiag(const char*){}
@@ -76,6 +79,7 @@ void appendRuntimeLog(const char*,const char*,bool){}
 code+='\n'+function('047_main.cpp.inc','bool handleGlobalEscape()')
 code+='\n'+function('064_main.cpp.inc','bool isAssistantUi()')
 code+='\n'+function('064_main.cpp.inc','String makeRealtimeUpgradeRequest(')
+code+='\n'+function('064_main.cpp.inc','void toggleRealtimeView()')
 code+='\n'+function('064_main.cpp.inc','bool handleAssistantMenuKey(')
 code+='\n'+function('064_main.cpp.inc','const char* realtimeStageLabel()')
 code+='\n'+function('064_main.cpp.inc','void servicePendingRealtimeStart()')
@@ -105,6 +109,13 @@ int main(){
  assert(handleAssistantMenuKey('l',keys) && !gLauncherVisible);
  gUiMode=UiMode::Nes;assert(!handleAssistantMenuKey('k',keys));
  gUiMode=UiMode::Home;gRealtimeRecording=false;
+ // Ctrl+B and the menu change only presentation, keeping one live session.
+ gUiMode=UiMode::Face;gRealtimeActive=true;gRealtimeRecording=true;
+ const int beforeStarts=started,beforeCloses=closed;
+ assert(handleAssistantMenuKey('b',keys)&&gRealtimeClassicView);
+ assert(gRealtimeActive&&gRealtimeRecording&&started==beforeStarts&&closed==beforeCloses);
+ runChatCommand(6);assert(!gRealtimeClassicView&&gRealtimeActive&&gRealtimeRecording);
+ gRealtimeActive=false;gRealtimeRecording=false;
  // Labels follow the actual transport/mic flags, including teardown errors.
  assert(std::string(realtimeStageLabel())=="OFF");
  gPendingRealtimeStart=true;assert(std::string(realtimeStageLabel())=="WAIT");

@@ -90,6 +90,7 @@
   }
   renderChatCommandsOverlay();
   renderVoiceNotice();
+  renderStatusBar();
   presentUiFrame();
   uint32_t renderCostMs = millis() - renderStartMs;
   if (renderCostMs >= 45U && millis() - gLastUiSlowLogMs >= 2000U) {
@@ -201,6 +202,7 @@ void setup() {
   M5Cardputer.Display.setFont(&fonts::Font2);
   M5Cardputer.Display.setTextSize(1);
   renderBootSplash("Display");
+  gCanvasBuffer.setPsram(psramFound());
   gCanvasBuffer.setColorDepth(8);
   gCanvasSpriteActive = gCanvasBuffer.createSprite(240, 135) != nullptr;
   gCanvas.setTextWrap(false);
@@ -326,6 +328,7 @@ void loop() {
   handleHostSerialInput();
   serviceNesTransfer();
   serviceRealtimeDialCompletion();
+  updateFocusTimer();
   if (gRealtimeExclusiveMode) {
     serviceRealtimeExclusiveLoop(loopStartMs);
     return;
@@ -366,13 +369,14 @@ void loop() {
   serviceOtaBootGuard();
   syncClockFromNtp(false);
   updateBatterySnapshot();
-  updateFocusTimer();
+  serviceFocusCue();
   serviceFocusMetronome();
   serviceAlarm();
   serviceKeyRush();
   serviceBrainFlow();
   serviceTetris();
   serviceSmartLamp();
+  serviceFocusLamp();
   serviceSonar();
   if (gUiMode == UiMode::IrRemote || gIrRemoteLearning) {
     serviceIrRemote();

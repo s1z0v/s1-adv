@@ -493,6 +493,8 @@ void markPomodoroMeditationAssetsSynced() {
 }
 
 void maybeSyncPomodoroMeditationAssetsOnBoot() {
+  if (!gFocusSettings.guidedAudio) return;
+  if (!gSdReady) {setStatus("Focus audio needs SD",1600);return;}
   if (strcmp(kAppVersion, kPomodoroAssetSyncVersion) != 0 || !gWifiReady || gHubHost.isEmpty()) {
     return;
   }
@@ -514,7 +516,7 @@ void maybeSyncPomodoroMeditationAssetsOnBoot() {
   bool ok = fetchRemoteAssetManifest() && syncAssetsFromManifest(true) && pomodoroMeditationAssetsPresent();
   if (ok) {
     markPomodoroMeditationAssetsSynced();
-    pushSystem("Pomodoro audio synced: RU/EN/ES");
+    pushSystem("Pomodoro focus audio ready");
     setStatus("Pomodoro audio synced", 1600);
   } else {
     appendRuntimeLog("ASSET", "pomodoro meditations sync incomplete", true);

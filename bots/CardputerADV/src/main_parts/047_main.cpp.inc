@@ -14,10 +14,10 @@ uint8_t currentSettingsItemCount() {
 
 const char* currentSettingsTitle() {
   if (gUiMode == UiMode::FocusSettings) {
-    return "Pomodoro Settings";
+    return "Focus Settings";
   }
   if (gUiMode == UiMode::ScreenSettings) {
-    return "Screensaver";
+    return "Display Settings";
   }
   return "Device Settings";
 }
@@ -47,9 +47,29 @@ void cycleAudioLanguage(int delta) {
   gDeviceSettings.audioLanguage = langs[next];
 }
 
+bool returnToSettingsHub() {
+  if (!isSettingsMode(gUiMode) || gLauncherVisible) return false;
+  const UiMode previous=gUiMode;
+  setUiMode(UiMode::Home);
+  syncLauncherToMode(previous);
+  gLauncherVisible=true;
+  setStatus("Settings",700);
+  return true;
+}
+
+bool handleSettingsNavigation(bool up,bool down,bool left,bool right) {
+  if(!isSettingsMode(gUiMode) || gLauncherVisible) return false;
+  if(up || down) {
+    const int count=currentSettingsItemCount();
+    gSelectedSetting=(gSelectedSetting+count+(up?-1:1))%count;
+  } else if(left || right) adjustCurrentSetting(left?-1:1);
+  return up || down || left || right;
+}
+
 void adjustCurrentSetting(int delta) {
   if (gUiMode == UiMode::FocusSettings) {
     switch (gSelectedSetting) {
+      case 4: case 5: toggleCurrentSetting(); return;
       case 0:
         gFocusSettings.focusSec = secondsWithDelta(gFocusSettings.focusSec, delta * 5L * 60L,
                                                    kFocusMinDurationSec, kFocusMaxDurationSec);
@@ -65,6 +85,17 @@ void adjustCurrentSetting(int delta) {
       case 3:
         gFocusSettings.cyclesPerRound = static_cast<uint8_t>(clampValue<int>(gFocusSettings.cyclesPerRound + delta, 1, 9));
         break;
+      case 10: toggleFocusGuidedAudio(); break;
+      case 7:
+        gFocusSettings.lampSync=!gFocusSettings.lampSync;
+        if(gFocusSettings.lampSync)gFocusLampLink.allow();
+        break;
+      case 8:
+        gFocusSettings.lampFocusPreset=static_cast<int8_t>(clampValue<int>(gFocusSettings.lampFocusPreset+delta,-1,39));
+        break;
+      case 9:
+        gFocusSettings.lampBreakPreset=static_cast<int8_t>(clampValue<int>(gFocusSettings.lampBreakPreset+delta,-1,39));
+        break;
       case 6:
         gFocusSettings.bpm = static_cast<uint16_t>(clampValue<int>(gFocusSettings.bpm + delta * 5, kFocusMinBpm, kFocusMaxBpm));
         break;
@@ -77,6 +108,7 @@ void adjustCurrentSetting(int delta) {
 
   if (gUiMode == UiMode::ScreenSettings) {
     switch (gSelectedSetting) {
+      case 1: case 7: case 9: toggleCurrentSetting(); return;
       case 0:
         gDeviceSettings.displayBrightnessPct = static_cast<uint8_t>(clampValue<int>(gDeviceSettings.displayBrightnessPct + delta * 5, 0, 100));
         applyDisplayBrightness();
@@ -111,6 +143,7 @@ void adjustCurrentSetting(int delta) {
   }
 
   switch (gSelectedSetting) {
+    case 2: case 3: case 6: toggleCurrentSetting(); return;
     case 0:
       cycleAudioLanguage(delta >= 0 ? 1 : -1);
       break;
@@ -139,6 +172,13 @@ void toggleCurrentSetting() {
       case 4:
         gFocusSettings.autoStart = !gFocusSettings.autoStart;
         break;
+      case 7:
+        gFocusSettings.lampSync=!gFocusSettings.lampSync;
+        if(gFocusSettings.lampSync)gFocusLampLink.allow();
+        break;
+      case 10: toggleFocusGuidedAudio(); break;
+      case 8: bindFocusLampPreset(false); break;
+      case 9: bindFocusLampPreset(true); break;
       case 5:
         gFocusSettings.metronome = !gFocusSettings.metronome;
         break;
@@ -2023,6 +2063,7 @@ bool handleGlobalEscape() {
   gPendingOtaCheckAction = gPendingOtaApplyAction = false;
   if (gInboxHttpBusy) gInboxCancelRequested = true;
   if(handleVoiceRequestEscape()) return true;
+  if(returnToSettingsHub()) return true;
   if (gChatCommandsVisible) { gChatCommandsVisible=false; return true; }
   if (gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty()) dismissVoiceNotice();
   gPendingRealtimeStart=false;

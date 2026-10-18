@@ -4,8 +4,8 @@
     }
   } else if (gChatCommandsVisible) {
     if (tabDown) handleTypingKey('\t',keys);
-    else if (upDown || leftDown) gChatCommandSelection=(gChatCommandSelection+5)%6;
-    else if (downDown || rightDown) gChatCommandSelection=(gChatCommandSelection+1)%6;
+    else if (upDown || leftDown) gChatCommandSelection=(gChatCommandSelection+kChatCommandCount-1)%kChatCommandCount;
+    else if (downDown || rightDown) gChatCommandSelection=(gChatCommandSelection+1)%kChatCommandCount;
     else if (enterDown) runChatCommand(gChatCommandSelection);
     else if (charDown) handleTypingKey(curWordChar,keys);
   } else if (isAssistantUi() && !gLauncherVisible && keys.ctrl && (leftDown || rightDown)) {
@@ -37,6 +37,8 @@
     handleTypingKey('a', keys);
   } else if (gUiMode == UiMode::SmartLamp && rightDown) {
     handleTypingKey('d', keys);
+  } else if (isSettingsMode(gUiMode) && (upDown || downDown || leftDown || rightDown)) {
+    handleSettingsNavigation(upDown,downDown,leftDown,rightDown);
   } else if (!gLauncherVisible && gPlaybackActive && upDown) {
     adjustSpeakerVolume(24);
     setKeyDiag("vol:up");
@@ -65,10 +67,7 @@
     handleTypingKey(',', keys);
   } else if (gUiMode == UiMode::IrRemote && (rightDown || downDown)) {
     handleTypingKey('.', keys);
-  } else if (isSettingsMode(gUiMode) && (leftDown || upDown)) {
-    handleTypingKey(',', keys);
-  } else if (isSettingsMode(gUiMode) && (rightDown || downDown)) {
-    handleTypingKey('.', keys);
+
   } else if (gUiMode == UiMode::Tetris && leftDown) {
     handleTypingKey(',', keys);
   } else if (gUiMode == UiMode::Tetris && rightDown) {

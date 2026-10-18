@@ -11,6 +11,13 @@ struct FocusRuntime {
   bool helpVisible = false;
 };
 
+focus_lamp::Link gFocusLampLink;
+IPAddress gFocusLampIp;
+FocusState gPendingFocusCue = FocusState::Stopped;
+bool gFocusCompletionTonePending=false;
+uint32_t gPendingFocusCueAtMs = 0;
+ui_frame::Policy gUiFramePolicy;
+
 struct PetEnvironment {
   int16_t netCount = 0;
   int16_t hiddenCount = 0;
@@ -144,19 +151,20 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
     {"Media", "WAV", "Listen and capture", rgb565_local(88, 240, 141), 5,
      {{"Library", UiMode::Library}, {"Folders", UiMode::AudioFolders}, {"Voice Notes", UiMode::Voice},
       {"Notes", UiMode::Notes}, {"Assets", UiMode::Assets}}},
-    {"Focus", "25", "Time and attention", rgb565_local(246, 194, 74), 5,
-     {{"Focus Space", UiMode::Focus}, {"Pomodoro", UiMode::FocusSettings}, {"Alarm", UiMode::Alarm},
+    {"Focus", "25", "Time and attention", rgb565_local(246, 194, 74), 4,
+     {{"Focus Space", UiMode::Focus}, {"Alarm", UiMode::Alarm},
       {"Stopwatch", UiMode::Stopwatch}, {"Calendar", UiMode::Calendar}}},
     {"Tools", "UTIL", "Local hardware tools", rgb565_local(255, 150, 80), 5,
      {{"Calculator", UiMode::Calculator}, {"RFID Lab", UiMode::RfidLab},
       {"IR Remote", UiMode::IrRemote}, {"smartLamp", UiMode::SmartLamp}, {"Sonar", UiMode::Sonar}}},
     {"Games", "PLAY", "Keyboard and brain games", rgb565_local(157, 102, 255), 4,
      {{"KeyRush", UiMode::KeyRush}, {"Tetris", UiMode::Tetris}, {"BrainFlow", UiMode::BrainFlow}, {"NES", UiMode::Nes}}},
-    {"Device", "DEV", "Power and display", rgb565_local(203, 216, 226), 4,
-     {{"Clock", UiMode::Clock}, {"Battery", UiMode::Battery}, {"Settings", UiMode::Settings},
-      {"Display", UiMode::ScreenSettings}}},
-    {"System", "SYS", "Firmware and diagnostics", rgb565_local(180, 150, 255), 3,
-     {{"Firmware", UiMode::Ota}, {"Logs", UiMode::Logs}, {"C-Matrix", UiMode::CMatrix}}},
+    {"Settings", "SET", "All device settings", rgb565_local(203, 216, 226), 3,
+     {{"Device settings", UiMode::Settings}, {"Display settings", UiMode::ScreenSettings},
+      {"Focus settings", UiMode::FocusSettings}}},
+    {"System", "SYS", "Firmware and diagnostics", rgb565_local(180, 150, 255), 5,
+     {{"Firmware", UiMode::Ota}, {"Logs", UiMode::Logs}, {"Clock", UiMode::Clock},
+      {"Battery", UiMode::Battery}, {"C-Matrix", UiMode::CMatrix}}},
 };
 
 Preferences gPrefs;

@@ -37,7 +37,10 @@ enum class VoiceRequestPhase{None,Recording,Sending,Processing,Accepted,Reply,Er
 VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::None;
 bool gVoiceNoticeVisible=false,gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false;
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
+bool gRealtimeScreenVisible=false;
 struct UiFrameTrace{};void presentUiFrame(){}
+struct{bool needsFullFrame(bool,unsigned,bool){return true;}void invalidate(){}}gUiFramePolicy;
+unsigned uiSceneKey(){return 0;}bool gUiInputPending=false;
 bool gCanvasSpriteActive=true,gSetupPortalActive=false,gVoiceNoticePending=false;
 bool gLauncherVisible=false,gChatCommandsVisible=false;
 bool gVoiceReplySpeechBusy=false,gTransferUiActive=false,gOtaApplyInProgress=false,gPendingRestart=false;

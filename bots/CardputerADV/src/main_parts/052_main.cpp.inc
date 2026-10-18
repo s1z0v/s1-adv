@@ -130,25 +130,25 @@ void renderLauncherOverlay() {
   const uint16_t line = rgb565_local(42, 55, 63);
   const uint16_t muted = rgb565_local(128, 145, 155);
 
-  d.fillRoundRect(5, 5, 230, 125, 8, bg);
-  d.drawRoundRect(5, 5, 230, 125, 8, rgb565_local(48, 54, 61));
-  d.fillRoundRect(10, 10, 220, 18, 5, panel);
+  d.fillRoundRect(5, 4, 230, 121, 8, bg);
+  d.drawRoundRect(5, 4, 230, 121, 8, rgb565_local(48, 54, 61));
+  d.fillRoundRect(10, 7, 220, 16, 5, panel);
 
   d.setFont(&fonts::Font2);
   d.setTextColor(group.accent, panel);
-  d.setCursor(17, 14);
+  d.setCursor(15, 9);
   d.print(group.title);
   String page = String(gLauncherSelection + 1) + "/" + String(kLauncherGroupCount);
   d.setTextColor(muted, panel);
-  d.setCursor(220 - d.textWidth(page), 14);
+  d.setCursor(220 - d.textWidth(page), 9);
   d.print(page);
 
   const int16_t railX = 10;
-  const int16_t railY = 33;
+  const int16_t railY = 25;
   const int16_t railW = 82;
   const int16_t railH = 10;
-  const int16_t railGap = 2;
-  constexpr int kVisibleGroupRows = 6;
+  const int16_t railGap = 1;
+  constexpr int kVisibleGroupRows = 8;
   int groupWindowStart = clampValue<int>(
       gLauncherSelection - kVisibleGroupRows + 1, 0,
       max<int>(0, kLauncherGroupCount - kVisibleGroupRows));
@@ -175,58 +175,33 @@ void renderLauncherOverlay() {
       d.fillCircle(railX + railW - 7, y + railH / 2, 3, item.accent);
     }
   }
-  if (groupWindowStart > 0) {
-    d.fillTriangle(87, 31, 90, 31, 89, 29, muted);
-  }
-  if (groupWindowStart + kVisibleGroupRows < kLauncherGroupCount) {
-    d.fillTriangle(87, 106, 90, 106, 89, 108, muted);
-  }
   d.setFont(&fonts::Font2);
 
-  d.fillRoundRect(94, 33, 136, 78, 7, panel);
-  d.drawRoundRect(94, 33, 136, 78, 7, group.accent);
+  d.fillRoundRect(96,25,134,91,7,panel);
+  d.drawRoundRect(96,25,134,91,7,group.accent);
+  d.setFont(&fonts::Font0);d.setTextColor(group.accent,panel);
+  d.setCursor(102,30);d.print(fitCurrentFontToWidth(group.glyph,116));
 
-  drawLauncherIcon(gLauncherSelection, 101, 38, 28, group.accent, rgb565_local(4, 9, 14));
-  d.setFont(&fonts::Font2);
-  d.setTextColor(group.accent, panel);
-  d.setCursor(136, 38);
-  d.print(fitCurrentFontToWidth(group.glyph, 86));
-  d.setFont(&fonts::Font0);
-  d.setTextColor(muted, panel);
-  d.setCursor(136, 53);
-  d.print(fitCurrentFontToWidth(group.hint, 86));
-
-  constexpr int kVisibleSubRows = 5;
+  constexpr int kVisibleSubRows = 8;
   int subWindowStart = clampValue<int>(
       gLauncherSubSelection - kVisibleSubRows + 1, 0,
       max<int>(0, group.count - kVisibleSubRows));
   for (int row = 0; row < min<int>(kVisibleSubRows, group.count); ++row) {
     int i = subWindowStart + row;
-    const int16_t y = 69 + row * 8;
+    const int16_t y = 41 + row * 9;
     const bool selected = i == gLauncherSubSelection;
     const uint16_t fill = selected ? rgb565_local(18, 39, 48) : panel;
     if (selected) {
-      d.fillRoundRect(100, y - 1, 121, 8, 3, fill);
+      d.fillRoundRect(100, y - 1, 121, 9, 3, fill);
     }
     d.setFont(&fonts::Font0);
     d.setTextColor(selected ? TFT_WHITE : TFT_LIGHTGREY, fill);
     d.setCursor(104, y);
-    d.print(selected ? "> " : "  ");
     d.print(fitCurrentFontToWidth(group.items[i].label, 101));
-  }
-  if (group.count > kVisibleSubRows) {
-    const int16_t scrollX = 225;
-    const int16_t scrollY = 69;
-    const int16_t scrollH = 38;
-    const int16_t knobH = max<int16_t>(7, (scrollH * kVisibleSubRows) / group.count);
-    const int16_t knobY = scrollY +
-        ((scrollH - knobH) * subWindowStart) / max<int>(1, group.count - kVisibleSubRows);
-    d.drawFastVLine(scrollX, scrollY, scrollH, line);
-    d.drawFastVLine(scrollX, knobY, knobH, group.accent);
   }
   d.setFont(&fonts::Font2);
 
-  d.fillRoundRect(10, 116, 220, 10, 4, panel);
+  d.fillRoundRect(10, 117, 220, 9, 4, panel);
   drawTinyFooter(panel, muted, "1-7 group  C+1-7 open  arrows", 15, 118, 210);
 }
 

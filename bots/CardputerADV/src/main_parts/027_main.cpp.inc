@@ -202,14 +202,15 @@ String focusTimeString(uint32_t seconds) {
 }
 
 void focusTone(uint16_t freq, uint16_t durationMs) {
-  if (gRecording || gPlaybackActive) {
+  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
     return;
   }
   M5Cardputer.Speaker.tone(freq, durationMs);
 }
 
 bool playFocusCue(FocusState state) {
-  if (gRecording || gSubmitting || gThinking || gPlaybackActive) {
+  if (!gFocusSettings.guidedAudio) return false;
+  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
     return false;
   }
   const char* cue = nullptr;

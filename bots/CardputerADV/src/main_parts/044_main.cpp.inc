@@ -176,13 +176,16 @@ bool smartLampLearnPresetPacket(const String& packet) {
 
 void smartLampProcessPacket(const String& packet, const IPAddress& remoteIp) {
   if (packet.startsWith("GL,2,")) {
-    smartLampLearnPresetPacket(packet);
+    if(smartLampLearnPresetPacket(packet) && gFocusLampLink.active) gFocusLampLink.cancel();
     return;
   }
   if (!packet.startsWith("GL_ONL")) {
     return;
   }
-  int preset = packet.substring(7).toInt();
+  int preset = -1;
+  if (!cardputer_smartlamp::parsePresencePacket(packet.c_str(), preset)) return;
+  if (gFocusLampLink.active && remoteIp != gFocusLampIp) return;
+  gFocusLampLink.observe(preset, millis());
   if (preset < 0 || preset >= static_cast<int>(cardputer_smartlamp::kMaxPresets)) {
     return;
   }
@@ -205,6 +208,7 @@ void smartLampProcessPacket(const String& packet, const IPAddress& remoteIp) {
 }
 
 void smartLampSendControl(const String& command, const String& label) {
+  gFocusLampLink.cancel(); // Manual controls take precedence over automation.
   if (!smartLampSendPacket(command)) {
     setStatus("smartLamp send failed", 900);
     return;
@@ -244,6 +248,7 @@ void smartLampSelectControl(int delta) {
 }
 
 void smartLampAdjustSelected(int delta) {
+  gFocusLampLink.cancel();
   switch (gSmartLamp.selected) {
     case 0: {
       uint8_t command = delta < 0 ? 4 : 5;
@@ -332,6 +337,42 @@ void serviceSmartLamp() {
       smartLampSavePresets();
     }
   }
+}
+
+bool bindFocusLampPreset(bool breakPreset) {
+  if (!gSmartLamp.online || millis()-gSmartLamp.lastSeenMs>kSmartLampOnlineTimeoutMs) {
+    setStatus("Lamp offline",1000); return false;
+  }
+  if (breakPreset) gFocusSettings.lampBreakPreset=gSmartLamp.effect;
+  else gFocusSettings.lampFocusPreset=gSmartLamp.effect;
+  setStatus(String(breakPreset?"Break lamp #":"Focus lamp #")+String(gSmartLamp.effect+1),1000);
+  return true;
+}
+
+void serviceFocusLamp() {
+  const bool fresh=WiFi.status()==WL_CONNECTED && gSmartLamp.online &&
+    millis()-gSmartLamp.lastSeenMs<=kSmartLampOnlineTimeoutMs;
+  const auto phase=gFocus.state==FocusState::Focus ? focus_lamp::Phase::Focus :
+    (gFocus.state==FocusState::ShortBreak || gFocus.state==FocusState::LongBreak) ?
+      focus_lamp::Phase::Break : focus_lamp::Phase::Idle;
+  const bool before=gFocusLampLink.active;
+  gFocusLampLink.setPhase(phase,gFocusSettings.lampSync,gFocusSettings.lampFocusPreset,
+    gFocusSettings.lampBreakPreset,fresh,millis());
+  if (!before && gFocusLampLink.active) {
+    gFocusLampIp=gSmartLamp.ip;
+    logf("[FOCUS_LAMP] lease focus=%d break=%d restore=%d",gFocusSettings.lampFocusPreset+1,
+      gFocusSettings.lampBreakPreset+1,gFocusLampLink.original+1);
+  }
+  const bool same=fresh && gSmartLamp.ip==gFocusLampIp;
+  const int command=gFocusLampLink.command(millis(),same,
+    !gTimeValid || gTransferUiActive || gRecording || gSubmitting || gRealtimeActive);
+  if(command<0)return;
+  const String packet=smartLampControlPacket(static_cast<uint8_t>(command));
+  bool sent=gSmartLampUdp.beginPacket(gFocusLampIp,kSmartLampUdpPort)==1;
+  if(sent){gSmartLampUdp.write(reinterpret_cast<const uint8_t*>(packet.c_str()),packet.length());sent=gSmartLampUdp.endPacket()==1;}
+  if(!sent){gFocusLampLink.cancel();setStatus("Focus lamp: link lost",1200);return;}
+  gSmartLamp.lastCommandMs=millis();
+  logf("[FOCUS_LAMP] step command=%d expected=%d target=%d",command,gFocusLampLink.expected+1,gFocusLampLink.target+1);
 }
 
 void submitInput() {

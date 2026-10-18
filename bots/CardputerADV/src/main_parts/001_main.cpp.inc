@@ -40,6 +40,11 @@
 #include "mic_input_meter.h"
 #include "release_delivery.h"
 #include "smartlamp_gl2_protocol.h"
+#include "focus_lamp_link.h"
+#include "ui_frame_policy.h"
+#ifndef DEFAULT_FOCUS_LAMP_ENABLED
+#define DEFAULT_FOCUS_LAMP_ENABLED 0
+#endif
 #include "tcl112ac_encoder.h"
 #include "transport_security.h"
 #include "realtime_socket.h"
@@ -67,7 +72,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.169-dev"
+#define APP_VERSION "0.2.170-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -88,7 +93,7 @@ constexpr const char* kPostInstallStoryVersion = "0.2.117-dev";
 constexpr const char* kPostInstallStoryPrefsKey = "story_02117";
 constexpr const char* kPostInstallStoryText =
     "Firmware installed. RFID Lab now targets the 8-pin SPI RFID-RC522 module on the EXT header. Use D to copy and W to write.";
-constexpr const char* kPomodoroAssetSyncVersion = "0.2.114-dev";
+constexpr const char* kPomodoroAssetSyncVersion = "0.2.170-dev";
 constexpr const char* kPomodoroAssetSyncPrefsKey = "pomasset_02112";
 constexpr const char* kWsPath = "/ws/stream";
 constexpr const char* kDeviceTextTurnPath = "/api/device-text-turn";
@@ -188,7 +193,7 @@ constexpr uint32_t kVoiceSocketSettleMs = 300;
 constexpr uint32_t kCtrlDoubleTapWindowMs = 420;
 constexpr uint32_t kLauncherToggleDebounceMs = 140;
 constexpr uint8_t kLauncherGroupCount = 7;
-constexpr uint8_t kLauncherMaxSubItems = 7;
+constexpr uint8_t kLauncherMaxSubItems = 8;
 constexpr uint32_t kKeyRushDurationMs = 30000;
 constexpr const char* kKeyRushPrefsNs = "keyrush";
 constexpr uint16_t kSmartLampUdpPort = 61197;
@@ -198,7 +203,7 @@ constexpr uint32_t kSmartLampPresetSendDelayMs = 250;
 constexpr uint32_t kSmartLampMinCommandGapMs = 520;
 constexpr const char* kSmartLampPrefsNs = "smartlamp";
 constexpr uint8_t kDeviceSettingsItemCount = 8;
-constexpr uint8_t kFocusSettingsItemCount = 7;
+constexpr uint8_t kFocusSettingsItemCount = 11;
 constexpr uint8_t kScreenSettingsItemCount = 10;
 constexpr uint8_t kSettingsItemCount = kScreenSettingsItemCount;
 constexpr uint8_t kDefaultDisplayBrightnessPct = 70;

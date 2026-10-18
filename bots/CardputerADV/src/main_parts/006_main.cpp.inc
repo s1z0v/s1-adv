@@ -62,13 +62,28 @@ lgfx::LGFXBase& uiCanvas() {
                             : static_cast<lgfx::LGFXBase&>(M5Cardputer.Display);
 }
 
+uint32_t uiSceneKey() {
+  return uint32_t(gUiMode) | (uint32_t(gLauncherVisible)<<8) |
+    (uint32_t(assistantPulseState())<<9) | (uint32_t(gFocus.state)<<13) |
+    (uint32_t(gRealtimeConnected)<<12) | (uint32_t(gRealtimeRecording)<<16) |
+    (uint32_t(gRealtimePlaybackActive || gPlaybackActive)<<30) | (uint32_t(gRealtimeAwaiting)<<31) |
+    (uint32_t(gLauncherSelection)<<17) | (uint32_t(gLauncherSubSelection)<<21) |
+    (uint32_t(gSetupPortalActive)<<25) | (uint32_t(gChatCommandsVisible)<<26) | (uint32_t(gVoiceNoticeVisible)<<27) |
+    (uint32_t(gRealtimeScreenVisible)<<28) | (uint32_t(gRealtimeClassicView)<<29);
+}
+
 void presentUiFrame() {
   if (gInboxHttpBusy) {
     // Small live indicator; the actual screen and inputs continue updating.
     const uint16_t color = (millis() / 200U) % 2U ? rgb565_local(47,227,255) : rgb565_local(12,60,72);
     uiCanvas().drawFastHLine(226, 1, 10, color);
   }
-  if (gCanvasSpriteActive) gCanvasBuffer.pushSprite(0, 0);
+  if (gCanvasSpriteActive) {
+    gCanvasBuffer.pushSprite(0, 0);
+    // The sprite is loaned to TLS later. Never free a buffer still owned by DMA.
+    M5Cardputer.Display.waitDMA();
+  }
+  gUiFramePolicy.presented(uiSceneKey());
 }
 
 void noteUiInput(const char* source) {
@@ -137,6 +152,7 @@ bool releaseUiCanvasForNetwork(const char* reason) {
   if (!gCanvasSpriteActive) {
     return false;
   }
+  M5Cardputer.Display.waitDMA();
   gCanvasBuffer.deleteSprite();
   gCanvasSpriteActive = false;
   yield();
@@ -152,6 +168,7 @@ void restoreUiCanvasAfterNetwork() {
   if (gCanvasSpriteActive) {
     return;
   }
+  gCanvasBuffer.setPsram(psramFound());
   gCanvasBuffer.setColorDepth(8);
   if (!gCanvasBuffer.createSprite(240, 135)) {
     gCanvasSpriteActive = false;

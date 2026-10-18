@@ -29,12 +29,12 @@ bool pomodoroMeditationAssetsPresent() {
   if (!fs || !ensurePomodoroStorageOn(*fs)) {
     return false;
   }
-  for (size_t lang = 0; lang < kPomodoroAudioLanguageCount; ++lang) {
-    for (size_t cue = 0; cue < kPomodoroAudioCueCount; ++cue) {
-      if (!fsExists(*fs, pomodoroMeditationAssetPath(kPomodoroAudioLanguages[lang], kPomodoroAudioCues[cue]))) {
-        return false;
-      }
-    }
+  // Readiness concerns the chosen cue language, with the existing RU fallback.
+  // Missing unrelated language packs must not force another boot download.
+  const String language=normalizedPomodoroAudioLanguage(gDeviceSettings.audioLanguage);
+  for (size_t cue=0;cue<kPomodoroAudioCueCount;++cue) {
+    if(!fsExists(*fs,pomodoroMeditationAssetPath(language.c_str(),kPomodoroAudioCues[cue])) &&
+       !fsExists(*fs,pomodoroMeditationAssetPath("ru",kPomodoroAudioCues[cue]))) return false;
   }
   return true;
 }
@@ -89,6 +89,12 @@ bool syncAssetsFromManifest(bool pomodoroOnly) {
       sha.toLowerCase();
       alreadyOk = actual == sha;
     }
+    const String backup=path+".before-focus-170";
+    bool preservedOriginal=false;
+    if (pomodoroOnly && !alreadyOk && fsExists(*fs,path)) {
+      if(fsExists(*fs,backup) || !fs->rename(path,backup)) {++failCount;continue;}
+      preservedOriginal=true;
+    }
     if (alreadyOk || downloadUrlToFile(url, path, sha, size,
                                        "Asset " + String(okCount + failCount + 1) + "/" +
                                            String(targetCount),
@@ -96,6 +102,7 @@ bool syncAssetsFromManifest(bool pomodoroOnly) {
       ++okCount;
     } else {
       ++failCount;
+      if(preservedOriginal && !fsExists(*fs,path)) fs->rename(backup,path);
     }
     setStatus("Assets " + String(okCount) + "/" + String(okCount + failCount), 500);
     render();

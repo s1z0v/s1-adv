@@ -17,7 +17,11 @@ code=r'''
 #include <string>
 #include <vector>
 struct String:std::string {using std::string::string;String(const std::string&s):std::string(s){}bool isEmpty()const{return empty();}};
-enum class UiMode{Home,ChatFace,Face,Hero,ChatFull,Ota,Clock};UiMode gUiMode=UiMode::Home;
+enum class UiMode{Home,ChatFace,Face,Hero,ChatFull,Ota,Clock,Focus,Settings,FocusSettings,ScreenSettings,Nes,Sonar,RfidLab,IrRemote,Tetris,KeyRush,BrainFlow};UiMode gUiMode=UiMode::Home;
+namespace brainflow {enum class Phase {Menu,Playing,Feedback,Paused,Finished};}
+struct{brainflow::Phase phase=brainflow::Phase::Menu;}gBrainFlow;
+struct{bool running=false;}gKeyRush;
+bool gTetrisStarted=false,gTetrisPaused=false,gTetrisGameOver=false;
 bool gWifiReady=true,gOtaApplyInProgress=false,gTransferUiActive=false,gLauncherVisible=false;
 bool gG0VoicePending=false;
 bool gBootBackgroundActive=false,gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false;
@@ -41,6 +45,7 @@ bool startInboxNetworkRequest(std::unique_ptr<InboxHttpPayload> p){assert(!gInbo
  if(p->otaManifest)manifestTimes.push_back(now);dispatched.push_back(*p);gLastInboxAutoPollMs=now;return true;}
 void finish(){gInboxHttpBusy=false;}
 '''
+code+=function('063_main.cpp.inc','bool appAllowsBackgroundNetwork()')+'\n'
 for file,signature in [('020_main.cpp.inc','bool autoInboxPollAllowed()'),('020_main.cpp.inc','bool startBackgroundManifestCheck('),('020_main.cpp.inc','void serviceAutoInboxPoll()')]:code+=function(file,signature)+'\n'
 code+=r'''
 int main(){
@@ -65,6 +70,19 @@ int main(){
  now+=20000;assert(startBackgroundManifestCheck(true,true));
  assert(dispatched.back().applyAfter&&dispatched.back().announce);
  assert(!startBackgroundManifestCheck(false,false));finish();
+ // Only active games and timing-sensitive peripherals suppress background work.
+ for(auto m:{UiMode::Settings,UiMode::FocusSettings,UiMode::ScreenSettings}){gUiMode=m;assert(autoInboxPollAllowed());}
+ gUiMode=UiMode::Tetris;gTetrisStarted=true;assert(!autoInboxPollAllowed());
+ gTetrisPaused=true;assert(autoInboxPollAllowed());
+ gUiMode=UiMode::KeyRush;gKeyRush.running=true;assert(!autoInboxPollAllowed());gKeyRush.running=false;assert(autoInboxPollAllowed());
+ gUiMode=UiMode::BrainFlow;gBrainFlow.phase=brainflow::Phase::Playing;assert(!autoInboxPollAllowed());
+ gBrainFlow.phase=brainflow::Phase::Paused;assert(autoInboxPollAllowed());
+ gUiMode=UiMode::Nes;assert(!autoInboxPollAllowed());
+ // Idle Focus and an open launcher still report the actual device version.
+ gUiMode=UiMode::Focus;gLauncherVisible=true;
+ assert(autoInboxPollAllowed());now+=20000;gLastUserActivityMs=now;
+ auto n=dispatched.size();serviceAutoInboxPoll();assert(dispatched.size()==n);
+ now+=1001;serviceAutoInboxPoll();assert(dispatched.size()==n+1);finish();
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-auto-ota-') as directory:

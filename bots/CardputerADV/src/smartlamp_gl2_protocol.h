@@ -14,6 +14,20 @@ constexpr std::size_t kMaxPacketBytes = 2304;
 constexpr std::size_t kPresetSpeedIndex = 7;
 constexpr std::size_t kPresetScaleIndex = 9;
 
+inline bool parsePresencePacket(const char* packet, int& preset) {
+  if (!packet || std::strncmp(packet,"GL_ONL",6)!=0) return false;
+  const char* cursor=packet+6;
+  if (*cursor<'0' || *cursor>'9') return false;
+  unsigned value=0;
+  while (*cursor>='0' && *cursor<='9') {
+    value=value*10+unsigned(*cursor++-'0');
+    if(value>=kMaxPresets)return false;
+  }
+  if(*cursor!='\0')return false;
+  preset=static_cast<int>(value);
+  return true;
+}
+
 struct PresetBank {
   uint8_t count = 0;
   uint8_t selected = 0;

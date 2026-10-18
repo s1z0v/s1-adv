@@ -234,6 +234,10 @@ struct TextTurnTaskResult {
 
 
 struct FocusSettings {
+  bool guidedAudio = true;
+  bool lampSync = DEFAULT_FOCUS_LAMP_ENABLED != 0;
+  int8_t lampFocusPreset = 1; // Owner-captured app preset 2, zero based.
+  int8_t lampBreakPreset = 5; // Owner-captured app preset 6, zero based.
   uint32_t focusSec = kFocusDefaultSec;
   uint32_t shortBreakSec = kFocusShortBreakDefaultSec;
   uint32_t longBreakSec = kFocusLongBreakDefaultSec;
