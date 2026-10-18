@@ -1,6 +1,8 @@
 # NES games on SD
 
 The firmware contains a Nofrendo-based emulator, not commercial game ROMs.
+NES support is experimental. Some games run below full speed on the tested
+device, especially when cartridge banks must be streamed from SD.
 Put your own `.nes` files in `/nes` on the SD card, then open **NES** from the
 app menu. Choose a file with W/S or arrows and press Enter.
 
