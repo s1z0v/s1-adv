@@ -84,3 +84,8 @@ Arduino/ESP-IDF dependency boundary from the earlier review also remains.
 Model/provider latency, physical-device behavior and a clean fresh-owner hardware
 installation require separate acceptance. See [validation](VALIDATION.md) and the
 [earlier firmware/network review](SECURITY-REVIEW.md).
+
+The legacy research harness was also corrected to report only measured property
+transitions and model limitations. It no longer manufactures Cartesian coverage
+or infers live-canary success from environment flags. CI runs the bounded checks
+and the actual HTTP/WS/install regressions separately.

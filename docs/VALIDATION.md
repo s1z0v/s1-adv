@@ -30,6 +30,15 @@ ClawHub package validation against the OpenClaw 2026.10.4 API reported no
 contract issues. Static API validation is not a runtime test of that version.
 Firmware wrapper host tests use a disposable tiny image to exercise refusal
 and publication fences; they do not count as an ESP32 build or hardware proof.
+A real ESP32-S3/8 MB build also passed on that host through the generated
+private wrapper, using PlatformIO Core 6.1.19 and clean source commit
+`1dd76864f21fc4661ffb1ed9509b4b43ff050f0c` (firmware `0.2.166-dev`).
+The isolated OTA publisher and authenticated manifest/file smoke passed:
+1,991,424 bytes, SHA-256
+`bf398201410cf5e0f2c08a9ebe635f8cd7a7d2b46c0a1d53d4d969e775e83c1a`.
+The release lock was released only after byte verification. This candidate
+was private and was not offered to the maintainer's physical device.
+
 Fresh-owner HTTPS/device provisioning, USB boot readback, physical audio/OTA
 and the separate firmware stability canaries remain distinct acceptance.
 
