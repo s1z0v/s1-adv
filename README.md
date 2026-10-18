@@ -63,7 +63,7 @@ only when you deliberately need them. Read the [security model](SECURITY.md).
 - **M5Stack Cardputer ADV**, with ESP32-S3 and 8 MB flash. Other Cardputer models are untested.
 - A USB data cable and a 2.4 GHz Wi-Fi network.
 - A computer for the first USB flash: Python 3 and PlatformIO.
-- An existing OpenClaw installation and a host for the bridge: Node.js 22+.
+- An existing OpenClaw installation with its supported Node.js runtime. The standalone bridge needs Node.js 22+.
 - A reachable bridge address. Use HTTPS/WSS for remote access. The firmware trusts ISRG Root X1 by default.
 - For voice: FFmpeg, an STT backend and a TTS backend on the bridge host.
 - Optional microSD for saved audio and extra assets.

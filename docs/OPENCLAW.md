@@ -7,7 +7,9 @@ by the S1-ADV project; it is not an official bundled OpenClaw module.
 
 ## Requirements
 
-- An existing working OpenClaw installation; Node.js 22 or newer.
+- An existing working OpenClaw installation with its supported Node.js runtime.
+  Node.js 22+ is the standalone bridge minimum. OpenClaw 2026.10.4 itself requires
+  Node.js 24.16+ within the 24.x line, or Node.js 26.1+.
 - A Cardputer ADV with S1-ADV firmware and 2.4 GHz Wi-Fi.
 - A selected OpenClaw agent. Prefer a dedicated restricted `cardputer` agent.
 - One device identity per bridge instance, with separate private storage for each device.
@@ -32,6 +34,14 @@ Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
 network service. There are no npm install hooks, automatic model downloads or
 root installation scripts. The published artifact contains source and templates,
 not the maintainer's configuration, credentials or personal firmware binary.
+
+Recent OpenClaw releases also require capability consent. Review this exact
+artifact's native report and source: the integration registers its CLI, setup
+skill and bridge service. If a noninteractive install requests consent, repeat
+the same reviewed command with `--accept-capabilities`. A local archive/path may
+also require `--force` to acknowledge its source. These are separate reviews;
+`--yes` does not approve capabilities. See
+[OpenClaw capability consent](https://docs.openclaw.ai/plugins/manage-plugins#capability-consent).
 
 If you need a dedicated agent, inspect `openclaw agents add --help`, then create
 one with a private workspace and the tool permissions appropriate to your device.

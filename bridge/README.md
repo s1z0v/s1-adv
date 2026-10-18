@@ -16,9 +16,16 @@ firmware-building rights are separate and explicitly provisioned.
 
 ## Plugin setup
 
-Requirements: OpenClaw, Node.js 22+, a working selected agent and a device-facing
-HTTPS hostname. The minimum declared plugin API is 2026.7.2-beta.1; consult the
+Requirements: OpenClaw with the Node.js runtime supported by that release, a
+working selected agent and a device-facing HTTPS hostname. Node.js 22 is the
+standalone bridge minimum; newer OpenClaw releases require a newer runtime.
+The minimum declared plugin API is 2026.7.2-beta.1; consult the
 repository validation record for the exact tested host versions.
+
+Review the native install-source and capability prompts for this exact artifact.
+If your release requests explicit noninteractive consent, repeat that reviewed
+install with `--accept-capabilities`; local archives/paths can also require
+`--force` for source acknowledgement. Do not treat `--yes` as capability consent.
 
 From a reviewed clone of `srg0/s1-adv`:
 

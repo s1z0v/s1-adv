@@ -157,7 +157,11 @@ export async function doctor(configPath, { probe = true } = {}) {
     note: "A model round trip and physical-device acceptance are separate checks." };
 }
 
-export async function enablePlugin(configPath, { apply = false, gatewayConfigPath = defaultGatewayConfig(), runCommand = spawnSync } = {}) {
+export async function enablePlugin(configPath, { apply = false, gatewayConfigPath = defaultGatewayConfig(), runCommand = spawnSync, openclawCommand = ["openclaw"] } = {}) {
+  if (!Array.isArray(openclawCommand) || !openclawCommand.length ||
+      openclawCommand.some(value => typeof value !== "string" || !value || value.includes("\0")))
+    throw new Error("Invalid OpenClaw CLI invocation");
+  const [program, ...prefix] = openclawCommand;
   gatewayConfigPath = path.resolve(gatewayConfigPath);
   const report = await doctor(configPath, { probe: false });
   const required = ["private-config", "device-token", "single-device", "loopback-listener", "gateway-token", "agent-config"];
@@ -168,13 +172,16 @@ export async function enablePlugin(configPath, { apply = false, gatewayConfigPat
   if (Array.isArray(host.plugins?.allow) && !host.plugins.allow.includes("s1-adv"))
     operations.push(["config", "set", "plugins.allow", JSON.stringify([...host.plugins.allow,"s1-adv"]), "--strict-json"]);
   operations.push(["config", "set", "plugins.entries.s1-adv", JSON.stringify({ enabled:true, config:{configPath:path.resolve(configPath),autoStart:true} }), "--strict-json"]);
-  if (!apply) return { dryRun:true, gatewayConfigPath, operations, note:"Only this plugin entry and its allowlist membership are changed. Gateway restart remains an explicit operator step." };
+  if (!apply) return { dryRun:true, gatewayConfigPath, openclawCommand, operations, note:"Only this plugin entry and its allowlist membership are changed. Gateway restart remains an explicit operator step." };
   const backup = path.join(path.dirname(configPath), `gateway-config-before-enable-${Date.now()}.json5`);
   await writeFile(backup, await readFile(gatewayConfigPath), { mode:0o600, flag:"wx" });
   for (const args of operations) {
-    const result = runCommand("openclaw",args,{encoding:"utf8",timeout:30000,
+    const result = runCommand(program,[...prefix,...args],{encoding:"utf8",timeout:30000,
       env:{...process.env,OPENCLAW_CONFIG_PATH:gatewayConfigPath}});
-    if (result.status !== 0) throw new Error(`OpenClaw rejected the plugin configuration. Inspect its config locally; private backup: ${backup}. No restart was performed.`);
+    if (result.status !== 0) {
+      const code = /^[A-Z0-9_]+$/u.test(result.error?.code || "") ? result.error.code : "none";
+      throw new Error(`OpenClaw rejected the plugin configuration (exit=${result.status ?? "none"}, signal=${result.signal || "none"}, error=${code}). Inspect its config locally; private backup: ${backup}. No restart was performed.`);
+    }
   }
   return { enabled:true, gatewayConfigPath, backup, restartRequired:true, note:"Restart your intended Gateway when ready; existing channels and agents were preserved." };
 }

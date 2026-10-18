@@ -8,7 +8,11 @@ async function printCommand(name, options) {
     if (value === true) args.push(flag);
     else if (value !== undefined && value !== false) args.push(flag, String(value));
   }
-  console.log(JSON.stringify(await setupCli(args), null, 2));
+  // OpenClaw may prepend a system bin directory to PATH. Keep config writes
+  // on this exact CLI/runtime when multiple host versions are installed.
+  console.log(JSON.stringify(await setupCli(args, {
+    openclawCommand: [process.execPath, process.argv[1]]
+  }), null, 2));
 }
 
 export default {

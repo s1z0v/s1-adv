@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 import { planInstall, applyInstall, doctor, enablePlugin } from "../src/install.mjs";
 import { provisionFirmware } from "../src/firmware-automation.mjs";
 
-export async function setupCli(argv) {
+export async function setupCli(argv, { openclawCommand } = {}) {
   const [command = "help", ...rest] = argv;
   const options = {};
   const names = { "gateway-config":"gatewayConfig", "gateway-token-file":"gatewayTokenFile", "gateway-url":"gatewayUrl", "state-dir":"stateDir", "public-url":"publicUrl", "device-id":"deviceId", agent:"agent", port:"port", config:"config", "repo-dir":"repoDir", branch:"branch", "python-bin":"pythonBin", "push-remote":"pushRemote" };
@@ -31,7 +31,7 @@ export async function setupCli(argv) {
   }
   if (command === "enable") {
     if (!options.config) throw new Error("enable requires --config /absolute/private/config.json");
-    return enablePlugin(path.resolve(options.config), { apply:options.apply, gatewayConfigPath:options.gatewayConfig });
+    return enablePlugin(path.resolve(options.config), { apply:options.apply, gatewayConfigPath:options.gatewayConfig, openclawCommand });
   }
   return { usage: [
     "node scripts/setup.mjs init --gateway-config PATH [--state-dir PATH] [--agent cardputer] [--public-url https://bridge.example.com] [--apply]",

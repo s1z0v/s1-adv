@@ -72,6 +72,18 @@ test("enable previews and targets only the intended host profile and plugin memb
   assert.equal(await readFile(result.backup,"utf8"),original);
   assert.equal((await stat(result.backup)).mode&0o777,0o600);
   assert.equal(await readFile(host,"utf8"),original);
+  calls=[];
+  const openclawCommand=[process.execPath,"/reviewed/OpenClaw/openclaw.mjs"];
+  const exactPreview=await enablePlugin(plan.configPath,{gatewayConfigPath:host,runCommand,openclawCommand});
+  assert.deepEqual(exactPreview.openclawCommand,openclawCommand);
+  await enablePlugin(plan.configPath,{apply:true,gatewayConfigPath:host,runCommand,openclawCommand});
+  assert.equal(calls.length,2);
+  for(const call of calls){
+    assert.equal(call.program,process.execPath);
+    assert.equal(call.args[0],openclawCommand[1]);
+    assert.equal(call.args[1],"config");
+    assert.equal(call.options.env.OPENCLAW_CONFIG_PATH,host);
+  }
 });
 
 test("native legacy list and current explicit agent maps preserve the selected identity",()=>{
