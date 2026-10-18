@@ -23,11 +23,11 @@ void showVoiceNotice(const String& text, bool pending) {
   gVoiceNoticePending = pending;
   gVoiceRequestPhase=pending ? VoiceRequestPhase::Accepted : VoiceRequestPhase::Reply;
   if (gScreensaverActive || gScreensaverDimmed || gScreenOffActive) handleScreensaverWake();
-  gVoiceNoticeVisible = gUiMode!=UiMode::ChatFull && gUiMode!=UiMode::ChatFace;
+  // Receipts and replies live in chat and the Home badge. They must not
+  // reopen a sheet over the clock or a menu the user is navigating.
+  gVoiceNoticeVisible = false;
+  if (!pending && gUiMode!=UiMode::ChatFull && gUiMode!=UiMode::ChatFace) gInboxUnread=true;
   gVoiceNoticeShownMs = millis();
-  gLauncherVisible = false;
-  gChatCommandsVisible = false;
-  markUserActivity();
   render(); // Paint feedback before a notification tone or TLS borrows the canvas.
   gLastRenderMs=millis();
   logf("[VOICE_UI] sheet=%s mode=%d painted=%d", pending ? "accepted" : "reply",
@@ -65,7 +65,7 @@ void acceptPendingAssistantRequest(const String& transcript, const String& ackno
   // The ordered inbox drain advances its cursor when it sees this stored seq.
   rememberStoredAssistantSeq(receiptSeq);
   setFaceMode(FaceMode::Idle);
-  setStatus("Request accepted", 4000);
+  setStatus("Sent", 1200);
   showVoiceNotice(receipt, true);
   if (gCanvasSpriteActive) M5Cardputer.Speaker.tone(1047, 90);
   logf("[REQUEST] accepted after_seq=%u receipt_seq=%u mode=%d visible=%d",
@@ -93,7 +93,10 @@ void applyFirmwareJobState(const String& state, const String& requestId) {
 const char* homeStatusLabel(bool updateReady) {
   if (gG0VoicePending) return "VOICE WAIT";
   if (gVoiceCapturePreparing) return "MIC SETUP";
-  return firmware_job_display::label(gFirmwareJobState, updateReady, millis() - gFirmwareJobLastSyncMs);
+  const char* label=firmware_job_display::label(gFirmwareJobState, updateReady, millis() - gFirmwareJobLastSyncMs);
+  if (strcmp(label,"CHECK CHAT")==0) return gInboxUnread ? "NEW MESSAGE" : "READY";
+  if (strcmp(label,"READY")==0 && gInboxUnread) return "NEW MESSAGE";
+  return label;
 }
 
 void beginVoiceRequestUi() {
@@ -106,6 +109,8 @@ void beginVoiceRequestUi() {
 void showVoiceRequestError(const String& text) {
   showVoiceNotice(text,false);
   gVoiceRequestPhase=VoiceRequestPhase::Error;
+  gVoiceNoticeVisible = !gLauncherVisible && !gChatCommandsVisible &&
+      gUiMode!=UiMode::ChatFull && gUiMode!=UiMode::ChatFace;
   render();
 }
 
@@ -157,11 +162,12 @@ bool voiceRequestBusyUi() {
 }
 
 void renderVoiceNotice() {
-  if (!gVoiceNoticeVisible || !isAssistantUi() || voiceRequestBusyUi() || gRealtimeActive) return;
+  if (!gVoiceNoticeVisible || gLauncherVisible || gChatCommandsVisible ||
+      !isAssistantUi() || voiceRequestBusyUi() || gRealtimeActive) return;
   auto& d = gCanvas;
   const uint16_t panel = rgb565_local(9, 27, 42);
   const bool error=gVoiceRequestPhase==VoiceRequestPhase::Error;
-  const uint16_t accent = error ? rgb565_local(255,96,80) : gVoiceNoticePending ? rgb565_local(255, 194, 74) : rgb565_local(105, 255, 156);
+  const uint16_t accent = error ? rgb565_local(255,96,80) : gVoiceNoticePending ? rgb565_local(255,136,64) : rgb565_local(105, 255, 156);
   d.setFont(&fonts::efontCN_12);
   auto lines = wrapText(gVoiceNoticeText, 212);
   const int count = min<int>(6, lines.size());

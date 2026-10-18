@@ -109,7 +109,7 @@ void renderNotesUi() {
   const uint16_t rowBg = rgb565_local(7, 18, 25);
   const uint16_t selected = rgb565_local(14, 40, 48);
   const uint16_t line = rgb565_local(35, 52, 62);
-  const uint16_t accent = rgb565_local(255, 211, 106);
+  const uint16_t accent = rgb565_local(255,136,64);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(100, 255, 170);
   const uint16_t muted = rgb565_local(132, 148, 160);

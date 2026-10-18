@@ -288,7 +288,7 @@ uint16_t sonarStateColor(SonarProximityState state) {
     case SonarProximityState::Clear:
       return rgb565_local(88, 240, 141);
     case SonarProximityState::Object:
-      return rgb565_local(246, 194, 74);
+      return rgb565_local(255,136,64);
     case SonarProximityState::TooClose:
       return rgb565_local(255, 82, 82);
     case SonarProximityState::NoEcho:

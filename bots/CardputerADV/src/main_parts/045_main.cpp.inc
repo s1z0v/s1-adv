@@ -194,7 +194,9 @@ bool handleAssetsKey(char key) {
 bool handleOtaKey(char key, const Keyboard_Class::KeysState& keys) {
   char lowerKey = static_cast<char>(tolower(static_cast<unsigned char>(key)));
   if (lowerKey == 'f') {
-    fetchRemoteOtaManifest();
+    gPendingOtaCheckAction = true;
+    gPendingOtaActionAfterMs = millis() + 100;
+    setStatus("Checking Bridge", 1200);
     return true;
   }
   if (lowerKey == 'r') {

@@ -1,11 +1,15 @@
 // Network workers publish immutable results; only loopTask owns UI/history.
-struct InboxHttpPayload { String url, token, eventId; bool otaManifest = false, applyAfter = false, announce = false; };
-struct InboxHttpResult { int code=0; String body, eventId; bool otaManifest = false, applyAfter = false, announce = false; };
+struct InboxHttpPayload { String url, token, eventId, body; bool otaManifest = false, applyAfter = false, announce = false, logsUpload = false; };
+struct InboxHttpResult { int code=0; String body, eventId; bool otaManifest = false, applyAfter = false, announce = false, logsUpload = false; };
 constexpr uint32_t kOtaAutoCheckIntervalMs = 20000U;
 uint32_t gOtaLastAutoCheckMs = 0;
 portMUX_TYPE gInboxHttpMux = portMUX_INITIALIZER_UNLOCKED;
 InboxHttpResult* gInboxHttpResult = nullptr;
 bool gInboxHttpBusy = false;
+bool gPendingLogsUpload = false, gLogsUploadBusy = false;
+bool autoInboxPollAllowed();
+bool startInboxNetworkRequest(std::unique_ptr<InboxHttpPayload> payload);
+void servicePendingLogsUpload();
 volatile bool gInboxCancelRequested = false;
 bool gG0VoicePending = false;
 bool gVoiceCapturePreparing = false;
@@ -59,6 +63,7 @@ uint32_t gFirmwareJobLastSyncMs = 0;
 String gFirmwareJobRequestId;
 void applyFirmwareJobState(const String& state, const String& requestId);
 const char* homeStatusLabel(bool updateReady);
+bool handleHomeLinkRetryKey(char key, const Keyboard_Class::KeysState& keys);
 void acceptPendingAssistantRequest(const String& transcript, const String& acknowledgement,
                                    uint32_t afterSeq, uint32_t receiptSeq);
 void beginVoiceRequestUi();
@@ -182,6 +187,7 @@ bool gScreensaverActive = false;
 bool gScreensaverDimmed = false;
 bool gScreenOffActive = false;
 uint32_t gLastUserActivityMs = 0;
+uint32_t gLastUserInputMs = 0;
 uint32_t gScreensaverStartedMs = 0;
 uint32_t gRealtimeSessionStartedMs = 0;
 uint32_t gRealtimeAwaitingStartedMs = 0;

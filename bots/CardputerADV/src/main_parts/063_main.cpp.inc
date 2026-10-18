@@ -28,7 +28,7 @@ bool appAllowsBackgroundNetwork() {
 uint16_t brainAccent(uint8_t game) {
   const uint16_t colors[brainflow::kGameCount] = {
       rgb565_local(47,227,255), rgb565_local(157,102,255),
-      rgb565_local(246,194,74), rgb565_local(34,209,189),
+      rgb565_local(255,136,64), rgb565_local(34,209,189),
       rgb565_local(255,126,182), rgb565_local(104,214,255),
       rgb565_local(255,169,77), rgb565_local(133,232,126)};
   return colors[game % brainflow::kGameCount];

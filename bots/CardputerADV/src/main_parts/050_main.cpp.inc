@@ -166,7 +166,7 @@ void drawSmoothUncannyEye(int16_t cx, int16_t cy, uint32_t now, uint8_t blink) {
     glint = rgb565_local(90, 255, 185);
   } else if (gFaceMode == FaceMode::Thinking) {
     iris = rgb565_local(48, 37, 14);
-    glint = rgb565_local(246, 194, 74);
+    glint = rgb565_local(255,136,64);
   } else if (gFaceMode == FaceMode::Error) {
     outline = rgb565_local(255, 72, 52);
     iris = rgb565_local(62, 16, 12);
@@ -406,7 +406,7 @@ uint16_t petMoodAccent() {
     case PetMood::Happy:
       return rgb565_local(88, 240, 141);
     case PetMood::Hungry:
-      return rgb565_local(255, 194, 74);
+      return rgb565_local(255,136,64);
     case PetMood::Bored:
       return rgb565_local(126, 143, 157);
     case PetMood::Curious:

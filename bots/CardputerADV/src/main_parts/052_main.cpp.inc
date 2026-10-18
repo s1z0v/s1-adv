@@ -268,7 +268,7 @@ void renderBatteryUi() {
   int level = levelKnown ? clampValue<int>(gBatterySnapshot.level, 0, 100) : 0;
   uint16_t barColor = !levelKnown ? rgb565_local(80, 130, 180)
                      : level >= 60 ? rgb565_local(88, 240, 141)
-                     : level >= 25 ? rgb565_local(246, 194, 74)
+                     : level >= 25 ? rgb565_local(255,136,64)
                                    : rgb565_local(255, 93, 88);
 
   d.setFont(&fonts::Font2);

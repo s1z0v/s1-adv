@@ -75,7 +75,7 @@ void renderChatUi() {
   const uint16_t sysBg = rgb565_local(20, 25, 35);
   const uint16_t accent = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(100, 255, 170);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(126, 143, 157);
   d.fillScreen(bg);
   d.setTextSize(1);

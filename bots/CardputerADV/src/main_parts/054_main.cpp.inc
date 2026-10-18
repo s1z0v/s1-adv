@@ -132,7 +132,7 @@ void renderLibraryUi() {
   const uint16_t line = rgb565_local(34, 78, 88);
   const uint16_t accent = rgb565_local(88, 240, 141);
   const uint16_t cyan = rgb565_local(47, 227, 255);
-  const uint16_t amber = rgb565_local(246, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(130, 145, 155);
   d.fillScreen(bg);
   d.fillRoundRect(4, 4, 232, 127, 8, panel);

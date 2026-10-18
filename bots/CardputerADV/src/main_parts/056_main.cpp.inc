@@ -86,7 +86,10 @@ FirmwareCapacityInfo firmwareCapacityInfo() {
   FirmwareCapacityInfo info;
   const esp_partition_t* running = esp_ota_get_running_partition();
   info.slotBytes = running ? running->size : 0;
-  info.usedBytes = ESP.getSketchSize();
+  // Reading/verifying the running image costs hundreds of milliseconds on
+  // hardware. Its size is fixed until reboot, so never repeat it per frame.
+  static const uint32_t runningImageBytes = ESP.getSketchSize();
+  info.usedBytes = runningImageBytes;
   if (info.slotBytes == 0 && info.usedBytes > 0) {
     info.slotBytes = info.usedBytes + ESP.getFreeSketchSpace();
   }
@@ -116,7 +119,7 @@ void renderAssetsUi() {
   const uint16_t row = rgb565_local(13, 28, 40);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(126, 143, 157);
 
   d.fillScreen(bg);
@@ -179,7 +182,7 @@ void renderOtaUi() {
   const uint16_t panel2 = rgb565_local(25, 16, 24);
   const uint16_t row = rgb565_local(18, 24, 35);
   const uint16_t red = rgb565_local(255, 83, 92);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t green = rgb565_local(88, 240, 141);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t muted = rgb565_local(126, 143, 157);
@@ -223,6 +226,9 @@ void renderOtaUi() {
   if (updateReady && !release_delivery::otaPowerAllowed(gBatterySnapshot.level, externalPower, minimum)) {
     d.setTextColor(amber, panel);
     d.print(fitCurrentFontToWidth("Charge to " + String(minimum) + "% or connect USB", 202));
+  } else if (strcmp(homeStatusLabel(updateReady),"CHECK LINK")==0) {
+    d.setTextColor(amber, panel);
+    d.print("Check Wi-Fi; F retries Bridge");
   } else if (!gOtaManifest.error.isEmpty()) {
     d.setTextColor(amber, panel);
     d.print(fitCurrentFontToWidth(gOtaManifest.error, 202));

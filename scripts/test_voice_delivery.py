@@ -167,7 +167,7 @@ int main(){
  assert(!gVoiceNoticeVisible&&gQueuedVoiceReplySpeech.empty()&&gVoiceReplySpeechGeneration==5);
  assert(gUiMode==UiMode::Home);
  gUiMode=UiMode::Clock;showVoiceNotice("Clock answer",false);
- assert(gVoiceNoticeVisible&&handleVoiceNoticeKey('\n',keys)&&gUiMode==UiMode::ChatFull);
+ assert(!gVoiceNoticeVisible&&gInboxUnread&&!handleVoiceNoticeKey('\n',keys)&&gUiMode==UiMode::Clock);
  gUiMode=UiMode::Home;
  // The owned request survives capture, submission and receipt. Esc cannot
  // discard a transport still in flight, and accepting a receipt never cancels
@@ -187,9 +187,10 @@ int main(){
  assert(!voiceRequestBusyUi());
  gAssistantPendingVisible=true;assert(assistantPulseState()==AssistantPulseState::Ready);
  assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceRequestTranscript=="Russian input is retained");
- assert(handleVoiceRequestEscape()&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home&&gVoiceReplyPending);
+ assert(!handleVoiceRequestEscape()&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home&&gVoiceReplyPending);
  showVoiceNotice("Actual answer",false);assert(gVoiceRequestPhase==VoiceRequestPhase::Reply);
- assert(handleVoiceNoticeKey('\n',keys)&&!gVoiceNoticeVisible&&gUiMode==UiMode::ChatFull&&gVoiceReplyPending);
+ assert(!handleVoiceNoticeKey('\n',keys)&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home&&gVoiceReplyPending&&gInboxUnread);
+ gUiMode=UiMode::ChatFull;
  showVoiceRequestError("Connection interrupted");assert(gVoiceRequestPhase==VoiceRequestPhase::Error);
  assert(!gVoiceNoticeVisible); // Already in chat: errors and replies stay inline.
  gUiMode=UiMode::Home;showVoiceRequestError("Connection interrupted");

@@ -3,7 +3,7 @@
   constexpr uint16_t cyan = rgb565_local(47, 227, 255);
   constexpr uint16_t violet = rgb565_local(157, 102, 255);
   constexpr uint16_t red = rgb565_local(255, 63, 85);
-  constexpr uint16_t amber = rgb565_local(246, 194, 74);
+  constexpr uint16_t amber = rgb565_local(255,136,64);
   constexpr uint16_t green = rgb565_local(88, 240, 141);
   constexpr uint16_t blueFrame = rgb565_local(24, 90, 118);
   uint16_t c1 = cyan;
@@ -62,7 +62,7 @@
       label = "READY";
     } else {
       c1 = rgb565_local(255, 143, 36);
-      c2 = rgb565_local(255, 213, 98);
+      c2 = rgb565_local(255,136,64);
       c3 = rgb565_local(90, 45, 11);
       fg = rgb565_local(255, 246, 226);
       label = "LINK";
@@ -255,13 +255,7 @@
     d.print(fitCurrentFontToWidth(gBootBackgroundLabel, 42));
   }
   renderAssistantPulseChatHint();
-  // Persistent, quiet indicators; status toasts may expire independently.
-  if (gOtaManifest.parsed && release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion)) {
-    d.fillCircle(228, 9, 3, green);
-  }
-  if (gInboxUnread || gVoiceReplyPending) {
-    d.drawRoundRect(214, 5, 8, 7, 1, gInboxUnread ? cyan : amber);
-  }
+  // The Home badge carries release, build and unread-message status.
   renderLauncherOverlay();
   renderDebugOverlay();
 }
@@ -283,7 +277,7 @@ void renderVoicePlayerUi() {
   const uint16_t panel2 = rgb565_local(10, 24, 36);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(105, 255, 156);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(126, 143, 157);
   d.fillScreen(bg);
   d.fillRoundRect(6, 6, 228, 123, 14, panel);
@@ -308,7 +302,7 @@ void renderVoicePlayerUi() {
     int x = spectrumX + i * spectrumGap;
     uint16_t fill = gPlaybackActive
                         ? (i < 5 ? rgb565_local(68, 255, 178)
-                                 : (i < 11 ? rgb565_local(47, 227, 255) : rgb565_local(255, 194, 74)))
+                                 : (i < 11 ? rgb565_local(47, 227, 255) : rgb565_local(255,136,64)))
                         : rgb565_local(17, 57, 72);
     d.fillRoundRect(x, spectrumBaseY - h, 7, h, 3, rgb565_local(4, 20, 28));
     d.fillRoundRect(x + 1, spectrumBaseY - h + 1, 5, h - 1, 2, fill);

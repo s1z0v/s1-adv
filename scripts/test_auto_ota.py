@@ -31,20 +31,30 @@ bool gRealtimeSmokeActive=false,gRealtimeSmokeAudioStreaming=false;
 void* gTextTurnTaskHandle=nullptr;void* gCompletedTextTurn=nullptr;
 String gActiveTextTurn,gInputBuffer,gDeviceToken="private-in-memory",gHubHost="bridge.invalid";
 std::deque<String> gPendingTextTurns,gInboxAckQueue;
-uint32_t now=30000,gOtaLastAutoCheckMs=0,gLastUserActivityMs=0,gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
+uint32_t now=30000,gOtaLastAutoCheckMs=0,gLastUserActivityMs=0,gLastUserInputMs=0,gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
 constexpr uint32_t kOtaAutoCheckIntervalMs=20000,kInboxAutoPollIntervalMs=15000;
 constexpr const char* kFirmwareManifestFetchPath="/api/cardputer/firmware/manifest";
 constexpr const char* kAppVersion="0.2.167-dev";constexpr const char* kBuildGitSha="test";
-bool gInboxHttpBusy=false,gVoiceReplyPending=false,gPendingOtaCheckAction=false,gPendingOtaApplyAction=false;
+bool gInboxHttpBusy=false,gVoiceReplyPending=false,gPendingOtaCheckAction=false,gPendingOtaApplyAction=false,failStart=false;
 uint32_t gVoiceReplyPendingMs=0;
 uint32_t millis(){return now;}void logf(const char*,...){}
 String hubBaseUrl(){return "https://bridge.invalid";}
 struct InboxHttpPayload {String url,token,eventId;bool otaManifest=false,applyAfter=false,announce=false;};
 std::vector<InboxHttpPayload> dispatched;std::vector<uint32_t> manifestTimes;
-bool startInboxNetworkRequest(std::unique_ptr<InboxHttpPayload> p){assert(!gInboxHttpBusy);gInboxHttpBusy=true;
+bool startInboxNetworkRequest(std::unique_ptr<InboxHttpPayload> p){assert(!gInboxHttpBusy);if(failStart)return false;gInboxHttpBusy=true;
  if(p->otaManifest)manifestTimes.push_back(now);dispatched.push_back(*p);gLastInboxAutoPollMs=now;return true;}
 void finish(){gInboxHttpBusy=false;}
 '''
+code+=r'''
+using std::max;
+bool gVoiceNoticeVisible=false,gScreenOffActive=false,gScreensaverActive=false,gScreensaverDimmed=false,gPendingRestart=false;
+uint32_t gScreensaverStartedMs=0;
+UiMode gScreensaverPreviousMode=UiMode::Home;
+struct{uint8_t screensaverTimeoutMin=1,screenOffAfterMin=5,screensaverDimAfterMin=1;bool screensaverEnabled=false,screenAutoOffEnabled=false;}gDeviceSettings;
+void applyDisplayBrightness(){}void enterScreensaver(){gScreensaverActive=true;}
+'''
+for sig in ['bool screensaverMayRun()', 'void markUserActivity()', 'void serviceIdleScreensaver()']:
+ code+=function('009_main.cpp.inc',sig)+'\n'
 code+=function('063_main.cpp.inc','bool appAllowsBackgroundNetwork()')+'\n'
 for file,signature in [('020_main.cpp.inc','bool autoInboxPollAllowed()'),('020_main.cpp.inc','bool startBackgroundManifestCheck('),('020_main.cpp.inc','void serviceAutoInboxPoll()')]:code+=function(file,signature)+'\n'
 code+=r'''
@@ -62,10 +72,44 @@ int main(){
  // A failed attempt cannot spin; next due GET is 20 seconds after dispatch.
  now=110001;gInboxRetryAfterMs=114000;serviceAutoInboxPoll();assert(!gInboxHttpBusy);
  now=130000;serviceAutoInboxPoll();assert(manifestTimes.back()==130000);finish();
- // Durable device ACKs take priority over a due manifest.
+ // A due manifest cannot be starved by a durable ACK. The ACK is preserved
+ // and takes the worker immediately after the manifest completes.
  now=150000;gInboxAckQueue.push_back("event-one");serviceAutoInboxPoll();
- assert(dispatched.back().eventId=="event-one"&&!dispatched.back().otaManifest);finish();
- gInboxAckQueue.clear();now+=250;serviceAutoInboxPoll();assert(dispatched.back().otaManifest);finish();
+ assert(dispatched.back().otaManifest&&gInboxAckQueue.front()=="event-one");finish();
+ now+=250;serviceAutoInboxPoll();assert(dispatched.back().eventId=="event-one");finish();
+ // Repeated failed ACKs retain the event and back off for four seconds.
+ // Discovery must still recur within its interval plus that bounded backoff.
+ const auto firstManifest=manifestTimes.size();
+ for(now=150500;now<=450500;now+=250){
+  const auto n=dispatched.size();serviceAutoInboxPoll();
+  if(dispatched.size()>n && !dispatched.back().eventId.isEmpty())gInboxRetryAfterMs=now+4000;
+  finish();
+ }
+ assert(gInboxAckQueue.size()==1&&gInboxAckQueue.front()=="event-one");
+ assert(manifestTimes.size()>=firstManifest+12);
+ for(auto i=firstManifest;i<manifestTimes.size();++i)assert(manifestTimes[i]-manifestTimes[i-1]<=24000);
+ gInboxAckQueue.clear();gInboxRetryAfterMs=0;
+ // An idle saved draft suppresses incoming chat, never release discovery.
+ gInputBuffer="unfinished draft";now=manifestTimes.back()+20000;
+ serviceAutoInboxPoll();assert(manifestTimes.back()==now);finish();
+ const auto draftCount=dispatched.size();now+=15000;serviceAutoInboxPoll();assert(dispatched.size()==draftCount);
+ now+=5000;serviceAutoInboxPoll();assert(dispatched.back().otaManifest);finish();gInputBuffer.clear();
+ // Failed worker creation is not a dispatched check and cannot spin each loop.
+ now+=20000;const auto lastCheck=gOtaLastAutoCheckMs;failStart=true;
+ assert(!startBackgroundManifestCheck(false,false));assert(gOtaLastAutoCheckMs==lastCheck);
+ const auto failedCount=dispatched.size();serviceAutoInboxPoll();assert(dispatched.size()==failedCount);
+ now+=4000;failStart=false;serviceAutoInboxPoll();assert(manifestTimes.back()==now);finish();
+
+ // Execute the real screensaver hold on Firmware and on an accepted-request
+ // notice. It refreshes screen-idle time every loop without faking key input.
+ for(auto mode:{UiMode::Ota,UiMode::Home}) {
+  gUiMode=mode;gVoiceNoticeVisible=mode==UiMode::Home;
+  now+=20000;markUserActivity();const auto start=now;const auto count=manifestTimes.size();
+  for(now=start;now<=start+65000;now+=250){serviceIdleScreensaver();serviceAutoInboxPoll();finish();}
+  assert(gLastUserActivityMs>=start+65000);assert(gLastUserInputMs==start);
+  assert(manifestTimes.size()>=count+3);
+ }
+ gVoiceNoticeVisible=false;gUiMode=UiMode::Home;
  // Browser/device manual checks share the same worker and cannot overlap.
  now+=20000;assert(startBackgroundManifestCheck(true,true));
  assert(dispatched.back().applyAfter&&dispatched.back().announce);
@@ -80,7 +124,7 @@ int main(){
  gUiMode=UiMode::Nes;assert(!autoInboxPollAllowed());
  // Idle Focus and an open launcher still report the actual device version.
  gUiMode=UiMode::Focus;gLauncherVisible=true;
- assert(autoInboxPollAllowed());now+=20000;gLastUserActivityMs=now;
+ assert(autoInboxPollAllowed());now+=20000;gLastUserInputMs=now;
  auto n=dispatched.size();serviceAutoInboxPoll();assert(dispatched.size()==n);
  now+=1001;serviceAutoInboxPoll();assert(dispatched.size()==n+1);finish();
 }
@@ -89,4 +133,4 @@ with tempfile.TemporaryDirectory(prefix='s1-auto-ota-') as directory:
  p=Path(directory);(p/'test.cpp').write_text(code)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-print('PASS actual OTA scheduler: 20s GET dispatch, busy pauses, retry interval, ACK priority and one network owner; hardware cadence remains separate')
+print('PASS actual OTA scheduler: bounded discovery despite failed ACKs and idle drafts, resource pauses, worker failure backoff and one network owner; hardware cadence remains separate')

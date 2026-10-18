@@ -53,7 +53,7 @@ struct Canvas {
 code += renderer
 code += r'''
 int main() {
- const uint16_t cyan=rgb565_local(47,227,255), amber=rgb565_local(246,194,74);
+ const uint16_t cyan=rgb565_local(47,227,255), amber=rgb565_local(255,136,64);
  const uint16_t red=rgb565_local(255,63,85),dim=rgb565_local(23,48,59);
  for(int raw: {-1,INT_MIN,0,1,15,16,20,21,30,31,40,41,60,61,80,81,99,100,101,INT_MAX}) {
   gCanvas=Canvas{}; drawHomeBatteryStatus(raw);

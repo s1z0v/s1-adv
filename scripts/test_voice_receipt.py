@@ -35,7 +35,7 @@ struct String:std::string {
 enum class UiMode{Home,Clock,ChatFull,ChatFace};UiMode gUiMode=UiMode::Home;
 enum class VoiceRequestPhase{None,Recording,Sending,Processing,Accepted,Reply,Error};
 VoiceRequestPhase gVoiceRequestPhase;
-bool gVoiceNoticeVisible=true,gVoiceNoticePending=false,gLauncherVisible=false,gChatCommandsVisible=false;
+bool gInboxUnread=false,gVoiceNoticeVisible=true,gVoiceNoticePending=false,gLauncherVisible=false,gChatCommandsVisible=false;
 bool gVoiceReplyPending=false,gAssistantPendingVisible=true;
 unsigned gVoiceReplyNotifyUntilMs=0,gVoiceReplyAfterSeq=0,gInboxLastSeq=20,gVoiceReplyPendingMs=0;
 unsigned gLastInboxAutoPollMs=0,gVoiceNoticeShownMs=0;
@@ -110,7 +110,7 @@ int main(){
   assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceReplyPending&&!gAssistantPendingVisible);
   assert(tones==1&&gQueuedVoiceReplySpeech.empty()&&gInboxLastSeq==20&&gStoredAssistantSeqs.back()==30&&userText=="Change the battery");
-  assert(gVoiceNoticeVisible==(mode==UiMode::Home||mode==UiMode::Clock));
+  assert(!gVoiceNoticeVisible);
   assert(history.size()==1&&replyText==decoded["reply"].text&&gVoiceNoticeText==replyText);
   assert(cursorAtStorage==20); // Persist first, then skip/ACK the duplicated inbox receipt.
   reset();decoded["reply"]={"Done",0,false,false};
@@ -137,7 +137,7 @@ int main(){
   gCompletedTextTurn=accepted;processCompletedTextTurn();
   assert(!gSubmitting&&!gThinking&&gVoiceReplyPending&&tts==0&&history.size()==1);
   assert(replyText=="Accepted by the real firmware agent"&&cursorAtStorage==20&&gInboxLastSeq==20&&gStoredAssistantSeqs.back()==31);
-  assert(gVoiceNoticeVisible==(mode==UiMode::Home||mode==UiMode::Clock));
+  assert(!gVoiceNoticeVisible);
   auto* final=new TextTurnTaskResult();final->ok=final->hasReply=true;final->reply="Published";final->replySeq=32;
   gCompletedTextTurn=final;processCompletedTextTurn();assert(replyText=="Published"&&tts==0&&gQueuedVoiceReplySpeech=="Published");
   assert(cursorAtStorage==20&&gInboxLastSeq==20&&gStoredAssistantSeqs.back()==32);

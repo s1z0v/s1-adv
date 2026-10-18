@@ -109,7 +109,7 @@ void renderCalculatorUi() {
   const uint16_t row = rgb565_local(11, 92, 42);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(176, 222, 190);
   uint16_t accent = gCalcStatus == "Error" ? amber : green;
 
@@ -168,7 +168,7 @@ void renderRfidLabUi() {
   const uint16_t panel2 = rgb565_local(10, 33, 48);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t red = rgb565_local(255, 110, 92);
   const uint16_t muted = rgb565_local(156, 185, 203);
   const uint16_t accent = gRfidReady ? green : red;
@@ -352,7 +352,7 @@ void renderTetrisRightHandPortraitUi() {
   const uint16_t grid = rgb565_local(18, 30, 40);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(128, 145, 155);
   const uint16_t red = rgb565_local(255, 82, 82);
   const int16_t vw = 135;
@@ -456,7 +456,7 @@ void renderTetrisUi() {
   const uint16_t grid = rgb565_local(18, 30, 40);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(128, 145, 155);
   const uint16_t red = rgb565_local(255, 82, 82);
   const int16_t cell = 6;
@@ -563,7 +563,7 @@ void renderKeyRushUi() {
   const uint16_t line = rgb565_local(38, 57, 70);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(246, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t violet = rgb565_local(157, 102, 255);
   const uint16_t red = rgb565_local(255, 82, 82);
   const uint16_t muted = rgb565_local(128, 145, 155);
@@ -800,7 +800,7 @@ void renderIrRemoteUi() {
   const uint16_t panel2 = rgb565_local(6, 8, 17);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(132, 148, 162);
   const uint16_t red = rgb565_local(255, 82, 82);
 
@@ -863,7 +863,7 @@ void renderCalendarUi() {
   const uint16_t todayBg = rgb565_local(8, 58, 46);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(126, 143, 157);
 
   d.fillScreen(bg);
@@ -957,7 +957,7 @@ void renderStopwatchUi() {
   const uint16_t panel2 = rgb565_local(3, 12, 16);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(126, 143, 157);
   uint32_t elapsed = stopwatchElapsedMs();
   uint16_t accent = gStopwatchRunning ? green : amber;
@@ -1025,7 +1025,7 @@ void renderAlarmUi() {
   const uint16_t panel2 = rgb565_local(6, 10, 18);
   const uint16_t cyan = rgb565_local(47, 227, 255);
   const uint16_t green = rgb565_local(88, 240, 141);
-  const uint16_t amber = rgb565_local(255, 194, 74);
+  const uint16_t amber = rgb565_local(255,136,64);
   const uint16_t red = rgb565_local(255, 82, 82);
   const uint16_t muted = rgb565_local(126, 143, 157);
   uint32_t nowMs = millis();

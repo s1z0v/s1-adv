@@ -151,7 +151,7 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
     {"Media", "WAV", "Listen and capture", rgb565_local(88, 240, 141), 5,
      {{"Library", UiMode::Library}, {"Folders", UiMode::AudioFolders}, {"Voice Notes", UiMode::Voice},
       {"Notes", UiMode::Notes}, {"Assets", UiMode::Assets}}},
-    {"Focus", "25", "Time and attention", rgb565_local(246, 194, 74), 4,
+    {"Focus", "25", "Time and attention", rgb565_local(255,136,64), 4,
      {{"Pomodoro", UiMode::Focus}, {"Alarm", UiMode::Alarm},
       {"Stopwatch", UiMode::Stopwatch}, {"Calendar", UiMode::Calendar}}},
     {"Tools", "UTIL", "Local hardware tools", rgb565_local(255, 150, 80), 5,

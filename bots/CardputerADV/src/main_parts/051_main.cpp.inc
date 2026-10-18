@@ -69,12 +69,12 @@
     for (int i = 0; i < 5; ++i) {
       int16_t fx = cx - r - 16 + i * 7;
       int16_t fy = cy - 18 + static_cast<int16_t>((now / 120 + i * 3) % 18);
-      d.fillCircle(fx, fy, 2, rgb565_local(255, 194, 74));
+      d.fillCircle(fx, fy, 2, rgb565_local(255,136,64));
     }
   }
   if (gPet.activity == PetActivity::Playing || gPet.mood == PetMood::Excited) {
     drawPetSpark(cx - r - 11, cy - r + 10, 4, accent);
-    drawPetSpark(cx + r + 12, cy - r / 3, 3, rgb565_local(255, 194, 74));
+    drawPetSpark(cx + r + 12, cy - r / 3, 3, rgb565_local(255,136,64));
   }
   if (gPet.activity == PetActivity::Cleaning || gPet.mood == PetMood::Dirty) {
     for (int i = 0; i < 4; ++i) {
@@ -94,7 +94,7 @@
   if (gPet.activity == PetActivity::Exploring) {
     int sweep = static_cast<int>((now / 10) % 360);
     d.drawArc(cx, cy, r + 13, r + 10, sweep, sweep + 70, accent);
-    d.drawArc(cx, cy, r + 23, r + 20, 220 - sweep, 290 - sweep, rgb565_local(255, 194, 74));
+    d.drawArc(cx, cy, r + 23, r + 20, 220 - sweep, 290 - sweep, rgb565_local(255,136,64));
   }
   if (gPet.activity == PetActivity::Medicine || gPet.mood == PetMood::Sick) {
     d.drawFastHLine(cx + r + 8, cy + r / 2, 13, rgb565_local(128, 230, 104));
@@ -102,7 +102,7 @@
   }
   if (gPet.activity == PetActivity::Discipline) {
     d.setFont(&fonts::Font4);
-    d.setTextColor(rgb565_local(255, 194, 74), rgb565_local(8, 18, 26));
+    d.setTextColor(rgb565_local(255,136,64), rgb565_local(8, 18, 26));
     d.setCursor(cx + r + 8, cy - r / 2);
     d.print("!");
   }
@@ -189,7 +189,7 @@ void renderFacePanel(bool fullscreen = false) {
   d.setFont(&fonts::Font0); d.setTextSize(1);
   d.setTextColor(rgb565_local(47,227,255),bg);
   d.setCursor(8,3); d.print("CHAT EYES");
-  d.setTextColor(rgb565_local(255,194,74),bg);
+  d.setTextColor(rgb565_local(255,136,64),bg);
   d.setCursor(132,3);
   d.print(fitCurrentFontToWidth((gThinking||gSubmitting)?gStatusText:String(eyeSkinName(gDeviceSettings.eyeSkin)),100));
 }

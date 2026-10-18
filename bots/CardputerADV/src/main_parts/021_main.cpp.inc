@@ -186,7 +186,7 @@ bool downloadAndPlayResponseAudio(const String& url, const String& localPath, co
   setStatus("Preparing voice reply");
   bool releasedCanvas = releaseUiCanvasForNetwork("reply-audio");
   if (!downloadUrlToFile(url, outPath, sha256, expectedSize, "Voice reply",
-                         rgb565_local(246, 194, 74), false)) {
+                         rgb565_local(255,136,64), false)) {
     if (releasedCanvas) {
       restoreUiCanvasAfterNetwork();
     }

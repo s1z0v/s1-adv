@@ -22,6 +22,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     return;
   }
   if (handleFocusShortcut(lowerKey,keys)) return;
+  if (handleHomeLinkRetryKey(key,keys)) return;
   if (handleVoiceNoticeKey(key, keys)) return;
   if (handleHomeUpdateKey(key, keys)) return;
   if (handleAssistantMenuKey(key,keys)) return;

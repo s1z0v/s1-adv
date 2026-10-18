@@ -3,7 +3,7 @@
   d.print("%");
   if (gBatterySnapshot.levelEstimated) {
     d.setFont(&fonts::Font0);
-    d.setTextColor(rgb565_local(246, 194, 74), panel);
+    d.setTextColor(rgb565_local(255,136,64), panel);
     d.setCursor(18, 72);
     d.print("voltage-est");
   }
@@ -35,7 +35,7 @@
   d.setTextColor(muted, panel);
   d.setCursor(116, 44);
   d.print("drain");
-  d.setTextColor(gBatteryDrainKnown ? rgb565_local(255, 194, 74) : muted, panel);
+  d.setTextColor(gBatteryDrainKnown ? rgb565_local(255,136,64) : muted, panel);
   d.setCursor(158, 44);
   if (batteryExternalPowerPresent()) {
     d.print("plug");
@@ -161,8 +161,8 @@ void renderFocusUi() {
                     : isPaused ? rgb565_local(154, 143, 255)
                                : rgb565_local(47, 227, 255);
   uint16_t secondary = isBreak ? rgb565_local(47, 227, 255)
-                       : isReflect ? rgb565_local(255, 194, 74)
-                                   : rgb565_local(246, 194, 74);
+                       : isReflect ? rgb565_local(255,136,64)
+                                   : rgb565_local(255,136,64);
   uint16_t muted = rgb565_local(126, 143, 157);
   uint32_t now = millis();
   float t = now / 1000.0f;

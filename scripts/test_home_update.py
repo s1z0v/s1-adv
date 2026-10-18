@@ -57,7 +57,8 @@ bool startBackgroundManifestCheck(bool apply,bool){++fetched;gInboxHttpBusy=true
 void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOtaApplyAction=true;gPendingOtaActionAfterMs=now;}}
 firmware_job_display::State gFirmwareJobState=firmware_job_display::State::Idle;
 auto& state=gFirmwareJobState;uint32_t gFirmwareJobLastSyncMs=1000;
-bool gVoiceCapturePreparing=false,gG0VoicePending=false;
+bool gVoiceCapturePreparing=false,gG0VoicePending=false,gInboxUnread=false;
+String gInputBuffer;uint32_t gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
 enum class FocusState{Stopped,Focus,ShortBreak,LongBreak,Reflect,Paused};
 struct{FocusState state=FocusState::Stopped;unsigned remainingSec=0;}gFocus;
 bool applyOtaFromManifest(){++applied;return true;}
@@ -90,6 +91,7 @@ code += function('064_main.cpp.inc', 'bool handleHomeUpdateKey(')
 code += function('024_main.cpp.inc', 'void servicePendingOtaAction()')
 code += function('065_main.cpp.inc', 'const char* homeStatusLabel(')
 code += function('058_main.cpp.inc', 'void drawHomeReadyStatus(')
+code += function('064_main.cpp.inc', 'bool handleHomeLinkRetryKey(')
 code += r'''
 void candidate(){gOtaManifest.parsed=true;gOtaManifest.url="https://bridge.test/fw.bin";
  gOtaManifest.sha256=std::string(64,'a');gOtaManifest.size=2000000;gOtaManifest.version="0.2.162-dev";}
@@ -137,12 +139,12 @@ int main(){
   assert(gCanvas.x+gCanvas.w/2==185&&gCanvas.h==18);
   assert(gCanvas.y+gCanvas.h<124); // battery starts at 124
   assert(gCanvas.font==&fonts::Font2);
-  assert(gCanvas.labels==(update?std::vector<std::string>{"NEW UPDATE","Ctrl+U"}:std::vector<std::string>{"READY"}));
+  assert(gCanvas.labels==(update?std::vector<std::string>{"NEW UPDATE"}:std::vector<std::string>{"READY"}));
   assert(gCanvas.border==(update?rgb565_local(255,136,64):rgb565_local(47,227,255)));
  }
  for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled}){
   state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
-  assert(gCanvas.w==72&&gCanvas.h==18&&gCanvas.labels.size()==2);
+  assert(gCanvas.h==18&&gCanvas.labels.size()==1);
  }
  // The actual timer badge supersedes firmware states, then restores them on pause.
  state=firmware_job_display::State::Building;gFocus.state=FocusState::Focus;
@@ -159,13 +161,23 @@ int main(){
  }
  for(auto phase:{FocusState::Paused,FocusState::Stopped}) {
   gFocus.state=phase;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
-  assert((gCanvas.labels==std::vector<std::string>{"BUILDING","Please wait"}));
+  assert((gCanvas.labels==std::vector<std::string>{"BUILDING"}));
  }
  gFocus.state=FocusState::Focus;
  gVoiceCapturePreparing=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
- assert((gCanvas.labels==std::vector<std::string>{"MIC SETUP","Starting"}));
+ assert((gCanvas.labels==std::vector<std::string>{"MIC SETUP"}));
  gVoiceCapturePreparing=false;gG0VoicePending=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
- assert((gCanvas.labels==std::vector<std::string>{"VOICE WAIT","Hold G0"}));
+ assert((gCanvas.labels==std::vector<std::string>{"VOICE WAIT"}));
+ gVoiceCapturePreparing=false;gG0VoicePending=false;gFocus.state=FocusState::Stopped;
+ state=firmware_job_display::State::Idle;gInboxUnread=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+ assert((gCanvas.labels==std::vector<std::string>{"NEW MESSAGE"})&&gCanvas.w==74);
+ gInboxUnread=false;state=firmware_job_display::State::Building;now=gFirmwareJobLastSyncMs+90001;
+ gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+ assert((gCanvas.labels==std::vector<std::string>{"CHECK LINK","F retry"}));
+ keys.ctrl=false;resetQueue();assert(handleHomeLinkRetryKey('f',keys));
+ assert(gPendingOtaCheckAction&&!gPendingOtaApplyAction);
+ resetQueue();gInputBuffer="draft";assert(!handleHomeLinkRetryKey('f',keys));gInputBuffer.clear();
+ state=firmware_job_display::State::Idle;assert(!handleHomeLinkRetryKey('f',keys));
  assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,false,90001))=="CHECK LINK");
 }
 '''

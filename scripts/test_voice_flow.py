@@ -35,7 +35,7 @@ struct String:std::string {using std::string::string;String(const std::string& s
 enum class AssistantPulseState{Realtime,Recording,Thinking,Playback,Ready};
 enum class VoiceRequestPhase{None,Recording,Sending,Processing,Accepted,Reply,Error};
 VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::None;
-bool gVoiceNoticeVisible=false,gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false;
+bool gInboxUnread=false,gVoiceNoticeVisible=false,gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false;
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
 bool gRealtimeScreenVisible=false;
 struct UiFrameTrace{};void presentUiFrame(){}
@@ -77,6 +77,7 @@ code += function((parts / '064_main.cpp.inc').read_text(), 'bool isAssistantUi()
 code += function(notice, 'bool voiceRequestBusyUi()')
 code += function(notice, 'void beginVoiceRequestUi()')
 code += function(notice, 'void showVoiceNotice(')
+code += function(notice, 'void showVoiceRequestError(')
 code += function(notice, 'bool voiceReplyFeedbackReady()')
 code += function((parts / '009_main.cpp.inc').read_text(), 'AssistantPulseState assistantPulseState()')
 code += function((parts / '009_main.cpp.inc').read_text(), 'bool screensaverMayRun()')
@@ -107,15 +108,16 @@ int main(){
   gVoiceRequestPhase=VoiceRequestPhase::Processing;expect({"THINK"});
   gSubmitting=gThinking=false;expect({"THINK"}); // Await a real receipt.
   showVoiceNotice("Please change the firmware",true);
-  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY","ACCEPTED"});else expect({"CHAT"});
+  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY"});else expect({"CHAT"});
   assert(gUiMode==mode); // Neither receipt nor reply jumps to a different app.
   showVoiceNotice("The agent replied",false);
-  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY","REPLY"});else expect({"CHAT"});
+  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY"});else expect({"CHAT"});
  }
  gUiMode=UiMode::Clock;cardLines=8;gScreensaverActive=true;
  showVoiceNotice("It’s 4:52 PM in Bali.",false);
- assert(!gScreensaverActive&&gCanvas.panelY==4&&gCanvas.panelH==122);
- expect({"READY","REPLY"}); // Real card is fully visible in its FIRST frame.
+ assert(!gScreensaverActive&&!gVoiceNoticeVisible&&gInboxUnread);
+ showVoiceRequestError("Delivery failed");assert(gCanvas.panelY==4&&gCanvas.panelH==122);
+ expect({"READY"}); // Real card is fully visible in its FIRST frame.
  assert(cardText.back()=="Enter read more   Esc OK");
  assert(voiceReplyFeedbackReady());speakerPlaying=1;assert(!voiceReplyFeedbackReady());speakerPlaying=0;
  gCanvasSpriteActive=false;assert(!voiceReplyFeedbackReady());
@@ -123,10 +125,10 @@ int main(){
  // the clock, and chat immediately. This used to return before drawing.
  for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}) {
   gUiMode=mode;showVoiceNotice("Background poll stays responsive",false);
-  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY","REPLY"});else expect({"CHAT"});
+  if(mode==UiMode::Home||mode==UiMode::Clock)expect({"READY"});else expect({"CHAT"});
  }
  gCanvasSpriteActive=true;gUiMode=UiMode::Home;showVoiceNotice("Unread reply",false);
- assert(!screensaverMayRun()); // Unread feedback must not disappear into a saver.
+ assert(screensaverMayRun()&&gInboxUnread); // The unread badge survives without a modal sheet.
  gVoiceNoticeVisible=false;assert(screensaverMayRun());
  gVoiceReplySpeechBusy=true;assert(!screensaverMayRun());gVoiceReplySpeechBusy=false;
  gUiMode=UiMode::Home;beginVoiceRequestUi();gRealtimeActive=true;

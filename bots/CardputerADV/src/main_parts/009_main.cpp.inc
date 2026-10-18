@@ -204,6 +204,9 @@ bool screensaverMayRun() {
 
 void markUserActivity() {
   gLastUserActivityMs = millis();
+  // Screensaver holds refresh the display-idle clock even without a key.
+  // Network quiet time must follow real activity instead of those holds.
+  gLastUserInputMs = gLastUserActivityMs;
 }
 
 bool handleScreensaverWake() {

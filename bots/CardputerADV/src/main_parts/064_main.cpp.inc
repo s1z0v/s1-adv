@@ -5,6 +5,20 @@ extern "C" {
 namespace {
 constexpr uint8_t kNesAudioChannel=0;
 // Shared assistant navigation and a bounded NES app.
+bool handleHomeLinkRetryKey(char key, const Keyboard_Class::KeysState& keys) {
+  if ((key!='f' && key!='F') || keys.ctrl || keys.alt || keys.fn ||
+      (gUiMode!=UiMode::Home && gUiMode!=UiMode::Clock) ||
+      gLauncherVisible || gChatCommandsVisible || gVoiceNoticeVisible ||
+      !gInputBuffer.isEmpty() || (gFocus.state!=FocusState::Stopped && gFocus.state!=FocusState::Paused) ||
+      strcmp(homeStatusLabel(homeFirmwareUpdateAvailable()),"CHECK LINK")!=0) return false;
+  gPendingOtaCheckAction=true;
+  gPendingOtaActionAfterMs=millis()+100;
+  gLastInboxAutoPollMs=0;
+  gInboxRetryAfterMs=0;
+  setStatus("Retrying Bridge",1200);
+  return true;
+}
+
 bool handleHomeUpdateKey(char key, const Keyboard_Class::KeysState& keys) {
   if (!keys.ctrl || keys.alt || keys.fn || (key!='u' && key!='U') ||
       (gUiMode!=UiMode::Home && gUiMode!=UiMode::Clock) ||

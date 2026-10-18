@@ -108,7 +108,7 @@ void renderBootSplash(const char* stage) {
   const uint16_t panelLine = rgb565_local(36, 58, 66);
   const uint16_t mint = rgb565_local(111, 255, 230);
   const uint16_t mintDim = rgb565_local(32, 94, 89);
-  const uint16_t gold = rgb565_local(255, 211, 106);
+  const uint16_t gold = rgb565_local(255,136,64);
   const uint16_t muted = rgb565_local(135, 154, 149);
   uint8_t stageIndex = 0;
   String stageName = stage && stage[0] ? String(stage) : String("");
@@ -396,6 +396,7 @@ void loop() {
   traceUiService("servicePendingOtaAction", [] { servicePendingOtaAction(); });
   servicePostInstallStory();
   serviceIdleScreensaver();
+  traceUiService("servicePendingLogsUpload", [] { servicePendingLogsUpload(); });
   traceUiService("serviceAutoInboxPoll", [] { serviceAutoInboxPoll(); });
 
   if (gPlaybackActive && !gPlaybackStreaming && !gRealtimePlaybackActive &&

@@ -117,18 +117,17 @@ bool syncAssetsFromManifest(bool pomodoroOnly) {
 }
 
 bool uploadRuntimeLogs() {
-  if (gRecording || gSubmitting || gThinking || gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy) {
-    setStatus("Network busy; retry logs", 2500);
-    return false;
-  }
-  gWifiReady = WiFi.status() == WL_CONNECTED;
-  if (!ensureWifiForHttp("logs", 7000) || gHubHost.isEmpty()) {
-    setStatus("Logs no Wi-Fi", 1200);
-    setHttpDiag("logs: wifi/hub unavailable");
-    appendRuntimeLog("LOG", "upload skipped wifi/hub", true);
-    return false;
-  }
+  if (gPendingLogsUpload || gLogsUploadBusy) return true;
+  gPendingLogsUpload=true;
+  setStatus(gWifiReady ? "Logs queued" : "Logs waiting for Wi-Fi",1800);
+  appendRuntimeLog("LOG","upload queued",false);
+  return true;
+}
 
+bool startRuntimeLogsUpload() {
+  if (gInboxHttpBusy || !autoInboxPollAllowed()) return false;
+  logf("[OTA_AUTO] state allowed=%d worker=%d ack=%u draft=%u",int(autoInboxPollAllowed()),int(gInboxHttpBusy),unsigned(gInboxAckQueue.size()),unsigned(gInputBuffer.length()));
+  logf("[OTA_AUTO] age_ms=%u input_idle=%u display_idle=%u",unsigned(millis()-gOtaLastAutoCheckMs),unsigned(millis()-gLastUserInputMs),unsigned(millis()-gLastUserActivityMs));
   String body;
   body.reserve(1024 + gRuntimeLogs.size() * 180);
   body += "{\"device_id\":\"";
@@ -158,29 +157,23 @@ bool uploadRuntimeLogs() {
   }
   body += "]}";
 
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secureClient;
-  String url = hubBaseUrl() + kCardputerLogsPath;
-  if (!configureHttpClient(http, secureClient, url, 30000)) {
-    setStatus("Logs connect failed", 1200);
-    setHttpDiag("logs: begin failed");
-    appendRuntimeLog("LOG", "upload begin failed", true);
-    return false;
-  }
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Device-Id", gDeviceId);
-  http.addHeader("X-Conversation-Key", currentConversationKey());
-  if (!gDeviceToken.isEmpty()) {
-    http.addHeader("Authorization", "Bearer " + gDeviceToken);
-  }
-  int code = http.POST(reinterpret_cast<uint8_t*>(const_cast<char*>(body.c_str())), body.length());
-  http.end();
-  bool ok = code >= 200 && code < 300;
-  String detail = code <= 0 ? HTTPClient::errorToString(code) : String(code);
-  setStatus(ok ? "Logs uploaded" : (code <= 0 ? "Logs transport fail" : ("Logs HTTP " + String(code))), 1400);
-  setHttpDiag(ok ? "logs: ok" : ("logs: " + detail));
-  appendRuntimeLog("LOG", ok ? "upload ok" : ("upload failed " + detail), true);
-  return ok;
+  std::unique_ptr<InboxHttpPayload> request(new (std::nothrow) InboxHttpPayload());
+  if (!request) return false;
+  request->url=hubBaseUrl()+kCardputerLogsPath;
+  request->token=gDeviceToken;
+  request->logsUpload=true;
+  request->body=std::move(body);
+  if (!startInboxNetworkRequest(std::move(request))) return false;
+  gLogsUploadBusy=true;
+  setStatus("Uploading logs",1200);
+  return true;
+}
+
+void servicePendingLogsUpload() {
+  if (!gPendingLogsUpload || gInboxHttpBusy || !autoInboxPollAllowed()) return;
+  if (gInboxRetryAfterMs && static_cast<int32_t>(millis()-gInboxRetryAfterMs)<0) return;
+  if (startRuntimeLogsUpload()) gPendingLogsUpload=false;
+  else gInboxRetryAfterMs=millis()+4000U;
 }
 
 bool probeOtaBridgeHealth(uint32_t timeoutMs) {

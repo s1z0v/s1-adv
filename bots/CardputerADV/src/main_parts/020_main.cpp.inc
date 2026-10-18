@@ -228,8 +228,7 @@ bool autoInboxPollAllowed() {
          !gBootBackgroundActive && !gG0VoicePending && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy && !gVoiceDialBusy &&
          !gRealtimeDialBusy && !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
-         gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty() &&
-         gInputBuffer.isEmpty();
+         gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty();
 }
 
 InboxHttpResult* performInboxHttpRequest(void* arg) {
@@ -240,23 +239,27 @@ InboxHttpResult* performInboxHttpRequest(void* arg) {
   result->otaManifest = request->otaManifest;
   result->applyAfter = request->applyAfter;
   result->announce = request->announce;
+  result->logsUpload = request->logsUpload;
   HTTPClient http;
   std::unique_ptr<WiFiClientSecure> secure;
-  http.setConnectTimeout(1200);
-  http.setTimeout(1500);
+  http.setConnectTimeout(2500);
+  http.setTimeout(4000);
   http.setReuse(false);
   bool opened = false;
   if (WiFi.status() == WL_CONNECTED) {
     if (request->url.startsWith("https://")) {
       secure.reset(new WiFiClientSecure());
       configureSecureClient(*secure);
-      secure->setHandshakeTimeout(2);
+      secure->setHandshakeTimeout(6);
       opened = http.begin(*secure, request->url);
     } else opened = http.begin(request->url);
   }
   if (opened && !gInboxCancelRequested) {
     if (!request->token.isEmpty()) http.addHeader("Authorization", "Bearer " + request->token);
-    if (request->eventId.isEmpty()) {
+    if (request->logsUpload) {
+      http.addHeader("Content-Type", "application/json");
+      result->code = http.POST(request->body);
+    } else if (request->eventId.isEmpty()) {
       result->code = http.GET();
       if (result->code >= 200 && result->code < 300) result->body = http.getString();
     } else {
@@ -290,21 +293,32 @@ void serviceInboxNetworkCompletion() {
   if (!completed) {
     if(gInboxAllocationFailed) {
       gInboxAllocationFailed=false; gInboxHttpBusy=false; gInboxRetryAfterMs=millis()+10000;
+      if (gLogsUploadBusy) {gLogsUploadBusy=false;setStatus("Logs memory failure",1800);}
       if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased=false; }
     }
     return;
   }
   std::unique_ptr<InboxHttpResult> result(completed);
   gInboxHttpBusy = false;
+  if (result->logsUpload) gLogsUploadBusy=false;
   const bool cancelled = gInboxCancelRequested;
   gInboxCancelRequested = false;
   if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
-  if (cancelled) { logf("[INBOX] poll yielded to input"); return; }
+  if (cancelled) {
+    if(result->logsUpload) setStatus("Logs interrupted; U retry",1800);
+    logf("[INBOX] poll yielded to input"); return;
+  }
   if (result->code < 200 || result->code >= 300) {
     gInboxRetryAfterMs=millis()+4000;
     logf("[INBOX] background HTTP %d",result->code);
   }
-  if (!result->eventId.isEmpty()) {
+  if (result->logsUpload) {
+    const bool ok=result->code>=200 && result->code<300;
+    setStatus(ok ? "Logs uploaded" : "Logs HTTP " + String(result->code),2000);
+    setHttpDiag(ok ? "logs: ok" : "logs: HTTP " + String(result->code));
+    appendRuntimeLog("LOG",ok ? "upload ok" : "upload failed HTTP " + String(result->code),true);
+    logf("[LOG_UPLOAD] complete http=%d ok=%d",result->code,static_cast<int>(ok));
+  } else if (!result->eventId.isEmpty()) {
     if (result->code >= 200 && result->code < 300 && !gInboxAckQueue.empty() &&
         gInboxAckQueue.front() == result->eventId) gInboxAckQueue.pop_front();
     else gLastInboxAutoPollMs = millis(); // Retry later, never spin on a failed ACK.
@@ -326,13 +340,11 @@ void serviceInboxNetworkCompletion() {
 bool startInboxNetworkRequest(std::unique_ptr<InboxHttpPayload> payload) {
   if (gInboxHttpBusy) return false;
   gInboxCancelRequested = false;
-  // Only loopTask manages display/audio memory. A low-memory fallback keeps
-  // direct display rendering active until the worker restores the sprite.
+  // Background HTTP never borrows the framebuffer. Repainting directly to
+  // TFT during a TLS loan exposes partial gray frames on Home and menus.
   prepareNetworkMemory("inbox", false);
   clearEmojiCache();
   // Polling is silent: retain the speaker's DMA/amp state to avoid periodic clicks.
-  if (tlsHandshakeNeedsCanvas())
-    gInboxCanvasReleased = releaseUiCanvasForNetwork("inbox memory");
   gLastInboxAutoPollMs = millis();
   gInboxHttpBusy = true;
   InboxHttpPayload* raw = payload.release();
@@ -354,20 +366,33 @@ bool startBackgroundManifestCheck(bool applyAfter, bool announce) {
   payload->otaManifest = true;
   payload->applyAfter = applyAfter;
   payload->announce = announce;
+  if (!startInboxNetworkRequest(std::move(payload))) {
+    gInboxRetryAfterMs = millis() + 4000U;
+    return false;
+  }
   gOtaLastAutoCheckMs = millis();
   logf("[OTA_AUTO] GET at_ms=%u interval_ms=%u apply=%d", static_cast<unsigned>(millis()),
        kOtaAutoCheckIntervalMs, static_cast<int>(applyAfter));
-  return startInboxNetworkRequest(std::move(payload));
+  return true;
 }
 
 void serviceAutoInboxPoll() {
   uint32_t now = millis();
-  if (gInboxHttpBusy || now < 30000U || now - gLastUserActivityMs < 1000U || !autoInboxPollAllowed()) return;
+  if (gInboxHttpBusy || now < 30000U || now - gLastUserInputMs < 1000U || !autoInboxPollAllowed()) return;
   if (gVoiceReplyPending && now - gVoiceReplyPendingMs > 300000U) gVoiceReplyPending = false;
   const bool otaDue = now - gOtaLastAutoCheckMs >= kOtaAutoCheckIntervalMs &&
-                      gInboxAckQueue.empty() && !gPendingOtaCheckAction && !gPendingOtaApplyAction;
+                      !gPendingOtaCheckAction && !gPendingOtaApplyAction;
   const uint32_t interval = !gInboxAckQueue.empty() ? 250U : (gVoiceReplyPending ? 4000U : kInboxAutoPollIntervalMs);
   if (gInboxRetryAfterMs && static_cast<int32_t>(now-gInboxRetryAfterMs)<0) return;
+  // A retained ACK must never starve release discovery. Keep the ACK queued
+  // and let the same worker retry it after this bounded manifest request.
+  if (otaDue) {
+    startBackgroundManifestCheck(false, false);
+    return;
+  }
+  // An idle draft can defer incoming chat, but it is not active network work
+  // and must not prevent release checks or already-queued acknowledgements.
+  if (gInboxAckQueue.empty() && !gInputBuffer.isEmpty()) return;
   if (!otaDue && gLastInboxAutoPollMs && now - gLastInboxAutoPollMs < interval) return;
   std::unique_ptr<InboxHttpPayload> payload(new (std::nothrow) InboxHttpPayload());
   if (!payload) { gInboxRetryAfterMs = now + 4000U; return; }
@@ -375,9 +400,6 @@ void serviceAutoInboxPoll() {
   if (!gInboxAckQueue.empty()) {
     payload->eventId = gInboxAckQueue.front();
     payload->url = hubBaseUrl() + "/api/cardputer/device-events/ack";
-  } else if (otaDue) {
-    startBackgroundManifestCheck(false, false);
-    return;
   } else {
     payload->url = hubBaseUrl() + "/api/cardputer/device-events/pending?limit=2&text_chars=1024&sender_kind=assistant&firmware_version=" + String(kAppVersion) + "&firmware_git=" + String(kBuildGitSha);
   }

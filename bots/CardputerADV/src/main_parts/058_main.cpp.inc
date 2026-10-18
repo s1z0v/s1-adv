@@ -90,7 +90,7 @@ void renderHeroUi() {
   int16_t statW = 87;
   d.fillRoundRect(statX - 4, statY - 4, 91, 79, 9, rgb565_local(4, 11, 19));
   d.drawRoundRect(statX - 4, statY - 4, 91, 79, 9, rgb565_local(24, 42, 56));
-  drawPetStatBar(statX, statY, statW, "HUN", gPet.hunger, rgb565_local(255, 194, 74), rgb565_local(4, 11, 19));
+  drawPetStatBar(statX, statY, statW, "HUN", gPet.hunger, rgb565_local(255,136,64), rgb565_local(4, 11, 19));
   drawPetStatBar(statX, statY + 11, statW, "FUN", gPet.happiness, rgb565_local(88, 240, 141), rgb565_local(4, 11, 19));
   drawPetStatBar(statX, statY + 22, statW, "HP", gPet.health, rgb565_local(128, 230, 104), rgb565_local(4, 11, 19));
   drawPetStatBar(statX, statY + 33, statW, "EN", gPet.energy, rgb565_local(47, 227, 255), rgb565_local(4, 11, 19));
@@ -158,31 +158,29 @@ void drawHomeReadyStatus(bool updateReady, bool pressed) {
     label=remaining;
   } else if (rest) label="BREAK";
   const bool ready = strcmp(label, "READY") == 0;
-  const bool building = strcmp(label, "BUILDING") == 0;
-  const bool update = strcmp(label, "NEW UPDATE") == 0;
-  const bool preparing = strcmp(label, "MIC SETUP") == 0;
-  const bool voiceWait = strcmp(label, "VOICE WAIT") == 0;
-  const bool singleLine = ready || focus || rest;
+  const bool linkWait = strcmp(label, "CHECK LINK") == 0;
+  const bool smallText = strlen(label) > 8;
   const int y = 103 + (pressed ? 1 : 0);
-  const int x = singleLine ? 154 : 149, w = singleLine ? 62 : 72;
+  const bool wide = strlen(label) > 7;
+  const int x = wide ? 148 : 154, w = wide ? 74 : 62;
   const uint16_t warmOrange = rgb565_local(255,136,64);
   const uint16_t fill = ready ? rgb565_local(7,20,26) :
       rest ? rgb565_local(7,24,19) : rgb565_local(28,15,12);
   const uint16_t accent = rest ? rgb565_local(88,240,141) :
-      ready ? rgb565_local(47,227,255) : building ? rgb565_local(100,190,255) : warmOrange;
+      ready ? rgb565_local(47,227,255) : warmOrange;
   d.fillRoundRect(x,y,w,18,5,fill);
   d.drawRoundRect(x,y,w,18,5,accent);
   d.setTextSize(1);
   d.setTextColor(accent,fill);
-  if (!singleLine) {
+  if (linkWait) {
     d.setFont(&fonts::Font0);
     d.setCursor(x+(w-d.textWidth(label))/2,y+1);d.print(label);
-    d.setTextColor(rgb565_local(255,225,206),fill);
-    const char* hint = preparing ? "Starting" : voiceWait ? "Hold G0" : update ? "Ctrl+U" : building ? "Please wait" : "Enter chat";
+    const char* hint = "F retry";
     d.setCursor(x+(w-d.textWidth(hint))/2,y+9);d.print(hint);
   } else {
-    d.setFont(&fonts::Font2);
-    d.setCursor(x+(w-d.textWidth(label))/2,y+1);d.print(label);
+    if (smallText) d.setFont(&fonts::Font0);
+    else d.setFont(&fonts::Font2);
+    d.setCursor(x+(w-d.textWidth(label))/2,y+(smallText ? 5 : 1));d.print(label);
   }
   d.setFont(&fonts::Font2);
 }
@@ -192,7 +190,7 @@ void drawHomeBatteryStatus(int32_t rawLevel) {
   const bool known=rawLevel>=0;
   const int level=known ? min<int32_t>(100,rawLevel) : 0;
   const uint16_t accent=known && level<=15 ? rgb565_local(255,63,85) :
-      known && level<=30 ? rgb565_local(246,194,74) : rgb565_local(47,227,255);
+      known && level<=30 ? rgb565_local(255,136,64) : rgb565_local(47,227,255);
   const uint16_t dim=rgb565_local(23,48,59),edge=rgb565_local(28,65,77);
   d.drawRoundRect(154,125,34,6,1,edge);
   d.fillRect(188,127,2,2,edge);
@@ -223,7 +221,7 @@ void renderAssistantPulseChatHint() {
   const uint16_t bg = realtime ? rgb565_local(19, 11, 4) : rgb565_local(6, 16, 22);
   const uint16_t edge = hasInput ? (realtime ? rgb565_local(255, 159, 42) : rgb565_local(47, 227, 255))
                                  : (realtime ? rgb565_local(96, 54, 18) : rgb565_local(42, 78, 88));
-  const uint16_t text = hasInput ? TFT_YELLOW
+  const uint16_t text = hasInput ? rgb565_local(255,136,64)
                                  : (realtime ? rgb565_local(204, 151, 86) : rgb565_local(128, 145, 155));
   d.fillRoundRect(10, 107, 132, 19, 7, bg);
   d.drawRoundRect(10, 107, 132, 19, 7, edge);
@@ -239,7 +237,7 @@ void renderAssistantThinkingLite() {
   constexpr uint16_t panel = rgb565_local(13, 11, 8);
   constexpr uint16_t panel2 = rgb565_local(25, 20, 10);
   constexpr uint16_t edge = rgb565_local(92, 69, 24);
-  constexpr uint16_t amber = rgb565_local(246, 194, 74);
+  constexpr uint16_t amber = rgb565_local(255,136,64);
   constexpr uint16_t cyan = rgb565_local(47, 227, 255);
   constexpr uint16_t white = rgb565_local(255, 248, 232);
   constexpr uint16_t muted = rgb565_local(154, 131, 77);
