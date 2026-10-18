@@ -1,5 +1,6 @@
 void loadFocusSettings() {
   gPrefs.begin(kPrefsFocusNs, true);
+  const bool seedLampLink = DEFAULT_FOCUS_LAMP_ENABLED != 0 && !gPrefs.isKey("lamp_link");
   gFocusSettings.focusSec = gPrefs.getUInt("focus", kFocusDefaultSec);
   gFocusSettings.shortBreakSec = gPrefs.getUInt("short", kFocusShortBreakDefaultSec);
   gFocusSettings.longBreakSec = gPrefs.getUInt("long", kFocusLongBreakDefaultSec);
@@ -12,6 +13,13 @@ void loadFocusSettings() {
   gFocusSettings.lampFocusPreset = static_cast<int8_t>(clampValue<int>(gPrefs.getChar("lamp_focus", 1), -1, 39));
   gFocusSettings.lampBreakPreset = static_cast<int8_t>(clampValue<int>(gPrefs.getChar("lamp_break", 5), -1, 39));
   gPrefs.end();
+  // Preserve the personal provisioning choice across later portable builds.
+  // An existing user setting, including off, always takes precedence.
+  if (seedLampLink) {
+    gPrefs.begin(kPrefsFocusNs, false);
+    gPrefs.putBool("lamp_link", true);
+    gPrefs.end();
+  }
 
   gFocusSettings.focusSec = clampValue<uint32_t>(gFocusSettings.focusSec, kFocusMinDurationSec, kFocusMaxDurationSec);
   gFocusSettings.shortBreakSec = clampValue<uint32_t>(gFocusSettings.shortBreakSec, kFocusMinDurationSec, kFocusMaxDurationSec);
