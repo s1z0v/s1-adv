@@ -53,9 +53,9 @@ export default {
         .description("Check private config, actual bridge/gateway connection and audio dependencies")
         .requiredOption("--config <path>", "Private bridge config")
         .option("--no-probe", "Validate files/dependencies without a network probe")
-        .action(async options => console.log(JSON.stringify(await setupCli([
-          "doctor", "--config", options.config, ...(options.probe === false ? ["--no-probe"] : [])
-        ]), null, 2)));
+        .action(options => printCommand("doctor", {
+          config: options.config, noProbe: options.probe === false
+        }));
     }, { commands: ["s1-adv"] });
   }
 };

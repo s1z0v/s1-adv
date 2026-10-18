@@ -148,10 +148,12 @@ export async function doctor(configPath, { probe = true } = {}) {
       const body = await response.json();
       add("bridge-http", response.ok && body.ok === true, `HTTP ${response.status}`);
       add("upstream", body.upstream_connected === true, "Checks the real gateway connection, not a model answer.");
+      add("delivery", body.delivery_ready === true, body.delivery_hold?.message ||
+        "The bridge must explicitly confirm delivery readiness; a legacy health response is not qualification.");
     } catch { add("bridge-http", false, "Not reachable. Start the reviewed bridge/plugin and approve its exact device identity if requested."); }
   }
   const firmware = await firmwareCapability(config);
-  return { configPath: absolute, checks, textReady: probe && checks.filter(c => ["private-config","device-token","single-device","loopback-listener","gateway-token","agent-config","bridge-http","upstream"].includes(c.name)).every(c => c.ok),
+  return { configPath: absolute, checks, textReady: probe && checks.filter(c => ["private-config","device-token","single-device","loopback-listener","gateway-token","agent-config","bridge-http","upstream","delivery"].includes(c.name)).every(c => c.ok),
     audioDependenciesReady: checks.filter(c => ["ffmpeg","espeak-ng","whisper-binary","whisper-model"].includes(c.name)).every(c => c.ok),
     firmwareAutomationEnabled: config.firmwareAutomation?.enabled === true, firmwareCapability: firmware,
     note: "A model round trip and physical-device acceptance are separate checks." };
