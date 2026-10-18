@@ -23,6 +23,8 @@ capacity check and a 64 KiB reserve. Playback and cleanup use that same filesyst
 This avoids the intermittent SD write failure observed during a repeated native
 speech check. Original microphone recordings remain on SD. Reply downloads use
 bounded writes and must match the expected even PCM byte count before playback.
+Replies larger than the available scratch space use the SD path with bounded
+writes; a failed download leaves the visible text available.
 
 For native diagnostics, `voice.notice.test.clock <text>` displays that text on
 Clock and exercises the ordinary reply-speech worker. It sends no user turn to

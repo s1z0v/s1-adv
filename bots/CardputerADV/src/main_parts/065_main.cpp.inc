@@ -128,6 +128,7 @@ void renderVoiceNotice() {
 struct VoiceSpeechPayload {
   String url, token, body, path;
   fs::FS* fs = nullptr;
+  fs::FS* fallbackFs = nullptr;
   size_t maxBytes = 4 * 1024 * 1024;
   uint32_t generation = 0;
 };
@@ -170,9 +171,13 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
       const uint32_t rate = http.header("X-Audio-Sample-Rate").toInt();
       if (rate >= 8000 && rate <= 48000) result->sampleRate = rate;
       const int expected = http.getSize();
-      const size_t maxBytes=payload->maxBytes;
+      size_t maxBytes=payload->maxBytes;
+      if(expected>static_cast<int>(maxBytes) && payload->fallbackFs) {
+        result->fs=payload->fallbackFs;
+        maxBytes=4*1024*1024;
+      }
       if (expected > 0 && expected <= static_cast<int>(maxBytes)) {
-        File output = payload->fs->open(payload->path, "w");
+        File output = result->fs->open(payload->path, "w");
         WiFiClient* stream = http.getStreamPtr();
         const uint32_t start = millis();
         while (output && stream && http.connected() && millis() - start < 45000 &&
@@ -241,8 +246,8 @@ void serviceVoiceReplySpeech() {
     const bool play = result->ok && current && !gRecording && !gRealtimeActive && !gPlaybackActive;
     bool started = play && startPlaybackStreamFromRawPcmFile(result->path, result->sampleRate, result->bytes, "voice reply",result->fs);
     if (!started && result->fs) fsRemove(*result->fs, result->path);
-    logf("[VOICE_TTS] code=%d bytes=%u playback=%d current=%d", result->code,
-         static_cast<unsigned>(result->bytes), started, current);
+    logf("[VOICE_TTS] code=%d bytes=%u playback=%d current=%d storage=%s", result->code,
+         static_cast<unsigned>(result->bytes), started, current,result->fs==&LittleFS?"flash":"sd");
     if (!started && current) setStatus("Reply text ready; voice unavailable", 2500);
   }
   if (gVoiceSpeechAllocationFailed) {
@@ -259,6 +264,7 @@ void serviceVoiceReplySpeech() {
   std::unique_ptr<VoiceSpeechPayload> payload(new (std::nothrow) VoiceSpeechPayload());
   if (!payload) { gQueuedVoiceReplySpeech = ""; return; }
   payload->fs = voiceReplyStorage(payload->maxBytes);
+  if(payload->fs==&LittleFS && gSdReady) payload->fallbackFs=&SD;
   if (!payload->fs || !gWifiReady) { gQueuedVoiceReplySpeech = ""; return; }
   payload->url = hubBaseUrl() + kDeviceTtsPath; payload->token = gDeviceToken;
   payload->generation = ++gVoiceReplySpeechGeneration;
