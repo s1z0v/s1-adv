@@ -5088,10 +5088,11 @@ class BridgeRuntime {
         return null;
       }
     }
-    if (this.isSuppressedMirror(topic.topic_key, normalized, upstreamMessageId)) {
+    const outboundEcho = ["human", "device"].includes(normalized.sender?.kind);
+    if (outboundEcho && this.isSuppressedMirror(topic.topic_key, normalized, upstreamMessageId)) {
       return null;
     }
-    if (this.consumePendingMirror(topic.topic_key, normalized)) {
+    if (outboundEcho && this.consumePendingMirror(topic.topic_key, normalized)) {
       await this.store.save();
       return null;
     }

@@ -167,3 +167,21 @@ test('session-message and final-chat transports publish a completed run only onc
     state:'final',message:{role:'assistant',content:[{type:'text',text:'One final answer'}]}}});
   assert.equal(runtime.store.getHistory(topic.topic_key,0,100).items.filter(x=>x.sender.kind==='assistant').length,1);
 }));
+
+test('a final repeating the request is not swallowed by pending or suppressed outbound echoes', async () => withRuntime(async ({ runtime, topic, send, deliver, wait }) => {
+  const first = await send('repeat-pending');
+  await deliver(first,'Request repeat-pending');
+  assert.equal((await wait(first)).content.text,'Request repeat-pending');
+  const second = await send('repeat-suppressed');
+  const echo = runtime.normalizeGatewayMessage(topic,{role:'user',content:[{type:'text',text:'Request repeat-suppressed'}]});
+  assert.equal(runtime.consumePendingMirror(topic.topic_key,echo),true);
+  await deliver(second,'Request repeat-suppressed');
+  assert.equal((await wait(second)).content.text,'Request repeat-suppressed');
+}));
+
+test('each final may repeat the other overlapping request without being dropped', async () => withRuntime(async ({ send, deliver, wait }) => {
+  const first = await send('cross-first'); const second = await send('cross-second');
+  await deliver(first,'Request cross-second'); await deliver(second,'Request cross-first');
+  assert.equal((await wait(first)).content.text,'Request cross-second');
+  assert.equal((await wait(second)).content.text,'Request cross-first');
+}));
