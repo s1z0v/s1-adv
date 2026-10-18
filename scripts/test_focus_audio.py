@@ -49,11 +49,27 @@ int main(){
  // Turning cues off never interrupts music or spoken assistant replies.
  toggleFocusGuidedAudio();gPlaybackActive=true;gPlaybackStreamPath="/music/song.wav";
  toggleFocusGuidedAudio();assert(gPlaybackActive&&stops==1);
- gPlaybackActive=false;toggleFocusGuidedAudio();gDeviceSettings.audioLanguage="es";
- assert(!pomodoroMeditationAssetsPresent());
+ gPlaybackActive=false;toggleFocusGuidedAudio();
+ // A three-file EN-only manifest is complete even if RU/ES was selected.
+ for(auto lang:{"ru","es"}) {
+  gDeviceSettings.audioLanguage=lang;
+  assert(pomodoroMeditationAssetsPresent());
+  for(auto phase:{FocusState::Focus,FocusState::ShortBreak,FocusState::Reflect}) {
+   gPlaybackActive=false;assert(playFocusCue(phase));
+   assert(gPlaybackStreamPath.find("/pomodoro/audio/en/")==0);
+  }
+ }
+ // An existing selected RU cue wins over EN; switching to EN keeps EN.
  for(auto c:kPomodoroAudioCues)files.insert(pomodoroMeditationAssetPath("ru",c));
- assert(pomodoroMeditationAssetsPresent());assert(playFocusCue(FocusState::Reflect));
+ gPlaybackActive=false;gDeviceSettings.audioLanguage="ru";
+ assert(playFocusCue(FocusState::Reflect));assert(gPlaybackStreamPath=="/pomodoro/audio/ru/reflection.wav");
+ gPlaybackActive=false;gDeviceSettings.audioLanguage="en";
+ assert(playFocusCue(FocusState::Focus));assert(gPlaybackStreamPath=="/pomodoro/audio/en/start.wav");
+ // Keep the old private-RU-only installation usable without rewriting it.
+ for(auto c:kPomodoroAudioCues)files.erase(pomodoroMeditationAssetPath("en",c));
+ assert(pomodoroMeditationAssetsPresent());gPlaybackActive=false;assert(playFocusCue(FocusState::Reflect));
  assert(gPlaybackStreamPath=="/pomodoro/audio/ru/reflection.wav");
+ files.erase(pomodoroMeditationAssetPath("ru","start"));assert(!pomodoroMeditationAssetsPresent());
  mounted=false;assert(!pomodoroMeditationAssetsPresent());
 }
 '''
@@ -61,4 +77,4 @@ with tempfile.TemporaryDirectory(prefix='s1-focus-audio-') as d:
  p=Path(d);(p/'test.cpp').write_text(code)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-print('PASS actual Focus audio: selected language/RU fallback, missing storage, opt-out and stopping only a guided cue')
+print('PASS actual Focus audio: EN-only readiness, optional RU, selected-language priority and private RU fallback, missing storage, opt-out and stopping only a guided cue')

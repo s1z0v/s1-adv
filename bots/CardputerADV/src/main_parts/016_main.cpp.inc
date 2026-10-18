@@ -29,11 +29,12 @@ bool pomodoroMeditationAssetsPresent() {
   if (!fs || !ensurePomodoroStorageOn(*fs)) {
     return false;
   }
-  // Readiness concerns the chosen cue language, with the existing RU fallback.
+  // English is the bundled baseline; other languages are optional.
   // Missing unrelated language packs must not force another boot download.
   const String language=normalizedPomodoroAudioLanguage(gDeviceSettings.audioLanguage);
   for (size_t cue=0;cue<kPomodoroAudioCueCount;++cue) {
     if(!fsExists(*fs,pomodoroMeditationAssetPath(language.c_str(),kPomodoroAudioCues[cue])) &&
+       !fsExists(*fs,pomodoroMeditationAssetPath("en",kPomodoroAudioCues[cue])) &&
        !fsExists(*fs,pomodoroMeditationAssetPath("ru",kPomodoroAudioCues[cue]))) return false;
   }
   return true;

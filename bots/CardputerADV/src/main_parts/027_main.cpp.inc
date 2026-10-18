@@ -244,8 +244,12 @@ bool playFocusCue(FocusState state) {
       startPlaybackStreamFromWavFile(localizedPath, String("focus cue: ") + focusStateName(state))) {
     return true;
   }
-  if (language != "ru") {
-    String fallbackPath = pomodoroMeditationAssetPath("ru", cue);
+  // RU is an optional pack. EN alone is a complete installation; retain
+  // existing private RU cues as the final fallback without downloading them.
+  const char* fallbackLanguages[] = {"en", "ru"};
+  for (const char* fallback : fallbackLanguages) {
+    if (language == fallback) continue;
+    String fallbackPath = pomodoroMeditationAssetPath(fallback, cue);
     if (fsExists(*fs, fallbackPath) &&
         startPlaybackStreamFromWavFile(fallbackPath, String("focus cue: ") + focusStateName(state))) {
       return true;

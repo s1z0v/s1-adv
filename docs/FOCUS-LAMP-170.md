@@ -15,3 +15,7 @@ Background firmware checks remain due every 20 seconds. Idle apps, settings and 
 The display changes wait for DMA before freeing/reusing the sprite. While a TLS connection borrows its memory, the TFT retains the last image: an unchanged scene only refreshes the small status region, rather than repeatedly clearing/redrawing the entire screen directly. Inputs and scene changes still paint a frame. This addresses an identified source path for periodic flashing; absence of visible flashing and actual responsiveness still require hardware acceptance.
 
 Host checks exercise the actual timer transitions, shortcut, lamp state machine, packet parser, frame policy, launcher geometry, settings registry/navigation, cue language/opt-out, OTA scheduler and existing voice/Realtime regressions. A host pass or a published binary is not device acceptance.
+
+## Audio compatibility follow-up (not yet published as firmware)
+
+Plugin 0.3.1 ships the three English cues by default. Russian cues are a separate optional download; pre-existing private RU files remain untouched. Firmware readiness and playback now accept EN alone, including when an optional language was selected but is absent. Playback prefers the selected language, then EN, then existing private RU. Missing RU in the manifest is not a failed transport. The device playback on/off setting remains independent of which packs are installed. The published 0.2.170 binary is unchanged; this follow-up is source preparation for the next firmware release.
