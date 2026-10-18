@@ -48,11 +48,19 @@ void pruneVoiceNotes() {
   clampVoiceSelection();
 }
 
-void loadVoiceNotes() {
+bool loadVoiceNotes() {
   startVoiceNotesScan();
+  const uint32_t started=millis();
   while (!serviceVoiceNotesScan(18)) {
+    if (millis()-started>=5000U) {
+      gVoiceNotesScanDir.close();
+      gVoiceNotesScanActive=false;
+      logf("[VOICE] notes scan timed out; saved files unchanged");
+      return false;
+    }
     pumpBlockingNetworkUi();
   }
+  return true;
 }
 
 void startVoiceNotesScan() {

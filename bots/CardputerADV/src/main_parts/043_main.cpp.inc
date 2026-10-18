@@ -181,13 +181,37 @@ bool runVoiceStorageCheck() {
 }
 
 bool findLatestUserVoiceNote(VoiceNote& noteOut) {
-  loadVoiceNotes();
+  if (!loadVoiceNotes()) return false;
   for (const auto& note : gVoiceNotes) {
     if (!note.assistant && !note.audioPath.isEmpty()) {
       noteOut = note;
       return true;
     }
   }
+  return false;
+}
+
+// A known failed WAV can be recovered without parsing the entire metadata
+// history. Refuse ambiguous matches; never guess a recording or remove files.
+bool findSavedVoiceNoteBySize(size_t expectedBytes, VoiceNote& noteOut) {
+  fs::FS* fs=activeVoiceFs();
+  if (!fs || expectedBytes<=44 || !ensureVoiceStorage()) return false;
+  File dir=fs->open(kVoiceDir);
+  if (!dir || !dir.isDirectory()) return false;
+  const uint32_t started=millis();
+  unsigned matches=0;
+  while (millis()-started<5000U) {
+    File file=dir.openNextFile();
+    if (!file) {dir.close();return matches==1;}
+    const String path=file.path();
+    if (!file.isDirectory() && path.endsWith(".wav") &&
+        path.indexOf("/u_")>=0 && file.size()==expectedBytes) {
+      ++matches;noteOut.audioPath=path;
+      noteOut.durationMs=(expectedBytes-44)*1000ULL/(kMicSampleRate*2U);
+    }
+    file.close();yield();
+  }
+  dir.close();logf("[VOICE] recovery scan timed out; no recording submitted");
   return false;
 }
 
@@ -400,7 +424,7 @@ bool runVoiceSmokeFromDevice(uint8_t seconds = 2) {
   return ok && statusCode >= 200 && statusCode < 300;
 }
 
-bool runLiveVoiceSmokeFromDevice() {
+bool runLiveVoiceSmokeFromDevice(size_t expectedBytes = 0) {
   if (gRecording || gSubmitting || gThinking || gRealtimeRecording || gVoiceReplySpeechBusy || gInboxHttpBusy || gVoiceDialBusy) {
     logf("[SMOKE] voice live busy rec=%d submit=%d think=%d rt_rec=%d",
          static_cast<int>(gRecording),
@@ -424,7 +448,7 @@ bool runLiveVoiceSmokeFromDevice() {
   }
 
   VoiceNote note;
-  if (!findLatestUserVoiceNote(note)) {
+  if (!(expectedBytes ? findSavedVoiceNoteBySize(expectedBytes,note) : findLatestUserVoiceNote(note))) {
     logf("[SMOKE] voice live no_user_note count=%u", static_cast<unsigned>(gVoiceNotes.size()));
     pushError("No recorded user voice note.");
     setStatus("Record a voice note first", 2200);
@@ -655,7 +679,7 @@ bool runHostOtaApply(bool refreshManifest) {
 
 void printHostDiag() {
   logf("[DBG_BOOT] uptime_ms=%u reset_reason=%d", static_cast<unsigned>(millis()), static_cast<int>(esp_reset_reason()));
-  logf("[DBG_VOICE] rec=%d file=%d bytes=%u fs_failed=%d dial=%d speech=%d notice=%d pending=%d stack_free=%u", gRecording, gRecordingToFile, static_cast<unsigned>(gActiveRecordBytes), gRecordFileWriteFailed, gVoiceDialBusy, gVoiceReplySpeechBusy, gVoiceNoticeVisible, gVoiceReplyPending, static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
+  logf("[DBG_VOICE] rec=%d file=%d bytes=%u fs_failed=%d dial=%d speech=%d notice=%d pending=%d submit=%d think=%d phase=%d progress=%u mode=%d stack_free=%u", gRecording, gRecordingToFile, static_cast<unsigned>(gActiveRecordBytes), gRecordFileWriteFailed, gVoiceDialBusy, gVoiceReplySpeechBusy, gVoiceNoticeVisible, gVoiceReplyPending, gSubmitting, gThinking, static_cast<int>(gVoiceRequestPhase), static_cast<unsigned>(gVoiceRequestProgress), static_cast<int>(gUiMode), static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   updateBatterySnapshot(true);
   logf("[DBG] version=%s git=%s heap_free=%u heap_largest=%u wifi=%d ip=%s hub=%s:%u tls=%d setup=%d ap=%s rt_verify=%s rt_active=%d rt_connected=%d rt_recording=%d rt_awaiting=%d rt_hf=%d rt_restart=%d ota=%s/%s pending=%d applying=%d battery=%ld%% raw=%ld est=%d/%dmV/%ldmA/%s vbus=%dmV drain=%.2f%%h/%dmVh eta=%umin samples=%u loop_max=%u pump_input=%u/%u voice=%s http=%s key=%s",
        kAppVersion,
@@ -851,6 +875,14 @@ bool handleHostSerialCommand(String line) {
     } else logf("[HOST] voice.note.latest none");
     return true;
   }
+  if (cmd.startsWith("voice.note.find ")) {
+    VoiceNote note;
+    const size_t expected=cmd.substring(16).toInt();
+    const bool found=findSavedVoiceNoteBySize(expected,note);
+    logf("[HOST] voice.note.find found=%d bytes=%u path=%s",found,
+         static_cast<unsigned>(expected),found?note.audioPath.c_str():"-");
+    return true;
+  }
   if (cmd == "voice.smoke.large") {
     runVoiceSmokeFromDevice(22);
     return true;
@@ -874,8 +906,9 @@ bool handleHostSerialCommand(String line) {
     runVoiceSmokeFromDevice();
     return true;
   }
-  if (cmd == "voice.smoke.live" || cmd == "/voice.smoke.live" || cmd == "voice live smoke") {
-    runLiveVoiceSmokeFromDevice();
+  if (cmd == "voice.smoke.live" || cmd == "/voice.smoke.live" || cmd == "voice live smoke" ||
+      cmd.startsWith("voice.smoke.live ")) {
+    runLiveVoiceSmokeFromDevice(cmd.startsWith("voice.smoke.live ") ? cmd.substring(17).toInt() : 0);
     return true;
   }
   if (cmd == "rt.smoke" || cmd == "/rt.smoke" || cmd == "realtime.smoke" || cmd == "realtime smoke") {

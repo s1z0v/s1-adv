@@ -52,6 +52,7 @@ jobs:
       - run: python scripts/test_voice_transport.py
       - run: python scripts/test_voice_flow.py
       - run: python scripts/test_voice_receipt.py
+      - run: python scripts/test_voice_storage.py
       - run: python bots/CardputerADV/scripts/realtime_ui_smoke.py
       - run: python bots/CardputerADV/scripts/realtime_state_smoke.py
       - run: python scripts/test_nes.py

@@ -29,3 +29,7 @@ WAV and never automatically retry an uncertain delivery. The serial-only
 `voice.note.latest` command inspects the newest saved recording without sending
 it; an intentional `voice.smoke.live` submits that original WAV through the
 ordinary receipt handler. It does not copy, convert or remove the recording.
+History enumeration has a five-second wait limit. For an identified failed WAV,
+`voice.note.find <file-bytes>` inspects a unique matching saved user recording;
+`voice.smoke.live <file-bytes>` intentionally retries that match. Duplicate
+matches and incomplete scans are refused. CI covers the scan timeout and refusal.
