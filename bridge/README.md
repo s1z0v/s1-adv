@@ -16,6 +16,11 @@ firmware-building rights are separate and explicitly provisioned.
 
 ## Plugin setup
 
+Accepted turns use a durable per-session queue. A pending receipt means the reply
+will continue through Inbox; it is not the final agent answer. Upgrading old
+bridge state can require a delivery audit before new work is allowed. Read the
+[delivery and upgrade guide](https://github.com/srg0/s1-adv/blob/main/bridge/TURN-OUTBOX.md).
+
 Requirements: OpenClaw with the Node.js runtime supported by that release, a
 working selected agent and a device-facing HTTPS hostname. Node.js 22 is the
 standalone bridge minimum; newer OpenClaw releases require a newer runtime.

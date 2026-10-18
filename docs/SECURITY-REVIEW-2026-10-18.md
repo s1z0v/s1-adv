@@ -18,6 +18,11 @@ regressions. It is not an independent penetration test or a safety guarantee.
 | Plugin CLI used top-level await incompatible with the native synchronous loader | The CLI entry uses promise completion; the actual Linux OpenClaw loader was exercised. |
 | An explicit enable config path was not passed into the native CLI | Native config writes now receive the intended `OPENCLAW_CONFIG_PATH`, with a private backup and no automatic restart. |
 | Overlapping requests could consume a neighboring response | Waiters follow the persisted Gateway run receipt. Final-chat events support older Gateway transports; unbound Codex transcript mirrors are not guessed into a request or published twice. |
+| A Gateway could silently remap an overlapping queued run | A durable queue dispatches one turn per exact session until `agent.wait` proves that same run ended. HTTP expiry and visible text cannot release the lane. |
+| Completed legacy ACKs could prevent startup during an upgrade | HTTP remains observable with an explicit delivery hold. Unknown receipts require exact terminal evidence or a fresh isolated state/session; history is preserved. |
+| Idempotency compaction could remove an unfinished turn's ACK | Nonterminal ACKs remain pinned and the outbox independently guards its persisted request identity. |
+| A transient terminal-observation failure could strand the queue | Only observation is retried with bounded backoff; uncertain requests are never resent. Proven terminal failures return a correlated failure receipt. |
+| A multi-version host could run an older CLI during setup | Native enable uses the invoking OpenClaw entry point and Node runtime rather than selecting a different installation from PATH. |
 
 ## Defaults and privileges
 
@@ -67,6 +72,13 @@ is refused. Retention of recordings is an operator decision, not silent deletion
 Do not reuse a mixed or another owner's data directories. Migrate to fresh private
 directories. Old generated speech without ownership metadata is not re-exposed.
 Do not manufacture ownership metadata for files with unknown provenance.
+
+Delivery migration is separate from storage migration. Read the packaged
+[turn queue runbook](../bridge/TURN-OUTBOX.md) before replacing an existing bridge.
+Authenticated health and doctor report delivery holds. A quiet Gateway alone
+does not establish the outcome of an earlier accepted run. Use a dedicated bridge
+session; unrelated actors that also send into it can reintroduce an upstream run
+remap that the bridge will refuse to guess.
 
 ## What is not established
 

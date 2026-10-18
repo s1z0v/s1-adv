@@ -54,6 +54,7 @@
     "config.example.json",
     "skills",
     "README.md",
+    "TURN-OUTBOX.md",
     "LICENSE",
     "CREDITS.md"
   ],
