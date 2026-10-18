@@ -3560,7 +3560,8 @@ class BridgeRuntime {
         return topic?.session_key === entry.session_key && device && !device.revoked_at &&
           device.topics?.includes(entry.topic_key);
       },
-      changed: entry => this.updateOutboxReceipt(entry)
+      changed: entry => this.updateOutboxReceipt(entry),
+      terminal: entry => this.recordOutboxFailure(entry)
     });
 	  }
 
@@ -4514,7 +4515,9 @@ class BridgeRuntime {
     text,
     clientMsgId,
     source = "cardputer_fast_lane",
-    queueDeviceEvent = true
+    queueDeviceEvent = true,
+    upstreamRunId = null,
+    terminalError = false
   }) {
     const topic = this.store.getTopic(topicKey);
     if (!topic) {
@@ -4531,7 +4534,9 @@ class BridgeRuntime {
         display_name: "OpenClaw"
       },
       source: {
-        transport: source
+        transport: source,
+        ...(upstreamRunId ? { upstream_run_id: upstreamRunId } : {}),
+        ...(terminalError ? { terminal_error: true } : {})
       },
       content: {
         kind: "text",
@@ -4837,12 +4842,18 @@ class BridgeRuntime {
   }
 
   async buildPendingTurnResponse({ req, device, topic, transcript, ack }) {
+    if (ack.upstream_terminal?.status === "error") {
+      const failure = "The request failed on the server. Check Inbox for details before retrying.";
+      return { ...await this.buildTurnResponse({ req, topic, transcript, replyText: failure, includeAudio: false }),
+        ok: false, status: "failed", pending: false, client_msg_id: ack.client_msg_id,
+        upstream_run_id: ack.upstream_run_id, upstream_terminal: ack.upstream_terminal,
+        delivery_state: "terminal", status_text: failure, inbox_hint: true };
+    }
     const confirmed = ack.upstream_accepted === true;
     const queued = ack.delivery_state === "queued";
-    const receipt = queued ? (languageNameForText(transcript) === "Russian" ? "Запрос в очереди. Ответ появится в Inbox." : "Request queued. The reply will arrive in Inbox.")
-      : languageNameForText(transcript) === "Russian"
-      ? (confirmed ? "Запрос принят. Ответ появится в Inbox." : "Запрос сохранён. Подтверждение доставки ожидается; проверьте Inbox перед повтором.")
-      : (confirmed ? "Request accepted. The reply will arrive in Inbox." : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
+    const receipt = queued ? "Request queued. The reply will arrive in Inbox."
+      : (confirmed ? "Request accepted. The reply will arrive in Inbox."
+        : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
     return {
       ...await this.buildTurnResponse({ req, device, topic, transcript, replyText: receipt, includeAudio: false }),
       status: "pending",
@@ -4878,6 +4889,9 @@ class BridgeRuntime {
       reply_seq: replyMessage?.seq || 0,
       markdown_text: markdownText && markdownText !== fullText ? markdownText : undefined
     };
+    if (replyMessage?.source?.terminal_error) {
+      response.ok = false; response.status = "failed"; response.pending = false;
+    }
     if (actions.length > 0) {
       response.device_actions = actions;
       console.log(
@@ -5559,6 +5573,11 @@ class BridgeRuntime {
         assistantReplyMatchesTurn(item, { runId, clientMsgId }) &&
         isMeaningfulAssistantReplyText(item.content?.text));
       if (reply) return reply;
+      if (persistedReceipt?.upstream_terminal?.status === "error") {
+        const entry = this.turnOutbox?.entries().find(item => item.topic_key === topicKey && item.client_msg_id === clientMsgId);
+        const failure = entry && await this.recordOutboxFailure(entry);
+        if (failure) return failure;
+      }
       await sleep(intervalMs);
     }
     return null;
@@ -5628,15 +5647,33 @@ class BridgeRuntime {
   }
 
   updateOutboxReceipt(entry) {
-    const ack = this.store.getIdempotent(entry.topic_key, entry.client_msg_id);
+    const ack = this.store.getIdempotent(entry.topic_key, entry.client_msg_id) || entry.receipt;
     if (!ack) return;
     ack.upstream_run_id = entry.run_id;
     ack.upstream_accepted = entry.upstream_accepted === true;
     ack.delivery_state = entry.phase;
     if (entry.terminal) ack.upstream_terminal = entry.terminal;
+    entry.receipt = { ...ack };
     this.store.setIdempotent(entry.topic_key, entry.client_msg_id, ack);
     const message = this.store.getHistory(entry.topic_key, 0, 100000).items.find(item => item.id === ack.message_id);
     if (message) message.source.upstream_run_id = entry.run_id;
+  }
+
+  async recordOutboxFailure(entry) {
+    if (entry.terminal?.status !== "error" || entry.terminal.operator_audit) return null;
+    const topic = this.store.getTopic(entry.topic_key);
+    const device = this.store.state.devices[entry.device_id];
+    if (topic?.session_key !== entry.session_key || !device || device.revoked_at || !device.topics?.includes(entry.topic_key)) return null;
+    const history = this.store.getHistory(entry.topic_key, 0, 100000).items;
+    const existing = history.find(message => assistantReplyMatchesTurn(message, { runId: entry.run_id,
+      clientMsgId: entry.client_msg_id }) && isMeaningfulAssistantReplyText(message.content?.text));
+    if (existing || entry.failure_message_id) return existing || null;
+    const failure = await this.appendAssistantReply({ topicKey: entry.topic_key,
+      text: "The request failed on the server. No completed answer was received. Check this request before submitting it again.",
+      clientMsgId: entry.client_msg_id, source: "cardputer_turn_failed", upstreamRunId: entry.run_id, terminalError: true });
+    entry.failure_message_id = failure.id;
+    await this.store.save();
+    return failure;
   }
 
   async dispatchOutboxTurn(entry) {
@@ -5662,6 +5699,16 @@ class BridgeRuntime {
       return existing;
     }
     const expectedRunId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
+    const retained = this.turnOutbox.entries().find(entry => entry.id === expectedRunId);
+    if (retained) {
+      if (retained.device_id !== device.device_id || retained.session_key !== topic.session_key || retained.topic_key !== topicKey)
+        throw new Error("Persisted turn owner changed; reconciliation is required before retrying.");
+      this.updateOutboxReceipt(retained);
+      const receipt = this.store.getIdempotent(topicKey, clientMsgId);
+      if (!receipt) throw new Error("Persisted turn receipt requires reconciliation; the request will not be resent.");
+      await this.store.save();
+      return receipt;
+    }
     const params = { key: topic.session_key, message: upstreamText || text, idempotencyKey: expectedRunId };
     const thinking = voiceThinking(text, inputMode);
     if (thinking) params.thinking = thinking;
@@ -5700,7 +5747,7 @@ class BridgeRuntime {
     const ticket = await this.turnOutbox.enqueue({
       id: expectedRunId, run_id: expectedRunId, topic_key: topicKey,
       session_key: topic.session_key, device_id: device.device_id,
-      client_msg_id: clientMsgId, params
+      client_msg_id: clientMsgId, params, receipt: { ...ack }
     });
     this.broadcast(topicKey, {
       type: "new_message", topic_key: topicKey, session_key: topic.session_key, message
@@ -5981,6 +6028,7 @@ async function main() {
         ? {
             ok: true,
             upstream_connected: runtime.upstream.connected,
+            ...runtime.turnOutbox.diagnostics(),
             device_firmware: runtime.deviceFirmwareReports.get(device.device_id) || null,
             ...buildConnectPayload(config, req)
           }
@@ -6103,7 +6151,8 @@ async function main() {
         );
         if (!reply) {
           console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          json(res, 202, await runtime.buildPendingTurnResponse({ req, device, topic, transcript: message, ack }));
+          const receipt = await runtime.buildPendingTurnResponse({ req, device, topic, transcript: message, ack });
+          json(res, receipt.pending ? 202 : 200, receipt);
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6209,7 +6258,8 @@ async function main() {
         );
         if (!reply) {
           console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          json(res, 202, await runtime.buildPendingTurnResponse({ req, device, topic, transcript: transcript, ack }));
+          const receipt = await runtime.buildPendingTurnResponse({ req, device, topic, transcript: transcript, ack });
+          json(res, receipt.pending ? 202 : 200, receipt);
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({

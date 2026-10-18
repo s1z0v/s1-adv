@@ -195,6 +195,51 @@ async function availablePort() {
   const port = server.address().port; await new Promise(resolve => server.close(resolve)); return port;
 }
 
+test('an upgrade with many unresolved legacy receipts keeps authenticated HTTP diagnostics available', {timeout:8000}, async () => {
+  const dir=await mkdtemp(path.join(tmpdir(),'cardputer-upgrade-health-'));
+  const root=fileURLToPath(new URL('../',import.meta.url));
+  const config=JSON.parse(await readFile(new URL('../config.example.json',import.meta.url),'utf8'));
+  config.server={host:'127.0.0.1',port:await availablePort()};config.stateDir=path.join(dir,'state');
+  config.media=Object.fromEntries(['inboundDir','canonicalDir','playbackDir','tmpDir'].map(key=>[key,path.join(dir,key)]));
+  config.assets.rootDir=path.join(dir,'assets');config.assets.logsDir=path.join(dir,'logs');
+  config.firmware.rootDir=path.join(dir,'firmware');
+  config.upstream.url='ws://127.0.0.1:1';config.upstream.deviceIdentityPath=path.join(dir,'gateway-identity.json');
+  config.upstream.token='test-upgrade-gateway-token-00000000000000000001';
+  config.devices[0].device_token='test-upgrade-device-token-00000000000000000001';
+  const runtime=new BridgeRuntime(config);await runtime.store.load();
+  const device=config.devices[0],topicKey=device.topics[0];
+  for(let i=0;i<33;i++){
+    const id=`old-${i}`,message=runtime.store.appendMessage(topicKey,{id:`message-${id}`,client_msg_id:id,
+      sender:{kind:'device',id:`cardputer:${device.device_id}`},source:{transport:'cardputer'},content:{kind:'text',text:'old'}});
+    runtime.store.setIdempotent(topicKey,id,{topic_key:topicKey,client_msg_id:id,message_id:message.id,seq:message.seq,
+      upstream_run_id:`unknown-old-run-${i}`,accepted_at:new Date().toISOString()});
+  }
+  await runtime.store.save();runtime.turnOutbox.close();
+  const configPath=path.join(dir,'config.json');await writeFile(configPath,JSON.stringify(config),{mode:0o600});
+  const child=spawn(process.execPath,['src/server.mjs'],{cwd:root,env:{PATH:process.env.PATH,CARDPUTER_BRIDGE_CONFIG:configPath},stdio:['ignore','pipe','pipe']});
+  let log='';child.stdout.on('data',b=>{log=(log+b).slice(-4000);});child.stderr.on('data',b=>{log=(log+b).slice(-4000);});
+  const base=`http://127.0.0.1:${config.server.port}`,headers={Authorization:`Bearer ${device.device_token}`};
+  try{
+    let health;
+    for(let i=0;i<80;i++){
+      assert.equal(child.exitCode,null,log);
+      try{health=await(await fetch(base+'/healthz',{headers})).json();if(health.ok)break;}catch{}
+      await delay(25);
+    }
+    assert.equal(health?.ok,true,log);assert.equal(health.delivery_ready,false);
+    assert.equal(health.delivery_hold.code,'legacy_receipts_require_audit');assert.equal(health.delivery_hold.legacy_receipts,33);
+    assert.deepEqual(await(await fetch(base+'/healthz')).json(),{ok:true});
+    const response=await fetch(base+'/api/device-text-turn',{method:'POST',headers:{...headers,'content-type':'application/json'},
+      body:JSON.stringify({client_msg_id:'new-held',message:'hello'})});
+    assert.equal(response.status,503);assert.match((await response.json()).error,/Delivery held/);
+    const disk=JSON.parse(await readFile(runtime.store.filePath,'utf8'));
+    assert.equal(Object.keys(disk.idempotency).length,33);assert.equal(disk.messages[topicKey].length,33);
+  }finally{
+    if(child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}
+    await rm(dir,{recursive:true,force:true});
+  }
+});
+
 test('HTTP text timeout is pending and a late A cannot become the next B response', { timeout:15000 }, async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'cardputer-pending-http-'));
   const root = fileURLToPath(new URL('../', import.meta.url));

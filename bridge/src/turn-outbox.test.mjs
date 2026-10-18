@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -143,5 +143,131 @@ test('upgrade adopts a known pre-outbox receipt without resending or bypassing i
   delete f.runtime.store.state.turn_outbox;await f.runtime.store.save();
   const restarted=await f.open();await restarted.turnOutbox.resume();await f.send('legacy-b',restarted);
   await delay(35);assert.equal(f.sends.length,1);
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_ready,false);
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_hold.code,'legacy_receipts_require_audit');
   f.finish(first);await until(()=>f.sends.length===2);
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_ready,true);
+}));
+
+function seedLegacy(f, count) {
+  delete f.runtime.store.state.turn_outbox;
+  return Array.from({ length: count }, (_, i) => {
+    const client = `old-${i}`, runId = `old-gateway-run-${i}`;
+    const message = f.runtime.store.appendMessage(f.topicKey, { id:`old-message-${i}`,
+      sender:{kind:'device',id:`cardputer:${f.device.device_id}`},source:{transport:'cardputer'},
+      client_msg_id:client,content:{kind:'text',text:`Old request ${i}`} });
+    const ack = {type:'ack',topic_key:f.topicKey,client_msg_id:client,message_id:message.id,seq:message.seq,
+      upstream_run_id:runId,upstream_accepted:true,accepted_at:new Date().toISOString()};
+    f.runtime.store.setIdempotent(f.topicKey, client, ack);
+    return {id:`cardputer:${f.device.device_id}:${f.topicKey}:${client}`,run_id:runId,
+      status:'ok',ended_at:Date.now(),evidence:`fixture exact terminal receipt ${i}`};
+  });
+}
+
+test('legacy migration holds delivery without preventing startup or changing receipt history', async () => fixture(async f => {
+  seedLegacy(f,33);await f.runtime.store.save();
+  const restarted=await f.open();await restarted.turnOutbox.resume();
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_ready,false);
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_hold.code,'legacy_receipts_require_audit');
+  const before=restarted.store.getTopic(f.topicKey).head_seq;
+  await assert.rejects(f.send('blocked-by-migration',restarted),/Delivery held/);
+  assert.equal(restarted.store.getTopic(f.topicKey).head_seq,before);
+  assert.equal(Object.keys(restarted.store.state.idempotency).length,33);
+  assert.equal(f.sends.length,0);
+}));
+
+test('an unsupported outbox remains untouched and exposes a delivery hold', async () => fixture(async f => {
+  const unsupported={version:2,entries:{future:'schema'}};
+  f.runtime.store.state.turn_outbox=unsupported;
+  await f.runtime.turnOutbox.resume();
+  assert.equal(f.runtime.turnOutbox.diagnostics().delivery_hold.code,'unsupported_outbox_state');
+  assert.equal(f.runtime.turnOutbox.diagnostics().delivery_ready,false);
+  assert.deepEqual(f.runtime.store.state.turn_outbox,unsupported);
+  assert.equal(f.sends.length,0);
+}));
+
+test('quiescence alone cannot mark unknown legacy runs complete; an exact private terminal audit can', async () => fixture(async f => {
+  const receipts=seedLegacy(f,33);await f.runtime.store.save();
+  const restarted=await f.open(),auditPath=path.join(f.config.stateDir,'turn-outbox-cutover.json');
+  const audit={version:1,audit_id:'fixture-cutover',audited_at:new Date().toISOString(),quiescent:true,receipts:[]};
+  await writeFile(auditPath,JSON.stringify(audit),{mode:0o600});await restarted.turnOutbox.resume();
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_hold.code,'invalid_cutover_audit');
+  assert.equal(restarted.store.getIdempotent(f.topicKey,'old-0').upstream_terminal,undefined);
+  audit.receipts=receipts.map((receipt,i)=>i?receipt:{...receipt,run_id:'wrong-run'});
+  await writeFile(auditPath,JSON.stringify(audit));await restarted.turnOutbox.resume();
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_ready,false);
+  assert.equal(restarted.store.getIdempotent(f.topicKey,'old-1').upstream_terminal,undefined,'validation is atomic');
+  audit.receipts=receipts;await writeFile(auditPath,JSON.stringify(audit));await restarted.turnOutbox.resume();
+  assert.equal(restarted.turnOutbox.diagnostics().delivery_ready,true);
+  assert.equal(restarted.store.getIdempotent(f.topicKey,'old-0').upstream_terminal.operator_audit.id,'fixture-cutover');
+  assert.equal(restarted.store.getHistory(f.topicKey,0,100).items.length,33);
+  assert.equal(f.sends.length,0,'auditing never resends an old request');
+  await f.send('new-after-cutover',restarted);assert.equal(f.sends.length,1);
+  restarted.turnOutbox.close();await restarted.store.save();
+  const next=await f.open();await next.turnOutbox.resume();
+  assert.notEqual(next.turnOutbox.entries().find(e=>e.client_msg_id==='new-after-cutover').phase,'terminal','consumed marker cannot complete a later run');
+  assert.equal(f.sends.length,1);
+}));
+
+test('compaction pins pending ACKs and an independently retained outbox identity prevents duplicate retries', async () => fixture(async f => {
+  f.config.state={maxIdempotencyEntries:100};
+  const first=await f.send('pinned-pending');
+  for(let i=0;i<100;i++)f.runtime.store.setIdempotent('other',`done-${i}`,{
+    accepted_at:new Date(Date.now()+1000+i).toISOString(),upstream_terminal:{status:'ok'}});
+  f.runtime.store.compact();
+  assert.equal(f.runtime.store.getIdempotent(f.topicKey,'pinned-pending').message_id,first.message_id);
+  delete f.runtime.store.state.idempotency[`${f.topicKey}::pinned-pending`];
+  const retry=await f.send('pinned-pending');
+  assert.equal(retry.message_id,first.message_id);assert.equal(retry.seq,first.seq);
+  assert.equal(f.runtime.turnOutbox.entries().length,1);
+  const record=f.runtime.turnOutbox.entries()[0];
+  const duplicate=await f.runtime.turnOutbox.enqueue({...record,params:{...record.params,message:'must not replace original'}});
+  assert.equal(duplicate.record,record);assert.equal(record.params.message,'Request pinned-pending');
+  f.finish(first);await until(()=>record.phase==='terminal');await delay(30);
+  assert.equal(f.sends.length,1);assert.equal(f.runtime.store.getTopic(f.topicKey).head_seq,1);
+}));
+
+test('transient observation errors retry proof without another kick or request resend', async () => fixture(async f => {
+  const original=f.runtime.upstream.rpc;let failures=2,observations=0;
+  f.runtime.upstream.rpc=async(method,params)=>{
+    if(method==='agent.wait'){++observations;if(failures-->0)throw Error('temporary transport loss');}
+    return original(method,params);
+  };
+  const first=await f.send('observe-a');await f.send('observe-b');
+  await until(()=>observations>=2);assert.equal(f.sends.length,1);
+  f.finish(first);await until(()=>f.sends.length===2);
+  assert.equal(f.runtime.turnOutbox.entries()[0].phase,'terminal');
+  assert.equal(f.sends.filter(p=>p.idempotencyKey===first.upstream_run_id).length,1);
+}));
+
+test('terminal errors produce one owned failure in Inbox and truthful idempotent responses after restart', async () => fixture(async f => {
+  const first=await f.send('failed-final');
+  f.terminals.set(first.upstream_run_id,{runId:first.upstream_run_id,status:'error',endedAt:Date.now()});
+  await until(()=>f.runtime.store.getHistory(f.topicKey,0,100).items.some(m=>m.source?.terminal_error));
+  const retry=await f.send('failed-final');
+  const topic=f.runtime.store.getTopic(f.topicKey);
+  const response=await f.runtime.buildPendingTurnResponse({req:{headers:{}},device:f.device,topic,transcript:'original',ack:retry});
+  assert.equal(response.status,'failed');assert.equal(response.ok,false);assert.equal(response.pending,false);
+  const reply=await f.runtime.waitForAssistantReply(f.topicKey,retry.seq,1000,50,0,retry);
+  assert.equal(reply.source.upstream_run_id,first.upstream_run_id);assert.equal(reply.source.terminal_error,true);
+  const answered=await f.runtime.buildTurnResponse({req:{headers:{}},topic,replyText:reply.content.text,replyMessage:reply});
+  assert.equal(answered.status,'failed');assert.equal(answered.ok,false);
+  f.runtime.turnOutbox.close();await f.runtime.store.save();
+  const restarted=await f.open();await restarted.turnOutbox.resume();
+  assert.equal(restarted.store.getHistory(f.topicKey,0,100).items.filter(m=>m.source?.terminal_error).length,1);
+  assert.equal(f.sends.length,1);
+}));
+
+test('fixed pending and failed system receipts stay English for Russian input', async () => fixture(async f => {
+  const topic=f.runtime.store.getTopic(f.topicKey);
+  for(const state of [
+    {delivery_state:'queued'}, {upstream_accepted:true}, {upstream_accepted:false},
+    {upstream_terminal:{status:'error',run_id:'failed',ended_at:Date.now()}}
+  ]){
+    const response=await f.runtime.buildPendingTurnResponse({req:{headers:{}},device:f.device,topic,
+      transcript:'Скажи, который час',ack:{seq:1,client_msg_id:'language',upstream_run_id:'run',...state}});
+    assert.doesNotMatch(response.reply,/[А-Яа-яЁё]/u);
+    assert.match(response.reply,/Request|request/);
+    assert.equal(response.transcript,'Скажи, который час');
+  }
 }));

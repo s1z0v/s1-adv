@@ -222,6 +222,10 @@ export class StateStore {
   }
 
   compact() {
+    const outstanding = Array.isArray(this.state.turn_outbox?.entries)
+      ? this.state.turn_outbox.entries.filter(entry => entry.phase !== 'terminal') : [];
+    const pinnedReceipts = new Set(outstanding.map(entry => `${entry.topic_key}::${entry.client_msg_id}`));
+    const pinnedMessages = new Set(outstanding.map(entry => entry.receipt?.message_id).filter(Boolean));
     const maxMessagesPerTopic = Math.max(50, Number(this.config.state?.maxMessagesPerTopic) || 250);
     for (const [topicKey, messages] of Object.entries(this.state.messages || {})) {
       if (!Array.isArray(messages)) {
@@ -229,7 +233,8 @@ export class StateStore {
         continue;
       }
       if (messages.length > maxMessagesPerTopic) {
-        this.state.messages[topicKey] = messages.slice(-maxMessagesPerTopic);
+        const recent = new Set(messages.slice(-maxMessagesPerTopic));
+        this.state.messages[topicKey] = messages.filter(message => recent.has(message) || pinnedMessages.has(message.id));
       }
     }
 
@@ -263,7 +268,10 @@ export class StateStore {
         const rightTime = parseTimeMs(right[1]?.accepted_at);
         return rightTime - leftTime;
       });
-      this.state.idempotency = Object.fromEntries(idempotencyEntries.slice(0, maxIdempotencyEntries));
+      const pinned = idempotencyEntries.filter(([key]) => pinnedReceipts.has(key));
+      const recent = idempotencyEntries.filter(([key]) => !pinnedReceipts.has(key))
+        .slice(0, Math.max(0, maxIdempotencyEntries - pinned.length));
+      this.state.idempotency = Object.fromEntries([...pinned, ...recent]);
     }
 
     const maxDeviceEvents = Math.max(20, Number(this.config.state?.maxDeviceEventsPerDevice) || 100);
