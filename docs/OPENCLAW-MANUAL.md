@@ -240,3 +240,11 @@ locks and served bytes for every release. The receipt grants no agent tools and
 does not promise a future build will succeed. Keep operator and worker config
 copies synchronized; provider secrets belong only in the intended service
 environment, not in the Gateway's global environment.
+
+For this isolated-service profile, a native plugin update does not replace the
+separately deployed HTTP runtime. Stage the reviewed new package and dependencies
+under an operator-owned path, preserve identity/state and synchronize the private
+worker snapshot. Recheck the delegated preflight, storage UID/GID and any pinned
+operator wrapper imports, then restart only the worker and verify a real agent
+turn and the full served OTA bytes. Keep native `autoStart: false`. Record the
+actual running process path/version; an updated CLI alone is not deployment proof.
