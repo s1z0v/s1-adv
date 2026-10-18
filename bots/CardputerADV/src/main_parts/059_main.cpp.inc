@@ -222,7 +222,16 @@
   if (state == AssistantPulseState::Recording || (realtime && gRealtimeRecording)) {
     d.fillCircle(133, 112, 4 + static_cast<int16_t>(sinf(t * 8.0f)), c1);
   }
-  drawAssistantPulseButton(154, 105, 62, 21, label, c1, millis() < gAssistantPulsePressUntilMs);
+  if(state==AssistantPulseState::Ready) {
+    // Keep the waveform and clock geometry; only READY gets a slimmer box.
+    const int y=103+(millis()<gAssistantPulsePressUntilMs ? 1 : 0);
+    const uint16_t fill=rgb565_local(7,20,26);
+    d.fillRoundRect(154,y,62,18,5,fill);
+    d.drawRoundRect(154,y,62,18,5,c1);
+    d.setFont(&fonts::Font2);d.setTextColor(c1,fill);
+    d.setCursor(154+(62-d.textWidth(label))/2,y+1);d.print(label);
+    drawHomeBatteryStatus(gBatterySnapshot.level);
+  } else drawAssistantPulseButton(154, 105, 62, 21, label, c1, millis() < gAssistantPulsePressUntilMs);
   if (realtime) {
     d.setFont(&fonts::Font2);
     d.setTextColor(rgb565_local(255, 189, 88), bg);

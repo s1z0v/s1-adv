@@ -31,6 +31,8 @@ A pending agent request remains visible. Its later reply appears in a notificati
 sheet above Home: Enter opens AI Chat and Escape closes the sheet.
 The clock screen shows READY with its decorative animated bars when the
 microphone is off. REC and the live input meter appear after recording starts.
+A small striped battery gauge and percentage sit below READY; amber and red
+indicate low charge. Unknown telemetry displays --%.
 
 The interface and default assistant replies are English, including replies to
 Russian input. Explicit requests such as "Reply in Russian" are respected.

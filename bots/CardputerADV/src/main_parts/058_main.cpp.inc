@@ -143,6 +143,27 @@ void drawAssistantPulseButton(int16_t x, int16_t y, int16_t w, int16_t h,
   d.print(label);
 }
 
+void drawHomeBatteryStatus(int32_t rawLevel) {
+  auto& d=gCanvas;
+  const bool known=rawLevel>=0;
+  const int level=known ? min<int32_t>(100,rawLevel) : 0;
+  const uint16_t accent=known && level<=15 ? rgb565_local(255,63,85) :
+      known && level<=30 ? rgb565_local(246,194,74) : rgb565_local(47,227,255);
+  const uint16_t dim=rgb565_local(23,48,59),edge=rgb565_local(28,65,77);
+  d.drawRoundRect(154,125,34,6,1,edge);
+  d.fillRect(188,127,2,2,edge);
+  const int lit=known ? (level*8+99)/100 : 0;
+  for(int i=0;i<8;++i)
+    d.drawLine(156+i*4,129,158+i*4,126,i<lit ? accent : dim);
+  char percent[5];
+  if(known) snprintf(percent,sizeof(percent),"%d%%",level);
+  else snprintf(percent,sizeof(percent),"--%%");
+  d.setFont(&fonts::Font0);d.setTextSize(1);
+  d.setTextColor(known ? accent : rgb565_local(130,145,155),rgb565_local(2,7,10));
+  d.setCursor(193,124);d.print(percent);
+  d.setFont(&fonts::Font2);
+}
+
 void renderAssistantPulseChatHint() {
   const bool hasInput = !gInputBuffer.isEmpty();
   AssistantPulseState state = assistantPulseState();
