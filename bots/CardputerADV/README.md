@@ -49,20 +49,44 @@ bearing; a single stationary HC-SR04 cannot determine left/right angle.
 
 ## RFID Lab wiring
 
-RFID Lab is intentionally read-only: it detects the reader and shows card UID,
-SAK, UID length, and PICC type. It does not copy hotel/access cards and does not
-write protected MIFARE sectors.
+The current firmware uses an **MFRC522/RC522 SPI module**, usually the board
+with eight contacts. It does not use an I2C RFID2/Grove module or a PN532 driver.
 
-Default supported module: M5Stack Unit RFID/RFID2 or compatible MFRC522 I2C unit
-at address `0x28` on the Cardputer HY2.0/Grove Port A:
+| RC522 contact | Cardputer ADV connection |
+| --- | --- |
+| SDA / SS / NSS | EXT **G5** (SPI chip select, not I2C SDA) |
+| SCK | EXT **G40** |
+| MOSI | EXT **G14** |
+| MISO | EXT **G39** |
+| RST | EXT **G3** |
+| GND | EXT **GND**, shared with the 3.3 V supply |
+| 3.3V | Regulated **3.3 V** |
+| IRQ | Leave unconnected |
 
-- red → 5V
-- black → GND
-- yellow/G2 → SDA, GPIO2
-- white/G1 → SCL, GPIO1
+**The EXT header has 5VIN and 5VOUT, but no 3.3 V supply contact. Do not
+connect a bare RC522's 3.3V contact directly to 5VOUT or the Grove red wire.**
+One external-power arrangement is Cardputer 5VOUT → 5-to-3.3 V regulator →
+RC522 3.3V, with a common ground. Identify wires by their printed GPIO/signal
+labels; connector orientation changes when the board is turned over.
+See the [official Cardputer ADV pin map](https://docs.m5stack.com/en/core/Cardputer-Adv)
+and [NXP MFRC522 electrical specifications](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf).
 
-Generic SPI RC522 boards are not enabled by this firmware profile; use an I2C
-Unit RFID/RFID2 adapter for the default Cardputer wiring.
+Open **RFID Lab** from the app launcher, or type `/rfid` in chat. `R` retries
+reader initialization; `?`/`H` shows the wiring help. The expected idle status
+is `Ready: present card`. Present a compatible 13.56 MHz ISO/IEC 14443-A tag to
+read its UID, SAK, UID length and PICC type. This is not a 125 kHz reader.
+
+`D` reads accessible MIFARE Classic blocks using the default `FF FF FF FF FF FF`
+key into RAM. `W` immediately writes the captured data to a compatible target,
+skipping sector trailers and the manufacturer block in the regular write loop;
+the code also attempts a UID change for supported UID-writable cards. This is
+not a universal card clone. Start with UID detection and use only a spare tag
+for write tests. NTAG/NDEF text or URL writing is not implemented in this app.
+
+The reader shares SCK/MOSI/MISO with microSD; its chip select is G5, while
+microSD uses G12. The pin map and controls were checked against the source;
+physical reader detection, card reads and SD coexistence still need a hardware
+test on the attached module.
 
 ## Voice Flow
 
