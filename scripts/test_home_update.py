@@ -179,6 +179,10 @@ int main(){
  resetQueue();gInputBuffer="draft";assert(!handleHomeLinkRetryKey('f',keys));gInputBuffer.clear();
  state=firmware_job_display::State::Idle;assert(!handleHomeLinkRetryKey('f',keys));
  assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,false,90001))=="CHECK LINK");
+ for(auto sample:{firmware_job_display::State::Idle,firmware_job_display::State::Building,
+      firmware_job_display::State::Ready,firmware_job_display::State::Attention,
+      firmware_job_display::State::Failed,firmware_job_display::State::Stalled})
+  assert(std::string(firmware_job_display::label(sample,true,90001))=="NEW UPDATE");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-home-update-') as directory:
