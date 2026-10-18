@@ -291,6 +291,21 @@ void serviceRecordingToFile(bool refill) {
   if ((!gRecording && refill) || !gRecordingToFile) {
     return;
   }
+  static uint32_t sessionStartMs = 0, lastServiceMs = 0, maxGapMs = 0, lastReportMs = 0;
+  const uint32_t now = millis();
+  if (sessionStartMs != gRecordStartMs) {
+    sessionStartMs = gRecordStartMs;
+    lastServiceMs = lastReportMs = now;
+    maxGapMs = 0;
+  }
+  maxGapMs = max<uint32_t>(maxGapMs, now - lastServiceMs);
+  lastServiceMs = now;
+  if (now - lastReportMs >= 1000U) {
+    lastReportMs = now;
+    logf("[VOICE_REC] ms=%u bytes=%u max_service_gap_ms=%u canvas=%d",
+         static_cast<unsigned>(now - gRecordStartMs), static_cast<unsigned>(gActiveRecordBytes),
+         static_cast<unsigned>(maxGapMs), gCanvasSpriteActive);
+  }
   size_t micQueued = M5Cardputer.Mic.isRecording();
   if (gRecordInflightChunks.size() > micQueued) {
     flushCompletedRecordChunksToFile(gRecordInflightChunks.size() - micQueued);

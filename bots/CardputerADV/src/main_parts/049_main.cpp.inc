@@ -150,10 +150,9 @@ void updateVoiceTrigger() {
 
 void updateG0VoiceTrigger() {
   bool pressed = M5.BtnA.isPressed();
-  if (pressed && !gG0VoiceHeld && handleScreensaverWake()) {
-    gG0VoiceHeld = true;
-    return;
-  }
+  // G0 is push-to-talk even when the clock/screen saver is asleep. Do not
+  // consume the first press solely to wake the display.
+  if (pressed && !gG0VoiceHeld) handleScreensaverWake();
   if (gUiMode == UiMode::Ota) {
     if (pressed && !gG0VoiceHeld) {
       gG0VoiceHeld = true;

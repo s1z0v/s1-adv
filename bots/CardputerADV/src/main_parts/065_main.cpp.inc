@@ -344,6 +344,7 @@ void serviceVoicePreconnect() {
   }
 }
 void beginVoicePreconnect() {
+  if (gRecording) return; // Capture owns the microphone, UI and SD service budget.
   clearEmojiCache();
   serviceVoicePreconnect();
   cancelVoicePreconnect();

@@ -83,6 +83,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   clearEmojiCache();
   WiFiClient plainClient;
   WiFiClientSecure secureClient;
+  beginVoicePreconnect(); // Fresh connection, immediately followed by HTTP headers/body.
   std::unique_ptr<WiFiClient> prepared = takeVoicePreconnect();
   if (gVoiceDialBusy) { setHttpDiag("voice_post: connection still preparing"); return false; }
   if (!prepared && hubUsesTls())

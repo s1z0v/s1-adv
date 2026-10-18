@@ -220,6 +220,10 @@ record=r'''
 #include <cstring>
 #include <deque>
 #include <memory>
+#include <algorithm>
+using std::max;
+uint32_t gRecordStartMs=1,gActiveRecordBytes=0;bool gCanvasSpriteActive=true;
+uint32_t millis(){return 1;}void logf(const char*,...){}
 bool gRecording=false,gRecordingToFile=true,gRecordFileWriteFailed=false;int storageFailures=0;void handleRecordingStorageFailure(){++storageFailures;}std::deque<uint8_t> gRecordInflightChunks={0,1};
 int flushed=0,queued=0;uint8_t gRecordNextChunkIndex=0;constexpr int kRecordChunkBufferCount=3;
 struct {struct {int isRecording(){return 0;}} Mic;} M5Cardputer;

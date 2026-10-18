@@ -12,6 +12,7 @@ void drainRecordingToFile() {
 }
 
 void startRecording() {
+  const uint32_t captureRequestedMs = millis();
   if (gRealtimeDialBusy) { setStatus("Connection finishing; try voice again", 1200); return; }
   if (gVoiceReplySpeechBusy) { setStatus("Reply voice preparing; Esc cancels", 1000); return; }
   if (gInboxHttpBusy) { setStatus("Network finishing; try voice again",900); return; }
@@ -99,6 +100,7 @@ void startRecording() {
   beginVoiceWifiPerformance();
   beginVoiceRequestUi();
   startMic();
+  gRecordStartMs = millis(); // Time captured audio, not SD/microphone initialization.
   if (gRecordingToFile) {
     serviceRecordingToFile();
     setVoiceDiag("voice: recording fs");
@@ -109,8 +111,10 @@ void startRecording() {
   setFaceMode(FaceMode::Listening);
   setStatus("Listening...");
   render();
-  beginVoicePreconnect(); // Preserve the recording frame during TLS memory borrowing.
-  logf("[VOICE] recording started mode=%s", gRecordingToFile ? "file" : "ram");
+  // No TLS during capture: it borrows the display buffer and its idle socket
+  // can expire before a longer recording is released. Dial only for upload.
+  logf("[VOICE] recording started mode=%s init_ms=%u canvas=%d", gRecordingToFile ? "file" : "ram",
+       static_cast<unsigned>(millis() - captureRequestedMs), gCanvasSpriteActive);
 }
 
 void writeWavHeader(uint8_t* h, uint32_t dataSize, uint32_t sampleRate) {
