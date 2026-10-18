@@ -22,12 +22,16 @@ void showVoiceNotice(const String& text, bool pending) {
   while (gVoiceNoticeText.length() > 1200) removeLastUtf8Char(gVoiceNoticeText);
   gVoiceNoticePending = pending;
   gVoiceRequestPhase=pending ? VoiceRequestPhase::Accepted : VoiceRequestPhase::Reply;
+  if (gScreensaverActive || gScreensaverDimmed || gScreenOffActive) handleScreensaverWake();
   gVoiceNoticeVisible = gUiMode!=UiMode::ChatFull && gUiMode!=UiMode::ChatFace;
   gVoiceNoticeShownMs = millis();
   gLauncherVisible = false;
   gChatCommandsVisible = false;
   markUserActivity();
-  logf("[VOICE_UI] sheet=%s mode=%d", pending ? "accepted" : "reply", static_cast<int>(gUiMode));
+  render(); // Paint feedback before a notification tone or TLS borrows the canvas.
+  gLastRenderMs=millis();
+  logf("[VOICE_UI] sheet=%s mode=%d painted=%d", pending ? "accepted" : "reply",
+       static_cast<int>(gUiMode),static_cast<int>(gCanvasSpriteActive));
 }
 
 void beginVoiceRequestUi() {
@@ -40,6 +44,7 @@ void beginVoiceRequestUi() {
 void showVoiceRequestError(const String& text) {
   showVoiceNotice(text,false);
   gVoiceRequestPhase=VoiceRequestPhase::Error;
+  render();
 }
 
 void dismissVoiceNotice() {
@@ -99,8 +104,9 @@ void renderVoiceNotice() {
   auto lines = wrapText(gVoiceNoticeText, 212);
   const int count = min<int>(6, lines.size());
   const int height = max<int>(80, 38 + count * 14);
-  const uint32_t age = millis() - gVoiceNoticeShownMs;
-  const int y = 4 - (age < 180 ? static_cast<int>((180 - age) * height / 180) : 0);
+  // The first frame must already contain readable feedback. A slide-in that
+  // starts above the display can freeze there while TLS borrows the canvas.
+  const int y = 4;
   d.fillRoundRect(4, y, 232, height, 12, panel);
   d.drawRoundRect(4, y, 232, height, 12, accent);
   d.setFont(&fonts::Font2);
@@ -199,6 +205,11 @@ void voiceReplySpeechTask(void* arg) {
   vTaskDelete(nullptr);
 }
 
+bool voiceReplyFeedbackReady() {
+  // Never tear down the speaker while it still owns the notification tone.
+  return gCanvasSpriteActive && !M5Cardputer.Speaker.isPlaying();
+}
+
 void serviceVoiceReplySpeech() {
   VoiceSpeechResult* completed = nullptr;
   portENTER_CRITICAL(&gVoiceSpeechMux);
@@ -225,6 +236,9 @@ void serviceVoiceReplySpeech() {
   if (gQueuedVoiceReplySpeech.isEmpty() || gVoiceReplySpeechBusy || gInboxHttpBusy || gVoiceDialBusy || gRealtimeDialBusy ||
       gSubmitting || gThinking || gRecording || gPlaybackActive || gRealtimeActive || gOtaApplyInProgress ||
       gTextTurnTaskHandle || !gPendingTextTurns.empty()) return;
+  if (!voiceReplyFeedbackReady()) return; // Finish the tone and recover the canvas first.
+  render();
+  gLastRenderMs=millis();
   std::unique_ptr<VoiceSpeechPayload> payload(new (std::nothrow) VoiceSpeechPayload());
   if (!payload) { gQueuedVoiceReplySpeech = ""; return; }
   payload->fs = activeVoiceFs();

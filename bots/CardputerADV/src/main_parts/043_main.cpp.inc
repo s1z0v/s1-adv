@@ -891,10 +891,14 @@ bool handleHostSerialCommand(String line) {
     runVoiceStorageCheck();
     return true;
   }
-  if (cmd == "voice.notice.test") {
+  if (cmd == "voice.notice.test" || line.startsWith("voice.notice.test.clock ")) {
     if (gRecording || gSubmitting || gThinking || gRealtimeActive || gVoiceReplySpeechBusy) return true;
-    showVoiceNotice("Ready.", false);
-    gQueuedVoiceReplySpeech = "Ready.";
+    const bool clock=line.startsWith("voice.notice.test.clock ");
+    const String text=clock?line.substring(24):String("Ready.");
+    if(clock)setUiMode(UiMode::Clock);
+    showVoiceNotice(text, false);
+    if(clock && gCanvasSpriteActive) M5Cardputer.Speaker.tone(1319,90);
+    gQueuedVoiceReplySpeech = text;
     return true;
   }
   if (cmd == "voice.notice.open") {

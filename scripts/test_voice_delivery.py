@@ -122,7 +122,7 @@ notice=r'''
 #include <string>
 #include <cstdint>
 struct String:std::string {using std::string::string;String(const std::string& s):std::string(s){};};
-enum class UiMode {Home,ChatFull,ChatFace,Other}; UiMode gUiMode=UiMode::Home;
+enum class UiMode {Home,Clock,ChatFull,ChatFace,Other}; UiMode gUiMode=UiMode::Home;
 struct Keyboard_Class {struct KeysState {bool enter=false,ctrl=false;};};
 bool gVoiceNoticeVisible=false,gInboxUnread=true;
 enum class VoiceRequestPhase {None,Recording,Sending,Processing,Accepted,Reply,Error};
@@ -135,6 +135,8 @@ enum class AssistantPulseState{Realtime,Recording,Thinking,Playback,Ready};
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
 enum class FaceMode {Idle};void setFaceMode(FaceMode){}
 unsigned millis(){return 100;}void markUserActivity(){}
+bool gScreensaverActive=false,gScreensaverDimmed=false,gScreenOffActive=false,gCanvasSpriteActive=true;
+unsigned gLastRenderMs=0;void render(){}bool handleScreensaverWake(){return false;}
 void removeLastUtf8Char(String& s){s.pop_back();}String cleanReplyForDevice(const String& s){return s;}
 void cancelRecordingDiscard(){gRecording=false;}
 void stopPlaybackStream(){}void setStatus(const char*,int){}
@@ -162,6 +164,9 @@ int main(){
  gUiMode=UiMode::Home;gVoiceNoticeVisible=true;dismissVoiceNotice();
  assert(!gVoiceNoticeVisible&&gQueuedVoiceReplySpeech.empty()&&gVoiceReplySpeechGeneration==5);
  assert(gUiMode==UiMode::Home);
+ gUiMode=UiMode::Clock;showVoiceNotice("Clock answer",false);
+ assert(gVoiceNoticeVisible&&handleVoiceNoticeKey('\n',keys)&&gUiMode==UiMode::ChatFull);
+ gUiMode=UiMode::Home;
  // The owned request survives capture, submission and receipt. Esc cannot
  // discard a transport still in flight, and accepting a receipt never cancels
  // the server task when the UI is dismissed.

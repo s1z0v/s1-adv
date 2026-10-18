@@ -197,6 +197,7 @@ void applyDisplayBrightness() {
 
 bool screensaverMayRun() {
   return !gRecording && !gSubmitting && !gThinking && !gPlaybackActive &&
+         !gVoiceNoticeVisible && !gVoiceReplySpeechBusy &&
          !gTransferUiActive && !gOtaApplyInProgress && !gPendingRestart &&
          gUiMode != UiMode::Ota;
 }

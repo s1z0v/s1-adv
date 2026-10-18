@@ -119,8 +119,8 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
     pushSystem("Request accepted. Reply will arrive in chat.");
     setFaceMode(FaceMode::Idle);
     setStatus("Request accepted", 1500);
-    M5Cardputer.Speaker.tone(1047,90);
     showVoiceNotice(transcript, true);
+    if (gCanvasSpriteActive) M5Cardputer.Speaker.tone(1047,90);
     // A transport acknowledgement is not an assistant answer and never TTS.
     return true;
   }

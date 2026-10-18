@@ -35,6 +35,8 @@ the card while the server task continues. Voice started in chat returns its
 receipt and answer inline. The Home clock stays READY during background work.
 A transport failure shows a delivery warning and retains the original recording
 in Voice Notes. Check chat before retrying an uncertain delivery.
+Receipts and replies also appear on Clock. Text is painted before the receipt
+tone or reply speech starts, and unread cards remain until Enter or Escape.
 The clock screen shows READY with its decorative animated bars when the
 microphone is off. REC and the live input meter appear after recording starts.
 A compact battery gauge with five broad diagonal strokes and a percentage sits

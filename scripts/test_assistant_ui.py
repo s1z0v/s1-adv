@@ -24,7 +24,7 @@ struct String:std::string {
  bool isEmpty() const {return empty();}
  void trim(){auto a=find_first_not_of(" \t\n\r"); if(a==npos){clear();return;} *this=substr(a,find_last_not_of(" \t\n\r")-a+1);}
 };
-enum class UiMode {Home,Face,Hero,ChatFull,ChatFace,Nes};
+enum class UiMode {Home,Clock,Face,Hero,ChatFull,ChatFace,Nes};
 UiMode gUiMode=UiMode::Home;
 String gInputBuffer,gActiveTextTurn,gStatusText,lastUser;
 std::deque<String> gPendingTextTurns;

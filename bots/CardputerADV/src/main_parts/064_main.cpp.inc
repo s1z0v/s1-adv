@@ -27,7 +27,8 @@ bool handleHomeUpdateKey(char key, const Keyboard_Class::KeysState& keys) {
 
 bool isAssistantUi() {
   return gUiMode == UiMode::Home || gUiMode == UiMode::ChatFace ||
-         gUiMode == UiMode::ChatFull || gUiMode == UiMode::Face || gUiMode == UiMode::Hero;
+         gUiMode == UiMode::ChatFull || gUiMode == UiMode::Face || gUiMode == UiMode::Hero ||
+         gUiMode == UiMode::Clock;
 }
 
 String makeRealtimeUpgradeRequest(const String& host,uint16_t port,const String& path,
