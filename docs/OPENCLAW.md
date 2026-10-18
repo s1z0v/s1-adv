@@ -25,16 +25,17 @@ API declaration is not proof that every newer or older Gateway works.
 ## Install from ClawHub
 
 The community preview is
-[openclaw-s1-adv 0.2.0](https://clawhub.ai/plugins/openclaw-s1-adv).
+[openclaw-s1-adv 0.3.0](https://clawhub.ai/plugins/openclaw-s1-adv).
 On a current OpenClaw installation:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.2.0
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.0
 ```
 
-ClawHub classifies this release as **Review** because it includes local process
-execution and optional firmware source/build/publish/OTA capabilities. Inspect
-the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.2.0)
+ClawHub's automated scan currently classifies 0.3.0 as **Clean**. The package
+still includes local process execution and optional firmware
+source/build/publish/OTA capabilities. Inspect
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.0)
 and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
@@ -43,9 +44,10 @@ remains off until separately provisioned. Setup below is still required.
 ## Alternative: install from reviewed source
 
 ```bash
-git clone https://github.com/srg0/s1-adv.git
-cd s1-adv
-openclaw plugins install ./bridge
+git clone --branch bridge-v0.3.0 https://github.com/srg0/s1-adv.git
+cd s1-adv/bridge
+npm pack --ignore-scripts
+openclaw plugins install ./openclaw-s1-adv-0.3.0.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
@@ -53,6 +55,10 @@ network service. There are no npm install hooks, automatic model downloads or
 root installation scripts. The published artifact contains source, templates and
 the six optional public [Focus audio cues](FOCUS-AUDIO.md),
 not the maintainer's configuration, credentials or personal firmware binary.
+
+Use the archive for this source route: native directory installs on some
+OpenClaw versions copy the plugin without installing its dependencies. The
+native archive installer resolves the declared runtime dependencies.
 
 Recent OpenClaw releases also require capability consent. Review this exact
 artifact's native report and source: the integration registers its CLI, setup

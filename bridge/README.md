@@ -32,10 +32,12 @@ If your release requests explicit noninteractive consent, repeat that reviewed
 install with `--accept-capabilities`; local archives/paths can also require
 `--force` for source acknowledgement. Do not treat `--yes` as capability consent.
 
-From a reviewed clone of `srg0/s1-adv`:
+From a reviewed clone of `srg0/s1-adv` (tag `bridge-v0.3.0` for this release):
 
 ```bash
-openclaw plugins install ./bridge
+cd bridge
+npm pack --ignore-scripts
+openclaw plugins install ./openclaw-s1-adv-0.3.0.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply

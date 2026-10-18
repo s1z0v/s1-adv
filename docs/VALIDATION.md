@@ -22,6 +22,26 @@ has 12 and upstream interruption has 3. All three integration smokes pass, as
 do package inspection, dependency audit and the existing security property
 harness. Plugin Inspector against OpenClaw 2026.10.4 reports zero API issues.
 
+ClawHub published the source commit `abcd59e`, tag `bridge-v0.3.0`, with
+34 files and artifact SHA-256
+`17945ac6a7d160f7fe863aaaa3c463b1838dbbfb65a165bb9cde3f599d61c001`.
+Its aggregate automated scan reports **Clean**; this is not an independent
+security guarantee. The artifact is source-linked, without signed build
+provenance. The unchanged archive was installed natively on the isolated
+OpenClaw 2026.10.4 / Node 26.1.0 profile. All 34 installed files matched the
+qualified source. Its authenticated HTTP routes returned all six complete
+WAVs with matching checksums, while anonymous downloads were refused and
+upstream/delivery readiness remained true.
+
+Publishing used the documented
+[upload-url/storage-id/ticket transport](https://docs.openclaw.ai/clawhub/http-api). CLI
+0.23.3 selected direct multipart above the API's documented 4 MB cap and got
+HTTP 413. An isolated copy with only that client threshold corrected used
+the existing staged flow; server validation/security checks and package bytes
+were retained. Installing a local directory also skipped dependency setup on
+this native CLI, so the public source instructions now build and install a
+reviewed archive. Native archive installation resolved the dependencies.
+
 ## Community plugin and portable setup, 2026-10-18
 
 The bridge package is `openclaw-s1-adv@0.2.0`, native plugin ID `s1-adv`.

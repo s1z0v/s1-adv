@@ -7,6 +7,15 @@ regressions. It is not an independent penetration test or a safety guarantee.
 
 ## Registry review status
 
+Update, 2026-10-19: `openclaw-s1-adv@0.3.0`, source `abcd59e`, was published
+with six optional public Focus audio cues. Its
+[automated audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.0)
+currently reports **Clean** (`scanStatus: clean`). The registry artifact has
+SHA-256 `17945ac6a7d160f7fe863aaaa3c463b1838dbbfb65a165bb9cde3f599d61c001`.
+This result is separate from the earlier 0.2.0 Review classification below and
+does not remove the package's disclosed process, agent or optional OTA powers.
+The existing isolation, token and source-review guidance still applies.
+
 ClawHub published community preview `openclaw-s1-adv@0.2.0` from
 `9e32044b72685d8021a332ad02ba96511c739e2a`, tag `bridge-v0.2.0`.
 Its [automated audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.2.0)
