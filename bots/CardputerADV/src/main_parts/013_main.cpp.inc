@@ -286,6 +286,20 @@ String voiceAudioPath(const String& id) {
   return String(kVoiceDir) + "/" + id + kVoiceAudioExt;
 }
 
+String recordingAudioPath(const String& id) {
+  if (!gSdReady) return voiceAudioPath(id);
+  // FAT directory lookup/create time grows with the flat archive. Keep new
+  // captures in a small daily directory; existing recordings and metadata
+  // retain their paths and need no migration.
+  char day[9] = "undated";
+  const time_t stamp = time(nullptr);
+  struct tm local;
+  if (stamp >= 1704067200 && localtime_r(&stamp, &local)) strftime(day, sizeof(day), "%Y%m%d", &local);
+  const String directory = String("/recordings/") + day;
+  if (!ensureDirRecursive(SD, directory)) return "";
+  return directory + "/" + id + kVoiceAudioExt;
+}
+
 String voiceMetaPath(const String& id) {
   return String(kVoiceDir) + "/" + id + kVoiceMetaExt;
 }

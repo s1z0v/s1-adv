@@ -183,6 +183,7 @@ void renderBootSplash(const char* stage) {
 void setup() {
   gMainLoopTaskHandle = xTaskGetCurrentTaskHandle();
   Serial.setRxBufferSize(4096);
+  Serial.setTxBufferSize(4096); // Keep complete diagnostics when the host is reading.
   // A connected cable is not proof that the host drains USB logs. Never let
   // a full CDC/JTAG TX buffer stall capture, SD service or the UI thread.
   Serial.setTxTimeoutMs(0);

@@ -60,7 +60,8 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
   }
 
   if (statusCode < 200 || statusCode >= 300) {
-    showVoiceRequestError("Server could not accept the request. Recording kept in Voice Notes.");
+    showVoiceRequestError(String("Server unavailable (HTTP ") + String(statusCode) +
+        "). Delivery unconfirmed. Recording kept in Voice Notes.");
     logf("[VOICE] HTTP error status=%d body=%s", statusCode, response.c_str());
     if (statusCode == 504) {
       pushError("Assistant reply timeout.");
@@ -71,7 +72,7 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
       setStatus("Voice turn failed", 2000);
       setVoiceDiag("voice: http " + String(statusCode));
     }
-    if (!response.isEmpty()) {
+    if (statusCode < 500 && !response.isEmpty()) {
       pushError(response);
     }
     setFaceMode(FaceMode::Error);

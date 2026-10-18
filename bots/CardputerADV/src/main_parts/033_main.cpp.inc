@@ -62,8 +62,8 @@ void startRecording() {
   }
   if (gRecordingToFile) {
     fs::FS* fs = activeVoiceFs();
-    gActiveRecordPath = voiceAudioPath(makeVoiceNoteId(false));
-    gActiveRecordFile = fs->open(gActiveRecordPath, "w");
+    gActiveRecordPath = recordingAudioPath(makeVoiceNoteId(false));
+    gActiveRecordFile = gActiveRecordPath.isEmpty() ? File() : fs->open(gActiveRecordPath, "w");
     if (gActiveRecordFile) {
       gActiveRecordFile.setBufferSize(kRecordWriteBytes);
       uint8_t header[44]; writeWavHeader(header, 0, kMicSampleRate);

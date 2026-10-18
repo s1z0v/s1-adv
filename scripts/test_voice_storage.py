@@ -24,6 +24,7 @@ code = r'''
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <deque>
 struct String:std::string {
  using std::string::string;String(const std::string& s):std::string(s){}
  bool endsWith(String suffix)const{return size()>=suffix.size()&&compare(size()-suffix.size(),suffix.size(),suffix)==0;}
@@ -32,17 +33,18 @@ struct String:std::string {
 uint32_t now=0;uint32_t millis(){return now;}void yield(){++now;}
 void logf(const char*,...){}void pumpBlockingNetworkUi(){now+=10;}
 constexpr unsigned kMicSampleRate=16000;const char* kVoiceDir="/voice";
-struct Entry{String path;size_t bytes;};std::vector<Entry> entries;size_t cursor=0;
+struct Entry{String path;size_t bytes;bool dir=false;};std::vector<Entry> entries,recordingRoot,recordingDay;
 bool endless=false;
 struct File{
- bool valid=false,dir=false;Entry entry;
+ bool valid=false,dir=false;Entry entry;size_t cursor=0;
  explicit operator bool()const{return valid;}
  bool isDirectory(){return dir;}String path(){return entry.path;}size_t size(){return entry.bytes;}
  void close(){valid=false;}
  File openNextFile(){if(endless)return {true,false,{"/voice/other.wav",100}};
-  if(cursor==entries.size())return {};return {true,false,entries[cursor++]};}
+  auto& files=entry.path=="/recordings"?recordingRoot:entry.path=="/recordings/20261018"?recordingDay:entries;
+  if(cursor==files.size())return {};auto next=files[cursor++];return {true,next.dir,next};}
 } gVoiceNotesScanDir;
-namespace fs{struct FS{File open(const char*){cursor=0;return {true,true,{}};}};}
+namespace fs{struct FS{File open(const String& path){return {true,true,{path,0,true}};}};}
 fs::FS sd;fs::FS* activeVoiceFs(){return &sd;}bool ensureVoiceStorage(){return true;}
 bool gVoiceNotesScanActive=false;int remaining=0;
 void startVoiceNotesScan(){gVoiceNotesScanActive=true;gVoiceNotesScanDir={true,true,{}};}
@@ -63,6 +65,12 @@ int main(){
  entries.push_back({"/voice/u_duplicate.wav",749612});
  assert(!findSavedVoiceNoteBySize(749612,note)); // Never guess between recordings.
  entries.clear();assert(!findSavedVoiceNoteBySize(749612,note));
+ recordingRoot={{"/recordings/20261018",0,true}};
+ recordingDay={{"/recordings/20261018/u_new.wav",749612}};
+ assert(findSavedVoiceNoteBySize(749612,note)&&note.audioPath=="/recordings/20261018/u_new.wav");
+ entries={{"/voice/u_duplicate.wav",749612}};
+ assert(!findSavedVoiceNoteBySize(749612,note)); // Refuse a duplicate across old and new storage.
+ entries.clear();recordingRoot.clear();recordingDay.clear();
  assert(!findSavedVoiceNoteBySize(44,note));
  endless=true;now=0;assert(!findSavedVoiceNoteBySize(749612,note)&&now==5000);
 }

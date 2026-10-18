@@ -61,6 +61,10 @@ it does not install or start the bridge by itself.
 - For voice: FFmpeg, an STT backend and a TTS backend on the bridge host.
 - Optional microSD for saved audio and extra assets.
 
+New microphone recordings are saved as WAV files in `/recordings/YYYYMMDD/` on
+microSD to keep recording startup fast as the archive grows. Voice Notes metadata
+and older recordings remain in `/voice`; existing files do not need migration.
+
 ## Start here
 
 ```bash

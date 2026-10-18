@@ -240,23 +240,31 @@ bool findLatestUserVoiceNote(VoiceNote& noteOut) {
 bool findSavedVoiceNoteBySize(size_t expectedBytes, VoiceNote& noteOut) {
   fs::FS* fs=activeVoiceFs();
   if (!fs || expectedBytes<=44 || !ensureVoiceStorage()) return false;
-  File dir=fs->open(kVoiceDir);
-  if (!dir || !dir.isDirectory()) return false;
   const uint32_t started=millis();
   unsigned matches=0;
-  while (millis()-started<5000U) {
-    File file=dir.openNextFile();
-    if (!file) {dir.close();return matches==1;}
-    const String path=file.path();
-    if (!file.isDirectory() && path.endsWith(".wav") &&
-        path.indexOf("/u_")>=0 && file.size()==expectedBytes) {
-      ++matches;noteOut.audioPath=path;
-      noteOut.durationMs=(expectedBytes-44)*1000ULL/(kMicSampleRate*2U);
+  std::deque<String> directories={String("/recordings"),String(kVoiceDir)};
+  while (!directories.empty() && millis()-started<5000U) {
+    const String directory=directories.front();directories.pop_front();
+    File dir=fs->open(directory);
+    if (!dir || !dir.isDirectory()) continue;
+    while (millis()-started<5000U) {
+      File file=dir.openNextFile();
+      if (!file) break;
+      const String path=file.path();
+      if (file.isDirectory() && directory=="/recordings") directories.push_back(path);
+      if (!file.isDirectory() && path.endsWith(".wav") &&
+          path.indexOf("/u_")>=0 && file.size()==expectedBytes) {
+        ++matches;noteOut.audioPath=path;
+        noteOut.durationMs=(expectedBytes-44)*1000ULL/(kMicSampleRate*2U);
+      }
+      file.close();yield();
     }
-    file.close();yield();
+    dir.close();
   }
-  dir.close();logf("[VOICE] recovery scan timed out; no recording submitted");
-  return false;
+  if (millis()-started>=5000U) {
+    logf("[VOICE] recovery scan timed out; no recording submitted");return false;
+  }
+  return matches==1;
 }
 
 bool copyWavDataToPcmFile(fs::FS& fs, const String& wavPath, const String& pcmPath,

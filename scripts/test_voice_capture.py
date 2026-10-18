@@ -62,6 +62,7 @@ bool remountSdStorage(const char*){return true;}void showVoiceNotice(const char*
 void pulseButtonPress(){}bool ensureVoiceStorage(){now+=20;return true;}
 fs::FS* activeVoiceFs(){return &storage;}
 String makeVoiceNoteId(bool){return "test";}String voiceAudioPath(const String&){return "/voice/test.wav";}
+String recordingAudioPath(const String&){return "/recordings/20261018/test.wav";}
 void writeWavHeader(uint8_t*,uint32_t,uint32_t){}void fsRemove(fs::FS&,const String&){}
 void handleRecordingStorageFailure(){assert(false);}void logHeapStats(const char*){}
 bool ensureRecordBuffer(){return true;}void beginVoiceWifiPerformance(){}void beginVoiceRequestUi(){}
@@ -106,3 +107,34 @@ assert post.index('beginVoicePreconnect();') < post.index('takeVoicePreconnect()
 begin = function('065_main.cpp.inc', 'void beginVoicePreconnect()')
 assert begin.index('if (gRecording) return;') < begin.index('releaseUiCanvasForNetwork(')
 print('PASS actual G0 starts on wake, capture excludes setup time, no TLS/canvas borrowing during a 20-second hold, fresh dial at upload')
+
+paths = r'''
+#include <cassert>
+#include <string>
+#include <ctime>
+struct String:std::string {
+ using std::string::string;String(const std::string& value):std::string(value){}
+};
+bool gSdReady=true,canCreate=true;const char* kVoiceDir="/voice";const char* kVoiceAudioExt=".wav";
+int SD=0;String made;
+bool ensureDirRecursive(int&,const String& path){made=path;return canCreate;}
+'''
+paths += function('013_main.cpp.inc', 'String voiceAudioPath(') + '\n'
+paths += function('013_main.cpp.inc', 'String recordingAudioPath(') + '\n'
+paths += r'''
+int main(){
+ const String legacy=voiceAudioPath("u_saved");assert(legacy=="/voice/u_saved.wav");
+ const String fresh=recordingAudioPath("u_new");
+ assert(fresh.find("/recordings/")==0&&fresh==made+"/u_new.wav"&&made.size()==20);
+ assert(voiceAudioPath("u_saved")==legacy);
+ canCreate=false;assert(recordingAudioPath("u_failed").empty());
+ gSdReady=false;assert(recordingAudioPath("u_flash")=="/voice/u_flash.wav");
+}
+'''
+with tempfile.TemporaryDirectory(prefix='s1-capture-path-') as directory:
+    path = Path(directory)
+    (path / 'test.cpp').write_text(paths)
+    subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++17', '-Wall', '-Wextra',
+                    str(path / 'test.cpp'), '-o', str(path / 'test')], check=True)
+    subprocess.run([str(path / 'test')], check=True)
+print('PASS daily SD recording paths, unchanged old/flash paths, safe directory creation failure')

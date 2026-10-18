@@ -88,6 +88,9 @@ int main(){
   assert(gVoiceRequestPhase==VoiceRequestPhase::Error&&errors==1);
   reset();assert(!finishVoiceSubmission(true,503,"unavailable","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Error&&!gVoiceReplyPending&&errors>0);
+  assert(gVoiceNoticeText.find("HTTP 503")!=std::string::npos);
+  reset();assert(!finishVoiceSubmission(true,502,"<html>Bad Gateway</html>","saved.wav",749568));
+  assert(gVoiceNoticeText.find("HTTP 502")!=std::string::npos&&errors==1);
   reset();assert(!finishVoiceSubmission(false,-1,"","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Error&&!gVoiceReplyPending&&tones==0);
   assert(gVoiceNoticeText.find("No delivery receipt")!=std::string::npos);
