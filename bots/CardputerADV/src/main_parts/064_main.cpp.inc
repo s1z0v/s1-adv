@@ -70,10 +70,17 @@ bool beginRealtimeDial() {
   request->request=makeRealtimeUpgradeRequest(gHubHost,gHubPort,kRealtimeWsPath,
                                                request->key,gRealtimeExtraHeaders);
   request->generation=++gRealtimeDialGeneration;
+  // TLS needs two record buffers and certificate workspace at once. Borrow
+  // the sprite only during the handshake; loopTask restores it on completion.
+  clearEmojiCache();
+  M5Cardputer.Speaker.end();
+  gRealtimeDialCanvasReleased=releaseUiCanvasForNetwork("realtime TLS");
   gRealtimeDialBusy=true;
   RealtimeDialRequest* raw=request.release();
   if (xTaskCreate(realtimeDialTask,"rt-connect",12288,raw,1,nullptr)!=pdPASS) {
-    delete raw;gRealtimeDialBusy=false;return false;
+    delete raw;gRealtimeDialBusy=false;
+    if(gRealtimeDialCanvasReleased){restoreUiCanvasAfterNetwork();gRealtimeDialCanvasReleased=false;}
+    return false;
   }
   return true;
 }
@@ -87,6 +94,7 @@ void serviceRealtimeDialCompletion() {
   portEXIT_CRITICAL(&gRealtimeDialMux);
   if (!completed && !allocationFailed) return;
   gRealtimeDialBusy=false;
+  if(gRealtimeDialCanvasReleased){restoreUiCanvasAfterNetwork();gRealtimeDialCanvasReleased=false;}
   if (allocationFailed) {
     if (gRealtimeActive) failRealtimeSession("Not enough memory for connection");
     return;
@@ -106,21 +114,35 @@ bool handleAssistantMenuKey(char key,const Keyboard_Class::KeysState& keys) {
   if (!isAssistantUi()) return false;
   char lower=static_cast<char>(tolower(static_cast<unsigned char>(key)));
   if (keys.ctrl && lower=='k') {
+    gVoiceNoticeVisible=false;
     gChatCommandsVisible=!gChatCommandsVisible;
     gLauncherVisible=false;
     return true;
   }
   if (keys.ctrl && lower=='l') {
+    gVoiceNoticeVisible=false;
     gChatCommandsVisible=false;
     gLauncherVisible=!gLauncherVisible;
     return true;
   }
   if (keys.tab) {
+    gVoiceNoticeVisible=false;
     gChatCommandsVisible=false;
     if (gLauncherVisible) moveLauncherSubSelection(1);
     else gLauncherVisible=true;
     return true;
   }
+  return false;
+}
+
+bool handleEyeSkinKey(char key,const Keyboard_Class::KeysState& keys) {
+  if (!isAssistantUi() || gLauncherVisible || gRecording) return false;
+  // Brackets remain text in Full Chat. On an eye screen, or with Ctrl, they
+  // always work, including while Realtime owns the microphone.
+  const bool eyes=gUiMode==UiMode::Face || gUiMode==UiMode::ChatFace;
+  if (!keys.ctrl && !eyes) return false;
+  if (key=='[' || (keys.ctrl && key==',')) {runChatCommand(4);return true;}
+  if (key==']' || (keys.ctrl && key=='.')) {runChatCommand(5);return true;}
   return false;
 }
 
@@ -192,6 +214,7 @@ void runChatCommand(uint8_t index) {
   gDeviceSettings.eyeSkin = static_cast<uint8_t>((gDeviceSettings.eyeSkin +
       (index == 4 ? kEyeSkinCount - 1 : 1)) % kEyeSkinCount);
   saveDeviceSettings();
+  logf("[EYES] skin=%u name=%s",gDeviceSettings.eyeSkin,eyeSkinName(gDeviceSettings.eyeSkin));
   setStatus(eyeSkinName(gDeviceSettings.eyeSkin), 900);
 }
 

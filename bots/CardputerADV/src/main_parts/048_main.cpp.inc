@@ -10,7 +10,6 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
-  if (handleVoiceNoticeKey(key, keys)) return;
   if (handleAssistantMenuKey(key,keys)) return;
   if (isAssistantUi() && gLauncherVisible) { handleLauncherKey(key,keys); return; }
   if (gChatCommandsVisible) {
@@ -23,6 +22,8 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     else if (key==']') runChatCommand(5);
     return;
   }
+  if (handleEyeSkinKey(key,keys)) return;
+  if (handleVoiceNoticeKey(key, keys)) return;
   if (isAssistantUi() && keys.ctrl) {
     if (lowerKey=='c') { runChatCommand(1); return; }
     if (lowerKey=='e') { runChatCommand(2); return; }

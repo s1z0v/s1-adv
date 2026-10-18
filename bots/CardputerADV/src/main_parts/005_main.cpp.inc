@@ -19,6 +19,7 @@ struct RealtimeDialResult {
 portMUX_TYPE gRealtimeDialMux=portMUX_INITIALIZER_UNLOCKED;
 RealtimeDialResult* gRealtimeDialResult=nullptr;
 bool gRealtimeDialBusy=false;
+bool gRealtimeDialCanvasReleased=false;
 volatile bool gRealtimeDialAllocationFailed=false;
 uint32_t gRealtimeDialGeneration=0;
 void serviceRealtimeDialCompletion();
@@ -54,6 +55,7 @@ void serviceInboxNetworkCompletion();
 void servicePendingRealtimeStart();
 bool isAssistantUi();
 bool handleAssistantMenuKey(char key,const Keyboard_Class::KeysState& keys);
+bool handleEyeSkinKey(char key,const Keyboard_Class::KeysState& keys);
 void renderRealtimeEyesUi();
 const char* realtimeStageLabel();
 void failRealtimeSession(const String& reason);

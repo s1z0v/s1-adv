@@ -12,6 +12,7 @@ void drainRecordingToFile() {
 }
 
 void startRecording() {
+  if (gRealtimeDialBusy) { setStatus("Connection finishing; try voice again", 1200); return; }
   if (gVoiceReplySpeechBusy) { setStatus("Reply voice preparing; Esc cancels", 1000); return; }
   if (gInboxHttpBusy) { setStatus("Network finishing; try voice again",900); return; }
   if (gRealtimeExclusiveMode || gRealtimeActive) {

@@ -99,6 +99,9 @@ struct Tls {~Tls(){++destroyed;}};
 struct RealtimeDialResult {std::unique_ptr<Tls> socket;String key,error;unsigned generation=0;};
 RealtimeDialResult* gRealtimeDialResult=nullptr;
 bool gRealtimeDialAllocationFailed=false,gRealtimeDialBusy=true,gRealtimeActive=true;
+bool gRealtimeDialCanvasReleased=true;
+int restored=0;
+void restoreUiCanvasAfterNetwork(){++restored;}
 unsigned gRealtimeDialGeneration=3;
 int gRealtimeDialMux;
 #define portENTER_CRITICAL(x) ((void)0)
@@ -113,6 +116,7 @@ RealtimeDialResult* result(unsigned generation){auto* r=new RealtimeDialResult()
 int main(){
  gRealtimeDialResult=result(2);serviceRealtimeDialCompletion();
  assert(!gRealtimeDialBusy && destroyed==1 && adopted==0);
+ assert(restored==1 && !gRealtimeDialCanvasReleased);
  gRealtimeDialBusy=true;gRealtimeDialResult=result(3);gRealtimeActive=false;
  serviceRealtimeDialCompletion();assert(destroyed==2 && adopted==0);
  gRealtimeActive=true;gRealtimeDialResult=result(3);serviceRealtimeDialCompletion();
@@ -120,7 +124,9 @@ int main(){
  gRealtimeDialResult=result(3);gRealtimeDialResult->error="TLS failure";
  serviceRealtimeDialCompletion();assert(failed==1 && destroyed==3);
  gRealtimeDialBusy=true;gRealtimeDialAllocationFailed=true;
+ gRealtimeDialCanvasReleased=true;
  serviceRealtimeDialCompletion();assert(!gRealtimeDialBusy && failed==2);
+ assert(restored==2 && !gRealtimeDialCanvasReleased);
 }
 '''
     cpp=out/'handoff.cpp';cpp.write_text(source)
@@ -130,6 +136,13 @@ worker=function('RealtimeDialResult* performRealtimeDial(')
 for banned in ['setUiMode','setStatus','logf(','vTaskDelete','gCanvas','gRealtimeWs.']:
     assert banned not in worker,banned
 assert 'setCACert(kTlsRootCaPem)' in worker and 'setInsecure' not in worker
+start=(parts/'042_main.cpp.inc').read_text().split('void startRealtimeSession(bool startAfterReady)')[1].split('void startRealtimeRecording()')[0]
+assert 'cancelVoicePreconnect();' in start
+assert all(flag in start.split('gPendingRealtimeStart = true;')[0] for flag in ['gVoiceDialBusy','gVoiceReplySpeechBusy'])
+assert start.index('render();') < start.index('beginRealtimeDial()')
+begin=function('bool beginRealtimeDial()')
+assert begin.index('releaseUiCanvasForNetwork("realtime TLS")') < begin.index('xTaskCreate(')
+assert 'restoreUiCanvasAfterNetwork()' in begin
 callback=(parts/'042_main.cpp.inc').read_text().split('if (type == "speech.stopped")')[1].split('if (type == "realtime.thinking")')[0]
 assert 'gRealtimeVadStopPending = true' in callback and 'stopRealtimeRecordingForVad()' not in callback
 service=(parts/'043_main.cpp.inc').read_text()

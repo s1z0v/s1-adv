@@ -81,12 +81,12 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     ~CanvasGuard() { if (released) restoreUiCanvasAfterNetwork(); }
   } canvas;
   clearEmojiCache();
-  if (heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < 24000)
-    canvas.released = releaseUiCanvasForNetwork("voice memory");
   WiFiClient plainClient;
   WiFiClientSecure secureClient;
   std::unique_ptr<WiFiClient> prepared = takeVoicePreconnect();
   if (gVoiceDialBusy) { setHttpDiag("voice_post: connection still preparing"); return false; }
+  if (!prepared && hubUsesTls())
+    canvas.released = releaseUiCanvasForNetwork("voice TLS");
   WiFiClient* client = nullptr;
   if (prepared) {
     client = prepared.get();
@@ -121,6 +121,10 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     return false;
   }
   logf("[VOICE] connected reused=%d ms=%u", static_cast<int>(prepared != nullptr), static_cast<unsigned>(millis() - connectStartedMs));
+  if (canvas.released) {
+    restoreUiCanvasAfterNetwork();
+    canvas.released=!gCanvasSpriteActive;
+  }
 
   String hostHeader = gHubHost;
   client->setNoDelay(true); // The connected socket must exist before TCP_NODELAY is set.

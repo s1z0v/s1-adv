@@ -7,6 +7,7 @@
 - **Ctrl+R** starts Realtime or commits the current speech turn. While awaiting a reply, it stops Realtime.
 - **Esc** closes an overlay, or ends Realtime and returns Home.
 - **Ctrl+Left / Ctrl+Right** or **Ctrl+, / Ctrl+.** selects the previous/next animal.
+- On **Big Eyes, Chat Eyes and Realtime**, **[ / ]** also selects the previous/next animal, including while the mic is listening. In Full Chat, plain brackets remain text.
 - **Ctrl+L** also opens the app menu. `/help` shows command help.
 - `/status` shows connection and device information.
 - `/setup` or `/wifi` opens the Wi-Fi and bridge setup portal.

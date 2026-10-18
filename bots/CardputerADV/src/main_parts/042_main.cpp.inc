@@ -492,7 +492,9 @@ void startRealtimeSession(bool startAfterReady) {
   gRealtimeScreenVisible = true;
   gRealtimeUiError = "";
   gRealtimeUiTranscript = "";
-  if (gInboxHttpBusy || gRealtimeDialBusy || gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr) {
+  cancelVoicePreconnect();
+  if (gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy || gRealtimeDialBusy ||
+      gTextTurnTaskHandle != nullptr || gCompletedTextTurn != nullptr) {
     gPendingRealtimeStart = true;
     gPendingRealtimeAutoStart = startAfterReady;
     setStatus("Waiting for network...", 900);
@@ -534,12 +536,12 @@ void startRealtimeSession(bool startAfterReady) {
   gRealtimeWs.onEvent(realtimeWsEvent);
   gRealtimeWs.setReconnectInterval(750);
   gRealtimeWs.enableHeartbeat(15000, 3000, 2);
+  setStatus("Realtime connecting...");
+  render(); // Keep PREPARE visible while the worker borrows the canvas memory.
   if (!beginRealtimeDial()) {
     failRealtimeSession("Connection worker unavailable");
     return;
   }
-  setStatus("Realtime connecting...");
-  render(); // Show MIC OFF / CONNECT before the first TLS handshake.
   appendRuntimeLog("RT", "connect host=" + gHubHost + ":" + String(gHubPort), false);
   logf("[RT] connect host=%s port=%u tls=%d verify=%s free=%u largest=%u",
        gHubHost.c_str(),

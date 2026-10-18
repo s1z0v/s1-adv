@@ -37,6 +37,7 @@ bool gVoiceDialBusy=false,gVoiceReplySpeechBusy=false;
 bool gChatCommandsVisible=false,gLauncherVisible=false,gRealtimeActive=false,gRealtimeExclusiveMode=false;
 bool gRealtimeScreenVisible=false,gRealtimeConnected=false,gRealtimeRecording=false;
 bool gRecording=false;
+bool gVoiceNoticeVisible=false;
 bool gRealtimePlaybackActive=false,gPlaybackActive=false,gRealtimeAwaiting=false;
 String gRealtimeUiError;
 struct Keyboard_Class {struct KeysState {bool ctrl=false,tab=false;};};
@@ -57,6 +58,8 @@ void toggleRealtimeVoice(){++started;}
 void closeRealtimeSession(const char*){++closed;gRealtimeActive=false;gRealtimeExclusiveMode=false;}
 void saveDeviceSettings(){++saved;}
 const char* eyeSkinName(uint8_t){return "skin";}
+void logf(const char*,...){}
+void runChatCommand(uint8_t);
 '''
 code+='\n'+function('064_main.cpp.inc','bool isAssistantUi()')
 code+='\n'+function('064_main.cpp.inc','String makeRealtimeUpgradeRequest(')
@@ -64,6 +67,7 @@ code+='\n'+function('064_main.cpp.inc','bool handleAssistantMenuKey(')
 code+='\n'+function('064_main.cpp.inc','const char* realtimeStageLabel()')
 code+='\n'+function('064_main.cpp.inc','void servicePendingRealtimeStart()')
 code+='\n'+function('064_main.cpp.inc','void runChatCommand(uint8_t index)')
+code+='\n'+function('064_main.cpp.inc','bool handleEyeSkinKey(')
 code+='\n'+function('044_main.cpp.inc','void submitInput()')
 code+=r'''
 int main(){
@@ -114,6 +118,21 @@ int main(){
  assert(closed==1 && gUiMode==UiMode::ChatFace);
  runChatCommand(4);assert(gDeviceSettings.eyeSkin==5);
  runChatCommand(5);assert(gDeviceSettings.eyeSkin==0 && saved==2);
+ // The literal keys printed in the command menu work on both eye screens,
+ // including during a live microphone turn, without changing audio ownership.
+ gUiMode=UiMode::Face;gLauncherVisible=false;gRealtimeActive=true;gRealtimeRecording=true;
+ keys.ctrl=false;
+ assert(handleEyeSkinKey(']',keys) && gDeviceSettings.eyeSkin==1);
+ assert(handleEyeSkinKey('[',keys) && gDeviceSettings.eyeSkin==0);
+ assert(gRealtimeActive && gRealtimeRecording);
+ gUiMode=UiMode::ChatFace;assert(handleEyeSkinKey(']',keys));
+ gUiMode=UiMode::ChatFull;assert(!handleEyeSkinKey('[',keys));
+ keys.ctrl=true;assert(handleEyeSkinKey(',',keys));
+ gLauncherVisible=true;assert(!handleEyeSkinKey(']',keys));gLauncherVisible=false;
+ gRecording=true;assert(!handleEyeSkinKey(']',keys));gRecording=false;
+ gUiMode=UiMode::Face;gVoiceNoticeVisible=true;
+ assert(handleAssistantMenuKey('k',keys) && !gVoiceNoticeVisible);
+ gRealtimeActive=false;gRealtimeRecording=false;gChatCommandsVisible=false;
  gPendingRealtimeStart=true;servicePendingRealtimeStart();assert(started==0);
  gInboxHttpBusy=false;gPendingTextTurns.clear();servicePendingRealtimeStart();
  assert(started==1 && !gPendingRealtimeStart);
@@ -136,5 +155,7 @@ poll=function('020_main.cpp.inc','void serviceAutoInboxPoll()')
 assert 'fetchLatestInboxMessage' not in poll and 'xTaskCreate(inboxHttpTask' in poll
 assert 'ensureWifiForHttp' not in function('043_main.cpp.inc','void maintainConnectivity()')
 typing=(parts/'048_main.cpp.inc').read_text()
+assert typing.index('handleAssistantMenuKey(key,keys)') < typing.index('handleVoiceNoticeKey(key, keys)')
+assert typing.index('handleEyeSkinKey(key,keys)') < typing.index('if (gRealtimeRecording')
 assert 'if (gRecording)' not in typing[typing.index('void pollTyping()'):]
 print('PASS actual submit/navigation: pending inbox, immediate chat, queue, six skins, Realtime gating; worker UI ownership')
