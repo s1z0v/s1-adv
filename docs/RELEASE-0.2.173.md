@@ -15,5 +15,6 @@ broader memory change.
 
 Uncertain/stalled firmware requests display CHECK LINK instead of falling back
 to READY when their acknowledgement has been read. BUILDING continues to mean
-confirmed server work. The previously switched-off lamp powering on at focus
+confirmed server work and takes priority over an older uninstalled candidate;
+a stale build cannot hide a discovered update. The previously switched-off lamp powering on at focus
 start was confirmed on 0.2.172.
