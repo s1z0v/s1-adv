@@ -22,7 +22,25 @@ The declared minimum plugin API is 2026.7.2-beta.1. See
 [validation](VALIDATION.md) for the exact versions actually exercised; a minimum
 API declaration is not proof that every newer or older Gateway works.
 
-## Install from reviewed source
+## Install from ClawHub
+
+The community preview is
+[openclaw-s1-adv 0.2.0](https://clawhub.ai/plugins/openclaw-s1-adv).
+On a current OpenClaw installation:
+
+```bash
+openclaw plugins install clawhub:openclaw-s1-adv@0.2.0
+```
+
+ClawHub classifies this release as **Review** because it includes local process
+execution and optional firmware source/build/publish/OTA capabilities. Inspect
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.2.0)
+and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
+decision for this exact artifact. This is a community package with source-linked
+metadata, not an official module or a signed build attestation. Firmware automation
+remains off until separately provisioned. Setup below is still required.
+
+## Alternative: install from reviewed source
 
 ```bash
 git clone https://github.com/srg0/s1-adv.git

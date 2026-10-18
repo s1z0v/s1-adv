@@ -51,12 +51,19 @@ install, private init, exact-runtime enable and doctor passed. Two overlapping
 turns used a synthetic local model provider, received pending receipts, then
 their own Inbox answers and exact terminal receipts. Idempotent retries returned
 the original answers/sequence numbers. This checks the real Gateway contract,
-not model quality or external-provider latency. That queue qualification used
-`1419eb3`; `9e32044` additionally fixes cosmetic session-label collisions and was
-qualified on the older Gateway with two actual model turns through its existing
-configured provider. Both returned their own Inbox answers, exact terminal
+not model quality or external-provider latency. The qualification was repeated
+after native installation from ClawHub, using the published `9e32044` artifact.
+All 26 installed source files matched the registry's SHA-256 manifest. The older
+Gateway qualified the same source with two actual model turns through its existing
+configured provider. Both hosts returned their own Inbox answers, exact terminal
 receipts and unchanged replies on retry. The old occupied label was retained to
-exercise the fallback without adopting its existing session.
+exercise session creation without adopting its existing session.
+
+ClawHub published `openclaw-s1-adv@0.2.0` from tag `bridge-v0.2.0`. The downloaded
+artifact SHA-256 equals the locally qualified package:
+`54734b98da74dbff4a86067266098394f7f157d4a457af9deeb6585b749cef58`.
+Registry classification is **Review**, not a security certification; see the
+[disclosed audit status](SECURITY-REVIEW-2026-10-18.md#registry-review-status).
 
 The official Gateway qualification was stopped by its initial 1,536 MiB test
 cgroup ceiling. The repeat passed with a 2,560 MiB ceiling. These are test-host

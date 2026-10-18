@@ -74,6 +74,20 @@ and older recordings remain in `/voice`; existing files do not need migration.
 
 ## Start here
 
+The community bridge is published in
+[ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv). On a current OpenClaw host:
+
+```bash
+openclaw plugins install clawhub:openclaw-s1-adv@0.2.0
+```
+
+Review its native security/capability report, then follow the
+[setup guide](docs/OPENCLAW.md) for your agent, private device key and HTTPS
+address. Firmware automation stays off by default. Installation is not a hosted
+server or a completed device setup.
+
+For firmware source and the manual installation route:
+
 ```bash
 git clone https://github.com/srg0/s1-adv.git
 cd s1-adv

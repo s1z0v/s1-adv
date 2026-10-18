@@ -5,6 +5,24 @@ stored audio, process lifecycle and optional firmware release commands. This is
 a bounded maintainer review with a separate source-review pass and executable
 regressions. It is not an independent penetration test or a safety guarantee.
 
+## Registry review status
+
+ClawHub published community preview `openclaw-s1-adv@0.2.0` from
+`9e32044b72685d8021a332ad02ba96511c739e2a`, tag `bridge-v0.2.0`.
+Its [automated audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.2.0)
+returns **Review** (`scanStatus: suspicious`), citing process execution,
+environment/credential access and the ability to change/build/publish firmware
+and offer OTA. Those are material host privileges and must be reviewed. The
+flags are retained and disclosed; this review does not override the registry.
+
+The source uses fixed process entry points for the bridge, native setup,
+speech tools and provisioned build/release wrappers. Credentials come from the
+owner's selected private configuration and are used with its configured Gateway
+or optional provider. Firmware automation is disabled until explicit provisioning.
+Use the restricted-agent and OS isolation guidance below. Registry metadata is
+source-linked and artifact-only; no signed build provenance or security
+certification is claimed.
+
 ## Confirmed findings and fixes
 
 | Finding | Change |
