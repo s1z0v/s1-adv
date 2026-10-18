@@ -50,7 +50,8 @@ openclaw plugins install ./bridge
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
 network service. There are no npm install hooks, automatic model downloads or
-root installation scripts. The published artifact contains source and templates,
+root installation scripts. The published artifact contains source, templates and
+the six optional public [Focus audio cues](FOCUS-AUDIO.md),
 not the maintainer's configuration, credentials or personal firmware binary.
 
 Recent OpenClaw releases also require capability consent. Review this exact

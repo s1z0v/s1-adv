@@ -45,6 +45,13 @@ are retained.
   [Game source, assets, notices and rebuild instructions](https://github.com/srg0/s1-adv/blob/main/third_party/honkeypong/S1-ADV.md)
   are included. BoxyBold/FamiTone retain the upstream public-domain notices.
 
+## Focus audio
+
+The six English/Russian Focus cues in `assets/focus-audio` were supplied by
+Sergey Sizov for public redistribution under the project's MIT license.
+They are optional SD assets, separate from microphone recordings and generated
+private spoken replies.
+
 ## Cover image
 
 The S1-ADV cover was composed with the built-in image generation tool, using

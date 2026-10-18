@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createServer, connect } from "node:net";
@@ -13,6 +14,50 @@ import { agentIdForSession, validateDeviceTokens, validateUpstreamTransport } fr
 import { StateStore } from "./state-store.mjs";
 import { BridgeRuntime, transcode } from "./server.mjs";
 import { PrivateStorageBudget } from "./storage-budget.mjs";
+
+test("bundled Focus cues use the authenticated asset API with exact bytes and language", () => withBridge(async ({ base, token }) => {
+  const headers = { authorization: `Bearer ${token}` };
+  assert.equal((await fetch(`${base}/api/cardputer/assets/manifest`)).status, 401);
+  const manifest = await (await fetch(`${base}/api/cardputer/assets/manifest`, { headers })).json();
+  assert.equal(manifest.files.length, 6);
+  assert.equal(manifest.files.reduce((sum, file) => sum + file.size, 0), 9935646);
+  for (const language of ["en", "ru"]) for (const cue of ["start", "break", "reflection"]) {
+    const file = manifest.files.find(row => row.path === `/pomodoro/audio/${language}/${cue}.wav`);
+    assert.equal(file.language, language);
+    assert.equal((await fetch(file.url)).status, 401);
+    const response = await fetch(file.url, { headers });
+    assert.equal(response.status, 200);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    assert.equal(bytes.length, file.size);
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), file.sha256);
+    assert.equal(response.headers.get("x-content-sha256"), file.sha256);
+  }
+  for (const file of ["en/unknown.wav", "en/start.wav.owner.json", "manifest.json", "focus-audio/manifest.json"])
+    assert.equal((await fetch(`${base}/api/cardputer/assets/file/${file}`, { headers })).status, 404);
+}));
+
+test("private Focus overrides are preserved without copying bundled files into state", () => withBridge(async ({ base, token, config }) => {
+  const root = path.join(config.assets.rootDir, config.assets.deviceClass, "audio", "en");
+  await mkdir(root, { recursive: true });
+  const original = await readFile(new URL("../assets/focus-audio/en/break.wav", import.meta.url));
+  await writeFile(path.join(root, "start.wav"), original);
+  const headers = { authorization: `Bearer ${token}` };
+  const manifest = await (await fetch(`${base}/api/cardputer/assets/manifest`, { headers })).json();
+  assert.equal(manifest.files.length, 6);
+  const entry = manifest.files.find(file => file.path === "/pomodoro/audio/en/start.wav");
+  assert.equal(entry.size, original.length);
+  assert.equal(entry.language, "en");
+  assert.deepEqual(Buffer.from(await (await fetch(entry.url, { headers })).arrayBuffer()), original);
+  assert.deepEqual(await readFile(path.join(root, "start.wav")), original);
+  assert.deepEqual(await readdir(root), ["start.wav"]);
+}));
+
+test("disabling bundled cues leaves private asset service available", () => withBridge(async ({ base, token }) => {
+  const headers = { authorization: `Bearer ${token}` };
+  const manifest = await (await fetch(`${base}/api/cardputer/assets/manifest`, { headers })).json();
+  assert.deepEqual(manifest.files, []);
+  assert.equal((await fetch(`${base}/api/cardputer/assets/file/en/start.wav`, { headers })).status, 404);
+}, {}, { assets: { bundledFocusAudio: false } }));
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const token = "test-only-device-token-00000000000000000000000000000001";
@@ -34,6 +79,7 @@ async function withBridge(run, security = {}, extra = {}) {
   config.upstream.token = "test-only-gateway-token-00000000000000000000000000001";
   config.devices[0].device_token = token;
   config.security = { ...config.security, ...security };
+  extra = { ...extra, ...(extra.assets ? { assets: { ...config.assets, ...extra.assets } } : {}) };
   Object.assign(config, extra);
   const configPath = path.join(tmp, "config.json");
   await writeFile(configPath, JSON.stringify(config), { mode: 0o600 });

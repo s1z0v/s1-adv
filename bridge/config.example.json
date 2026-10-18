@@ -79,6 +79,7 @@
     "logsDir": "./data/logs",
     "deviceClass": "cardputer_adv",
     "audioPrefix": "/pomodoro/audio",
+    "bundledFocusAudio": true,
     "replyCategory": "ai_answers",
     "replySampleRate": 8000,
     "maxFileBytes": 10485760,

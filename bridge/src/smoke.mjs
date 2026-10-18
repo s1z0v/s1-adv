@@ -214,7 +214,8 @@ try {
   const manifest = await assetsRes.json();
   assert.equal(manifest.device, "cardputer_adv");
   assert.ok(Array.isArray(manifest.files) && manifest.files.length >= 1);
-  assert.equal(manifest.files[0].path, "/pomodoro/audio/focus/start-focus-ru.wav");
+  const fixtureAsset = manifest.files.find(file => file.path === "/pomodoro/audio/focus/start-focus-ru.wav");
+  assert.ok(fixtureAsset, "Private fixture must remain available alongside bundled cues");
   const assetsUnauthorizedRes = await fetch(`${HTTP_BASE}/api/cardputer/assets/manifest`);
   assert.equal(assetsUnauthorizedRes.status, 401);
 
@@ -236,11 +237,11 @@ try {
   assert.equal(firmwareBytes.length, firmwareManifest.size);
 
   console.log("stage: asset file");
-  const assetRes = await fetch(manifest.files[0].url, { headers: authHeaders() });
+  const assetRes = await fetch(fixtureAsset.url, { headers: authHeaders() });
   assert.equal(assetRes.status, 200);
   assert.equal(assetRes.headers.get("content-type"), "audio/wav");
   const assetBytes = Buffer.from(await assetRes.arrayBuffer());
-  assert.equal(assetBytes.length, manifest.files[0].size);
+  assert.equal(assetBytes.length, fixtureAsset.size);
 
   console.log("stage: logs");
   const logsRes = await fetch(`${HTTP_BASE}/api/cardputer/logs`, {

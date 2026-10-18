@@ -32,6 +32,7 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | Spoken replies and an SD audio library | Server-side STT/TTS and device audio playback |
 | Firmware updates over Wi-Fi | Your bridge's authenticated OTA manifest |
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
+| Optional Focus audio | Six English/Russian cues delivered by the bridge to SD; [setup and requirements](docs/FOCUS-AUDIO.md) |
 | NES game library on SD | Nofrendo, mapper 0/4; your own ROM files |
 
 The interface and assistant replies default to English. Russian input and

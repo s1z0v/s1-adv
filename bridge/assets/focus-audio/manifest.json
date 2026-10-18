@@ -1,0 +1,55 @@
+{
+  "bundle_version": 1,
+  "format": "PCM16 mono 16000 Hz WAV",
+  "license": "MIT",
+  "files": [
+    {
+      "path": "/pomodoro/audio/en/break.wav",
+      "language": "en",
+      "title": "Break",
+      "size": 1254328,
+      "sha256": "952ce6be77bf62f702a97a0dd02021f5a46042ab68c95195f9b621c12db4dab4",
+      "duration_sec": 39.195
+    },
+    {
+      "path": "/pomodoro/audio/en/reflection.wav",
+      "language": "en",
+      "title": "Reflection",
+      "size": 2015774,
+      "sha256": "9102a6e725876ad81a9b99f9432cb202ee0980b62f6f683e8e5c6c154caff1f9",
+      "duration_sec": 62.99
+    },
+    {
+      "path": "/pomodoro/audio/en/start.wav",
+      "language": "en",
+      "title": "Start",
+      "size": 1842814,
+      "sha256": "8d3e52058aa6aa1707fc0860ede002efe78906a76b1ab406391e9bf518d3ada5",
+      "duration_sec": 57.586
+    },
+    {
+      "path": "/pomodoro/audio/ru/break.wav",
+      "language": "ru",
+      "title": "Break",
+      "size": 1061138,
+      "sha256": "7f40aad5790ecf3a84b802352accc5c5d9feddc55273ced5db0fc8e749513b70",
+      "duration_sec": 33.158
+    },
+    {
+      "path": "/pomodoro/audio/ru/reflection.wav",
+      "language": "ru",
+      "title": "Reflection",
+      "size": 2015374,
+      "sha256": "b63e2ee005ae1bb71f8c13e5eed7d30621eac9be03979be06a5eb2f37152b4a4",
+      "duration_sec": 62.978
+    },
+    {
+      "path": "/pomodoro/audio/ru/start.wav",
+      "language": "ru",
+      "title": "Start",
+      "size": 1746218,
+      "sha256": "c2c84339a3489bdc082f62b0af79d4e2f55f0494151f29bd99a116c0f1f31fde",
+      "duration_sec": 54.567
+    }
+  ]
+}

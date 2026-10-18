@@ -1,5 +1,27 @@
 # Public source validation
 
+## Focus audio delivery, plugin 0.3.0, 2026-10-19
+
+The optional library contains six English/Russian PCM16 mono 16 kHz WAV cues,
+9,935,646 bytes in total. Their original SHA-256 values are recorded in the
+packaged `assets/focus-audio/manifest.json`; the package check verifies every
+file, and only these six WAV paths are allowed in the public artifact.
+The bridge verifies bundled bytes once at startup and serves the library
+without copying it into private state or firmware flash.
+
+Host tests fetch all six files through the actual authenticated HTTP routes
+and verify response size, SHA-256 and language. Anonymous manifest/file requests
+are refused. Unknown paths are not exposed. Other cases cover a personal
+override without overwriting it, disabling bundled distribution, corrupted
+bytes and an invalid manifest path. Doctor reports the library independently
+of Whisper/TTS availability. Physical SD download, the device's on/off setting
+and speaker playback remain firmware acceptance checks, not host-test results.
+
+The complete boundary suite has 74 passing cases; installer/release/lifecycle
+has 12 and upstream interruption has 3. All three integration smokes pass, as
+do package inspection, dependency audit and the existing security property
+harness. Plugin Inspector against OpenClaw 2026.10.4 reports zero API issues.
+
 ## Community plugin and portable setup, 2026-10-18
 
 The bridge package is `openclaw-s1-adv@0.2.0`, native plugin ID `s1-adv`.

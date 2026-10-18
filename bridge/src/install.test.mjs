@@ -35,6 +35,7 @@ test("preview writes nothing; apply isolates private configuration and repeat pr
   const offline = await doctor(plan.configPath,{probe:false});
   assert.equal(offline.textReady,false); // Config validity is not a live round trip.
   assert.equal(offline.firmwareCapability.ready,false);
+  assert.deepEqual(offline.focusAudio, { enabled: true, available: true, files: 6, bytes: 9935646 });
 });
 
 test("unsafe URLs, missing credentials and ambiguous agent IDs fail without leaking values", async t => {

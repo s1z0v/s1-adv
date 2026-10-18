@@ -2,7 +2,7 @@
   "id": "s1-adv",
   "name": "S1-ADV Cardputer Bridge",
   "description": "Connect a Cardputer ADV to your OpenClaw through a local authenticated bridge. Optional, explicitly enabled firmware automation.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "categories": ["channels"],
   "activation": { "onStartup": true },
   "skills": ["./skills"],

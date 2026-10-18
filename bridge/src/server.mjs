@@ -1,7 +1,8 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
 import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
 import { PrivateStorageBudget } from "./storage-budget.mjs";
-import { createReadStream, createWriteStream, readFileSync } from "node:fs";
+import { loadFocusAudioBundle } from "./focus-audio.mjs";
+import { createReadStream, createWriteStream, readFileSync, existsSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
@@ -3548,6 +3549,7 @@ class BridgeRuntime {
     this.pendingMirrors = new Map();
     this.suppressedMirrors = new Map();
     this.deviceFirmwareReports = new Map();
+    this.focusAudioBundle = [];
     this.lastSessionTopicSyncMs = 0;
     this.startedAtMs = Date.now();
     this.turnOutbox = new DurableTurnOutbox({
@@ -3578,6 +3580,13 @@ class BridgeRuntime {
     await ensureDir(this.config.assets.logsDir);
     await ensureDir(this.assetsAudioRootDir());
     await ensureDir(this.firmwareRootDir());
+    if (this.config.assets.bundledFocusAudio !== false) {
+      try { this.focusAudioBundle = await loadFocusAudioBundle(); }
+      catch (error) {
+        // Optional cues must not prevent text/voice delivery from starting.
+        console.warn(`[assets] Focus audio unavailable: ${error.message}`);
+      }
+    }
     await this.store.load();
     this.upstream.on("event", (frame) => void this.handleUpstreamEvent(frame));
     this.upstream.on("reconnected", () => {
@@ -4081,12 +4090,21 @@ class BridgeRuntime {
         path: `${this.config.assets.audioPrefix}/${relativeUrlPath}`,
         category: segments[0],
         title: titleFromFilename(filename),
-        language: inferAssetLanguage(filename),
+        language: ["ru", "en"].includes(segments[0]) ? segments[0] : inferAssetLanguage(filename),
         url: this.assetFileUrl(req, relativeUrlPath),
         sha256: sha256(wavBytes),
         size: wavBytes.length,
         duration_sec: readWavDurationSeconds(wavBytes)
       });
+    }
+    for (const bundled of this.focusAudioBundle || []) {
+      if (assetFiles.length >= this.config.assets.maxManifestFiles) break;
+      if (bundled.size > this.config.assets.maxFileBytes ||
+          existsSync(path.join(rootDir, bundled.relativeUrlPath)) ||
+          !this.canReadAsset(device, bundled.relativeUrlPath.split("/"), bundled.filePath)) continue;
+      const { filePath, relativeUrlPath, ...entry } = bundled;
+      assetFiles.push({ ...entry, path: `${this.config.assets.audioPrefix}/${relativeUrlPath}`,
+        url: this.assetFileUrl(req, relativeUrlPath) });
     }
     assetFiles.sort((left, right) => left.path.localeCompare(right.path));
     const limitedFiles = assetFiles.slice(0, this.config.assets.maxManifestFiles);
@@ -4109,12 +4127,16 @@ class BridgeRuntime {
     if (!segments || segments.length < 2 || !segments.at(-1).endsWith(".wav")) {
       return null;
     }
-    const filePath = path.join(this.assetsAudioRootDir(), ...segments);
+    let filePath = path.join(this.assetsAudioRootDir(), ...segments);
     const relativeToRoot = path.relative(this.assetsAudioRootDir(), filePath);
     if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
       return null;
     }
     if (!this.canReadAsset(device, segments, filePath)) return null;
+    if (!existsSync(filePath)) {
+      const bundled = this.focusAudioBundle?.find(file => file.relativeUrlPath === segments.join("/"));
+      if (bundled) filePath = bundled.filePath;
+    }
     return {
       filePath,
       relativeUrlPath: segments.join("/"),

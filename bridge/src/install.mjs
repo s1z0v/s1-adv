@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import JSON5 from "json5";
 import { firmwareCapability } from "./firmware-automation.mjs";
+import { loadFocusAudioBundle } from "./focus-audio.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const defaultGatewayConfig = () => process.env.OPENCLAW_CONFIG_PATH ||
@@ -84,6 +85,7 @@ export async function planInstall(options = {}) {
       existingConfigurationPreserved: !!existing, firmwareAutomation: config.firmwareAutomation?.enabled === true,
       writes: existing ? [] : ["config.json (0600)", "firmware.env (0600)", "openclaw-plugin-config.json (0600)"],
       notes: ["No gateway, channel, provider, OAuth or firewall settings are changed.",
+        "Six bundled Focus cues are available for authenticated SD download. Playback is controlled on the device; no audio is copied into firmware flash.",
         "The device token grants access to the selected agent. Use a dedicated restricted agent for shared devices.",
         "Firmware automation is off until explicitly provisioned. Voice needs the selected STT/TTS providers."] }
   };
@@ -153,9 +155,17 @@ export async function doctor(configPath, { probe = true } = {}) {
     } catch { add("bridge-http", false, "Not reachable. Start the reviewed bridge/plugin and approve its exact device identity if requested."); }
   }
   const firmware = await firmwareCapability(config);
+  let focusAudio = { enabled: config.assets?.bundledFocusAudio !== false, available: false };
+  if (focusAudio.enabled) {
+    try {
+      const files = await loadFocusAudioBundle();
+      focusAudio = { ...focusAudio, available: true, files: files.length,
+        bytes: files.reduce((sum, file) => sum + file.size, 0) };
+    } catch { focusAudio.error = "Bundled Focus audio is missing or invalid; text delivery is independent."; }
+  }
   return { configPath: absolute, checks, textReady: probe && checks.filter(c => ["private-config","device-token","single-device","loopback-listener","gateway-token","agent-config","bridge-http","upstream","delivery"].includes(c.name)).every(c => c.ok),
     audioDependenciesReady: checks.filter(c => ["ffmpeg","espeak-ng","whisper-binary","whisper-model"].includes(c.name)).every(c => c.ok),
-    firmwareAutomationEnabled: config.firmwareAutomation?.enabled === true, firmwareCapability: firmware,
+    firmwareAutomationEnabled: config.firmwareAutomation?.enabled === true, firmwareCapability: firmware, focusAudio,
     note: "A model round trip and physical-device acceptance are separate checks." };
 }
 

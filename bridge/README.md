@@ -86,6 +86,11 @@ The setup skill is guidance; it cannot host the endpoints by itself.
 
 ## Optional capabilities
 
+- Six bundled Focus cues (English/Russian, 9.48 MiB total) are available through
+  the authenticated asset manifest for download onto SD. Playback is optional
+  in matching firmware; nothing is added to the firmware flash. Private files
+  at the same path take precedence. See the
+  [Focus audio guide](https://github.com/srg0/s1-adv/blob/main/docs/FOCUS-AUDIO.md).
 - Ordinary voice needs configured STT/TTS. See the
   [local speech recipe](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW-VOICE.md).
   FFmpeg, Whisper/models and eSpeak are installed separately; missing audio
@@ -113,7 +118,8 @@ never attach a personal candidate or config to a public release.
 ## Review and verification
 
 There are no install/postinstall scripts or automatic root/model downloads.
-The artifact allowlist excludes config, state, recordings and dependency caches.
+The artifact allowlist excludes private config, state, recordings and dependency
+caches. Its only bundled WAV files are the six reviewed public Focus cues.
 All plugin/service code is in this package for review. Disable/uninstall through
 OpenClaw when needed; private configuration is retained for an intentional
 backup/revocation decision. Do not delete identity/state as a troubleshooting
