@@ -60,15 +60,15 @@ install with `--accept-capabilities`; local archives/paths can also require
 Install the published plugin on your intended OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.3
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.4
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.3` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.4` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.3.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.4.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply
@@ -78,6 +78,11 @@ openclaw s1-adv enable --config "$HOME/.openclaw/s1-adv/config.json" --apply
 openclaw gateway restart
 openclaw s1-adv doctor --config "$HOME/.openclaw/s1-adv/config.json"
 ```
+
+Native startup refuses a UID 0 HTTP worker by default. Use an unprivileged
+Gateway, or keep the plugin enabled with `autoStart: false` and run the same
+package in the [isolated service](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW-MANUAL.md#root-gateway-with-an-isolated-http-worker).
+`allowRoot: true` is an explicit trusted-host exception, not the recommended setup.
 
 Installation does not start a service until explicitly enabled. `init` previews
 without writes; `--apply` creates private mode 0600 files. It preserves existing

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export function createBridgeService(pluginConfig = {}, { logger = console, spawnChild = spawn } = {}) {
+export function createBridgeService(pluginConfig = {}, { logger = console, spawnChild = spawn, getuid = () => process.getuid?.() } = {}) {
   let child = null;
   let stopping = false;
   const service = {
@@ -15,6 +15,8 @@ export function createBridgeService(pluginConfig = {}, { logger = console, spawn
         return;
       }
       if (child) return;
+      if (getuid() === 0 && pluginConfig.allowRoot !== true)
+        throw new Error("S1-ADV refuses a root HTTP worker by default. Use an unprivileged Gateway or the isolated standalone service; allowRoot is an explicit trusted-host exception.");
       const configPath = pluginConfig.configPath;
       if (!configPath || !path.isAbsolute(configPath)) throw new Error("S1-ADV requires an absolute private configPath.");
       const file = await stat(configPath);

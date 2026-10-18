@@ -5,7 +5,8 @@ import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 import path from "node:path";
 import os from "node:os";
-import { firmwareCapability,provisionFirmware,firmwareCommand,provisioningEnvironment } from "./firmware-automation.mjs";
+import { firmwareCapability,provisionFirmware,firmwareCommand,provisioningEnvironment,trustedFirmwarePreflight } from "./firmware-automation.mjs";
+import { createHash } from "node:crypto";
 import { BridgeRuntime } from "./server.mjs";
 
 const git=(repo,...args)=>execFileSync("git",args,{cwd:repo,encoding:"utf8",stdio:["ignore","pipe","pipe"]}).trim();
@@ -97,6 +98,33 @@ test("provisioning is data, never sourced shell code",()=>{
   assert.deepEqual(provisioningEnvironment("DEFAULT_DEVICE_ID='cardputer-adv-01'\nDEFAULT_WIFI_SSID=''\n"),{DEFAULT_DEVICE_ID:"cardputer-adv-01",DEFAULT_WIFI_SSID:""});
   for(const text of ["DEFAULT_DEVICE_TOKEN=$(touch bad)","DEFAULT_WIFI_SSID=`date`","PATH=/tmp",'DEFAULT_WIFI_PASSWORD="a; b"'])
     assert.throws(()=>provisioningEnvironment(text),/Unsupported|unsupported/);
+});
+
+test("isolated HTTP worker trusts only an operator-owned preflight for its exact workflow",async t=>{
+  const f=await fixture(t);await provisionFirmware(f.configPath,{repoDir:f.repo,branch:"main"});
+  const config=JSON.parse(await readFile(f.configPath,"utf8"));
+  config.firmwareAutomation.executionMode="upstream-agent";
+  config.firmwareAutomation.preflightPath=path.join(f.state,"preflight.json");
+  assert.equal((await firmwareCapability(config)).ready,false);
+  const receipt={version:1,configSha256:createHash("sha256").update(JSON.stringify(config.firmwareAutomation)).digest("hex"),checkedAt:new Date().toISOString()};
+  const file={uid:0,mode:0o100644,isFile:()=>true};
+  assert.equal(trustedFirmwarePreflight(config,receipt,file),true);
+  for(const metadata of [{...file,uid:1000},{...file,mode:0o100664},{...file,mode:0o100646},{...file,isFile:()=>false}])
+    assert.equal(trustedFirmwarePreflight(config,receipt,metadata),false);
+  assert.equal(trustedFirmwarePreflight(config,{...receipt,checkedAt:"invalid"},file),false);
+  assert.equal(trustedFirmwarePreflight({...config,firmwareAutomation:{...config.firmwareAutomation,repoDir:"/different/repo"}},receipt,file),false);
+  config.firmwareAutomation.executionMode="unknown";
+  assert.equal((await firmwareCapability(config)).ready,false);
+});
+
+test("publisher keeps provisioned OTA private and gives the configured worker read access",async t=>{
+  const f=await fixture(t);f.config.firmware.storageOwner={uid:process.getuid(),gid:process.getgid()};
+  await writeFile(f.configPath,JSON.stringify(f.config));await provisionFirmware(f.configPath,{repoDir:f.repo,branch:"main"});
+  await firmwareCommand(f.configPath,"build");await firmwareCommand(f.configPath,"publish",["0.2.1-dev"]);
+  for(const name of ["manifest.json","cardputer-adv-0.2.1-dev.bin"]){
+    const info=await stat(path.join(f.config.firmware.rootDir,"cardputer_adv",name));
+    assert.equal(info.mode&0o777,0o600);assert.equal(info.uid,process.getuid());
+  }
 });
 
 test("relative OTA storage cannot bypass the same-version image guard",async t=>{

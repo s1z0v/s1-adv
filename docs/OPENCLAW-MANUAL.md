@@ -193,3 +193,50 @@ promise that firmware work started. Inspect `firmware-build.log`,
 `firmware-build.json` and `firmware-release.json` in the private setup directory.
 The candidate and provisioning files may contain device credentials and must
 never be published as plugin files or generic public firmware images.
+
+
+## Root Gateway with an isolated HTTP worker
+
+The native plugin can remain installed for its CLI and both agent skills while
+`plugins.entries.s1-adv.config.autoStart` is `false`. Run the same reviewed package
+in a separate system service with a dedicated unprivileged account. Do not run
+both listeners on the same port or copy a second device identity/state store.
+Keep package code root-owned and read-only, configuration outside the package,
+and give the worker write access only to its private state/media/log directories.
+Use [the service template](openclaw-cardputer-bridge.service.example). Node needs
+network access for the configured Gateway/provider, but no root privileges, SSH
+keys, model OAuth stores or access to other agents' private files.
+
+For optional firmware work performed by a more privileged upstream agent, the
+HTTP worker must not receive that account's checkout or provisioning merely to
+pass a readiness check. The operator can explicitly configure:
+
+```json
+{
+  "firmwareAutomation": {
+    "enabled": true,
+    "executionMode": "upstream-agent",
+    "preflightPath": "/etc/cardputer/firmware-preflight.json"
+  },
+  "firmware": { "storageOwner": { "uid": 1234, "gid": 1234 } }
+}
+```
+
+Merge these into the existing provisioned configuration, preserving its exact
+repo, branch, wrappers and identity. Replace the example UID/GID with the worker's
+actual numeric identity. The publishing account needs permission to assign those
+IDs. Published images and manifests remain mode 0600 for the worker. The root
+operator must recheck the workflow and create a read-only receipt before startup:
+
+```bash
+node /opt/cardputer/bridge/scripts/firmware-preflight.mjs --config /etc/cardputer/config.json --output /etc/cardputer/firmware-preflight.json
+```
+
+This verifies local repo/wrapper access; it does not build or publish. The worker
+accepts only a root-owned receipt with no group/other write access, bound to the
+exact firmware workflow configuration. Missing or changed receipts fail closed.
+The upstream agent and release wrappers still check actual source, permissions,
+locks and served bytes for every release. The receipt grants no agent tools and
+does not promise a future build will succeed. Keep operator and worker config
+copies synchronized; provider secrets belong only in the intended service
+environment, not in the Gateway's global environment.

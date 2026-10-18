@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, writeFile, chown, chmod } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -64,9 +64,18 @@ const channel = args.channel || firmwareConfig.channel || "dev";
 const filename = safeFilename(args.filename || `cardputer-adv-${args.version}.bin`);
 const destDir = path.join(rootDir, deviceClass);
 const destPath = path.join(destDir, filename);
+const owner = firmwareConfig.storageOwner;
+if (owner && (!Number.isSafeInteger(owner.uid) || owner.uid < 0 || !Number.isSafeInteger(owner.gid) || owner.gid < 0 ||
+    (process.getuid?.() !== 0 && process.getuid?.() !== owner.uid)))
+  throw new Error("Firmware storageOwner requires valid numeric IDs and a matching publisher or root operator.");
+async function protectPublishedFile(file) {
+  if (owner) await chown(file, owner.uid, owner.gid);
+  await chmod(file, 0o600);
+}
 
 await mkdir(destDir, { recursive: true });
 await copyFile(path.resolve(process.cwd(), args.bin), destPath);
+await protectPublishedFile(destPath);
 const firmwareBytes = await readFile(destPath);
 const manifest = {
   device: deviceClass,
@@ -85,5 +94,6 @@ const manifest = {
 const manifestPath = path.join(destDir, firmwareConfig.manifestFilename || "manifest.json");
 const tmpPath = `${manifestPath}.${process.pid}.${Date.now()}.tmp`;
 await writeFile(tmpPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+await protectPublishedFile(tmpPath);
 await rename(tmpPath, manifestPath);
 process.stdout.write(`${JSON.stringify({ manifest_path: manifestPath, firmware_path: destPath, ...manifest }, null, 2)}\n`);

@@ -1,4 +1,4 @@
-import { access, readFile, writeFile, mkdir, rm, copyFile, chmod } from "node:fs/promises";
+import { access, readFile, writeFile, mkdir, rm, copyFile, chmod, stat, rename } from "node:fs/promises";
 import { constants } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
@@ -7,6 +7,30 @@ import path from "node:path";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+const workflowFingerprint = config => sha256(JSON.stringify(config.firmwareAutomation || {}));
+export function trustedFirmwarePreflight(config, receipt, file) {
+  return file.isFile() && file.uid === 0 && !(file.mode & 0o022) && receipt.version === 1 &&
+    receipt.configSha256 === workflowFingerprint(config) && typeof receipt.checkedAt === "string" &&
+    Number.isFinite(Date.parse(receipt.checkedAt));
+}
+
+// The HTTP account does not need access to the build account's checkout or keys.
+// A root-owned, read-only preflight records an operator check, not build success.
+export async function writeFirmwarePreflight(configPath, outputPath) {
+  if (process.getuid?.() !== 0) throw new Error("Delegated firmware preflight requires the root service operator.");
+  if (!path.isAbsolute(outputPath)) throw new Error("An absolute private preflight path is required.");
+  const config = JSON.parse(await readFile(configPath, "utf8"));
+  if (config.firmwareAutomation?.executionMode !== "upstream-agent" || config.firmwareAutomation.preflightPath !== outputPath)
+    throw new Error("Preflight path must match the explicitly delegated firmware configuration.");
+  const capability = await firmwareCapability({ ...config,
+    firmwareAutomation: { ...config.firmwareAutomation, executionMode: "bridge" } });
+  if (!capability.ready) throw new Error(capability.reason);
+  const receipt = { version: 1, configSha256: workflowFingerprint(config), checkedAt: new Date().toISOString() };
+  const temporary = `${outputPath}.${randomUUID()}.tmp`;
+  await writeFile(temporary, JSON.stringify(receipt) + "\n", { mode: 0o644, flag: "wx" });
+  await rename(temporary, outputPath);
+  return { ready: true, executionMode: "upstream-agent", checkedAt: receipt.checkedAt };
+}
 export function firmwareWorkflowPaths(config, defaults = {}) {
   const automation = config.firmwareAutomation || {};
   return { repoDir: automation.repoDir || defaults.repoDir || "",
@@ -24,6 +48,17 @@ export async function firmwareCapability(config, env = process.env) {
     publish: env.CARDPUTER_FIRMWARE_PUBLISH_BIN, smoke: env.CARDPUTER_FIRMWARE_SMOKE_BIN };
   if (!repo || !Object.values(wrappers).every(Boolean))
     return { ready: false, reason: "Firmware automation is not configured. Install its build, publish and verification wrappers." };
+  if (automation.executionMode === "upstream-agent") {
+    try {
+      const file = await stat(automation.preflightPath);
+      const receipt = JSON.parse(await readFile(automation.preflightPath, "utf8"));
+      if (!trustedFirmwarePreflight(config, receipt, file))
+        throw new Error("mismatched preflight");
+      return { ready: true, executionMode: "upstream-agent", httpWorkerBuildAccess: false };
+    } catch { return { ready: false, reason: "Delegated firmware preflight is missing or untrusted. The build-account operator must recheck the configured workflow." }; }
+  }
+  if (automation.executionMode && automation.executionMode !== "bridge")
+    return { ready: false, reason: "Unknown firmware execution mode." };
   try {
     await access(path.join(repo, ".git"), constants.R_OK);
     await access(repo, constants.W_OK);

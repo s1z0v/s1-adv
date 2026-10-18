@@ -25,16 +25,16 @@ API declaration is not proof that every newer or older Gateway works.
 ## Install from ClawHub
 
 The community preview is **ESP32 S1-ADV**, distributed as
-[openclaw-s1-adv 0.3.3](https://clawhub.ai/plugins/openclaw-s1-adv).
+[openclaw-s1-adv 0.3.4](https://clawhub.ai/plugins/openclaw-s1-adv).
 On a current OpenClaw installation:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.3
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.4
 ```
 
 The package includes local process execution and optional firmware
 source/build/publish/OTA capabilities. Inspect
-the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.3)
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.4)
 and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
@@ -42,11 +42,18 @@ remains off until separately provisioned. Setup below is still required.
 
 ## Alternative: install from reviewed source
 
+A root Gateway must not implicitly turn the HTTP bridge into a root service.
+Since 0.3.4, native startup refuses UID 0 unless `allowRoot: true` is explicitly
+configured. Prefer an unprivileged Gateway. For an existing root Gateway, keep
+the plugin/skills enabled, set its `autoStart: false` and use the
+[isolated HTTP service](OPENCLAW-MANUAL.md#root-gateway-with-an-isolated-http-worker).
+This does not require moving other agents or credentials.
+
 ```bash
-git clone --branch bridge-v0.3.3 https://github.com/srg0/s1-adv.git
+git clone --branch bridge-v0.3.4 https://github.com/srg0/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.3.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.4.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a
