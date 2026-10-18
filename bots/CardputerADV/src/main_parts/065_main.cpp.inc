@@ -52,7 +52,8 @@ void dismissVoiceNotice() {
 bool handleVoiceRequestEscape() {
   if(!gVoiceNoticeVisible) return false;
   if(gRecording) cancelRecordingDiscard();
-  else if(gSubmitting || gThinking){setStatus("Sending - please wait",900);return true;}
+  else if(gSubmitting || gThinking || gVoiceRequestPhase==VoiceRequestPhase::Sending ||
+          gVoiceRequestPhase==VoiceRequestPhase::Processing){setStatus("Sending - please wait",900);return true;}
   dismissVoiceNotice();
   gAssistantPendingVisible=false;
   setFaceMode(FaceMode::Idle);
@@ -66,7 +67,8 @@ bool handleVoiceNoticeKey(char key, const Keyboard_Class::KeysState& keys) {
   if (!gVoiceNoticeVisible || !isAssistantUi()) return false;
   if(gVoiceRequestPhase==VoiceRequestPhase::Recording && keys.ctrl &&
       (key=='v'||key=='V')) return false;
-  if(gVoiceRequestPhase==VoiceRequestPhase::Recording || gSubmitting || gThinking) return true;
+  if(gVoiceRequestPhase==VoiceRequestPhase::Recording || gVoiceRequestPhase==VoiceRequestPhase::Sending ||
+     gVoiceRequestPhase==VoiceRequestPhase::Processing || gSubmitting || gThinking) return true;
   if (keys.enter || key == '\r' || key == '\n') {
     // Opening the conversation does not cancel speech already preparing.
     gVoiceNoticeVisible = false;

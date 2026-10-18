@@ -168,7 +168,11 @@ int main(){
  beginVoiceRequestUi();assert(gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Recording&&voiceRequestBusyUi());
  gRecording=true;keys.enter=false;keys.ctrl=true;assert(!handleVoiceNoticeKey('v',keys));
  keys.ctrl=false;assert(handleVoiceNoticeKey('x',keys));
- gRecording=false;gSubmitting=true;gThinking=true;gVoiceRequestPhase=VoiceRequestPhase::Sending;
+ gRecording=false;gVoiceRequestPhase=VoiceRequestPhase::Sending;
+ // SD finalization already owns the window, before network busy flags are set.
+ keys.enter=true;assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible);
+ assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible&&gUiMode==UiMode::Home);
+ gSubmitting=true;gThinking=true;
  assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Sending);
  keys.enter=true;assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible);
  gSubmitting=false;gThinking=false;showVoiceNotice("Russian input is retained",true);
