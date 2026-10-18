@@ -1,5 +1,51 @@
 # Public source validation
 
+## Firmware skills and native deployment, plugin 0.3.3, 2026-10-19
+
+ClawHub published source `fd8f4de`, tag `bridge-v0.3.3`, as **ESP32 S1-ADV**.
+The 33-file artifact is 4,523,373 bytes; SHA-256 is
+`55e48e9b34e90951274134dde93af4636d4394bb83e7197b48c9a3a6604cc7c5`.
+The current aggregate automated scan reports **Clean**, with source-linked
+metadata and no signed build provenance. This is not a security guarantee.
+Earlier 0.3.2 received Review concerning optional credential paths; 0.3.3
+explicitly documents process privileges, provider destinations, WIF and the
+disabled legacy OAuth fast lane. No scanner checks were bypassed.
+
+The package contains setup skill `s1-adv` and workflow skill `s1-adv-firmware`.
+Both passed frontmatter validation. OpenClaw 2026.8.1 on Node 22.23.1 installed
+the exact ClawHub package, discovered both skills as eligible/model-visible and
+user-invocable, and retained the private device identity and OTA candidate.
+All 33 installed file hashes matched the registry artifact's file manifest.
+The Gateway-managed child serves loopback; a restricted proxy preserves the
+existing external HTTPS origin. The old standalone listener is stopped.
+Old uncertain requests/history/recordings remain preserved in private storage;
+they were not automatically replayed into the distinct new session.
+
+The runtime change in 0.3.2 preserved firmware BUILDING status through the durable
+outbox. Only its own correlated reply updates a job, and a status/final answer
+does not release the lane without exact terminal proof. All 113 host tests,
+security policy checks, text/voice smoke, Realtime contract and dependency audit
+passed. The later 0.3.3 changes only packaging, skills and documentation; its
+12 installer/lifecycle checks and package inspection passed. Bridge/firmware CI
+passed for both release source commits. CI also runs the durable outbox suite
+explicitly, including restart, uncertain sends, terminal fencing and status cases.
+
+Five sequential checks against the owner's configured real Gateway passed:
+three text and two synthetic spoken requests through the actual STT provider.
+Each produced its own answer and exact terminal `ok` receipt. Retrying the first
+ID did not create another outbox record. Voice acceptance took about 3.8–5.0 s,
+with final replies in about 6.8–9.1 s; the first cold text took about 17.6 s.
+Configured TTS returned 52,800 bytes of 12 kHz mono PCM. Local and external
+authenticated health, asset/topic routes and the existing OTA candidate's full
+size/SHA were checked after the native upgrade. These are host/runtime results,
+not microphone, speaker, keyboard or display acceptance.
+
+USB boot logs separately identified the owner's installed firmware as 0.2.171
+with its expected source commit and a valid OTA slot. USB host-control requests
+did not produce command receipts in that session, and an Inbox transport error
+was observed. Physical end-to-end acceptance therefore remains pending; five
+server checks must not be presented as five physical-device canaries.
+
 ## English-only default audio and catalog name, plugin 0.3.1, 2026-10-19
 
 The displayed plugin name is **ESP32 S1-ADV**. Its description names the actual

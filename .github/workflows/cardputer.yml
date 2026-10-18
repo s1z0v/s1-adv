@@ -27,6 +27,7 @@ jobs:
       - run: npm run test:install
       - run: npm run check:package
       - run: npm run test:boundaries
+      - run: node --test src/turn-outbox.test.mjs
       - run: npm run test:upstream
       - run: npm run smoke
       - run: npm run smoke:mininerva
