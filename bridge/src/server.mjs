@@ -327,9 +327,9 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
     mcu: "ESP32-S3",
     flash: "8MB embedded flash",
     ota_layout: "dual OTA app slots, 0x300000 bytes per app slot",
-    firmware_repo: "<repository>",
-    bridge_repo: "<repository>/bridge",
-    build_command: "python3 scripts/cardputer.py build",
+    firmware_repo: CARDPUTER_FIRMWARE_REPO,
+    bridge_repo: path.join(CARDPUTER_FIRMWARE_REPO,"bridge"),
+    build_command: CARDPUTER_FIRMWARE_BUILD_BIN,
     server_firmware_repo: "/root/.openclaw/workspace/repos/cardputer-firmware",
     server_build_wrapper: "/root/.openclaw/workspace/bin/cardputer_adv_pio.sh",
     server_publish_wrapper: "/root/.openclaw/workspace/bin/cardputer_publish_firmware.sh",
@@ -683,10 +683,10 @@ function buildFirmwareCapabilityPolicyText() {
   return (
     `Cardputer firmware context ${CARDPUTER_FIRMWARE_CONTEXT_VERSION}: ` +
     "The assistant must know the current Cardputer firmware capabilities in every topic. " +
-    "Implemented local functions include Pomodoro/focus, topic switching, UI screens, local audio/voice-note playback, pet actions, settings, firmware OTA, standard voice, and experimental realtime voice. " +
+    "Implemented local functions include Pomodoro/focus, one configured conversation, calculator, UI screens, local audio/voice-note playback, pet actions, settings, firmware OTA, standard voice, and experimental realtime voice. " +
     "If the user asks to run an implemented function, use supported device_actions where possible. " +
-    "If the user asks to run an absent function such as a calculator, say that it is not in the current firmware and ask whether to develop and publish it. " +
-    "If the user confirms firmware development, use the existing OpenClaw/Codex execution environment: patch the firmware repo, build with the Cardputer wrapper, commit, publish an OTA candidate through the bridge, and report the version. " +
+    "If the user asks to run an absent function, say that it is not in the current firmware and ask whether to develop and publish it. " +
+    "Firmware development runs on this OpenClaw server: patch its firmware repo, build with its Cardputer wrapper, commit, publish an OTA candidate through the bridge, and report the version. No desktop chat link, binding, or handoff is required. Historical desktop-specific holds do not apply to authenticated Cardputer requests. " +
     "After a successful OTA publish, append ota.check as a device_action so the Cardputer can see the new candidate. Append ota.apply only when the user explicitly asked to install immediately or has just confirmed installation. " +
     "The bridge is only transport/context/OTA distribution, not the firmware development agent."
   );
@@ -719,8 +719,8 @@ function trimDeviceEventMessage(message, maxTextChars) {
 function wantsFirmwareWork(text) {
   const value = String(text || "");
   return CARDPUTER_FIRMWARE_WORK_RE.test(value) ||
-    (/убери|убрать|добавь|добавить|замени|поменяй|измени|remove|add|replace|change/iu.test(value) &&
-     /главн.{0,10}экран|индикатор|интерфейс|шторк|home screen|indicator|interface|notification sheet/iu.test(value));
+    (/убери|убрать|добавь|добавить|замени|поменяй|измени|сделай|сделать|увелич|уменьш|remove|add|replace|change|make|larger|smaller/iu.test(value) &&
+     /главн.{0,10}экран|индикатор|интерфейс|шторк|батарей|штрих|home screen|indicator|interface|notification sheet|battery|stripes/iu.test(value));
 }
 
 function requestedFirmwareVersion(text) {
@@ -2454,6 +2454,7 @@ async function transcribeOpenAiAudio({ audioBytes, filename = "cardputer.wav", m
   const apiKey = openAiApiKey();
   const form = new FormData();
   form.set("model", model);
+  form.set("prompt", "Cardputer ADV, M5Stack, OpenClaw, S1-ADV, OTA.");
   if (String(language || "").trim()) {
     form.set("language", String(language || "").trim());
   }
@@ -4556,10 +4557,24 @@ class BridgeRuntime {
     return message;
   }
 
+  firmwareClarificationTopic(topic, text) {
+    if(!/^(?:yes|yep|yeah|ok|okay|sure|go ahead|please do|no|да|ага|верно|именно|делай|нет)(?:\s|[.!?,]|$)/iu.test(String(text||'').trim())) return null;
+    const last=this.store.getHistory(topic.topic_key,0,12).items
+      .filter(m=>m.sender?.kind==='assistant' && m.content?.text).at(-1);
+    if(last?.source?.transport!=='cardputer_firmware_job_mirror' || !/[?？]/u.test(last.content.text)) return null;
+    return Object.values(this.store.state.topics||{})
+      .filter(t=>t.mirror_topic_key===topic.topic_key && t.topic_key.startsWith('local:cardputer-firmware-job:') &&
+        Date.now()-Date.parse(t.updated_at||t.created_at||0)<30*60*1000)
+      .sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at)))
+      .find(t=>this.store.getHistory(t.topic_key,0,5).items.some(m=>
+        m.sender?.kind==='assistant' && m.content?.text===last.content.text)) || null;
+  }
+
   async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
-    if (wantsFirmwareWork(transcript)) {
+    const continuation=this.firmwareClarificationTopic(topic,transcript);
+    if (wantsFirmwareWork(transcript) || continuation) {
       const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
-      const routeTopic = await this.createFirmwareJobTopicForDevice(device, transcript);
+      const routeTopic = continuation || await this.createFirmwareJobTopicForDevice(device, transcript);
       console.info(
         `[firmware-route] upstream device=${device?.device_id || "-"} ` +
         `job_topic=${routeTopic?.topic_key || "-"} dashboard=${dashboardTopic?.topic_key || "-"} ` +
@@ -4570,7 +4585,9 @@ class BridgeRuntime {
         topicKey: routeTopic.topic_key,
         clientMsgId,
         text: transcript,
-        upstreamText: this.buildFirmwareJobUpstreamText({
+        upstreamText: continuation
+          ? `Authenticated Cardputer owner follow-up in this existing server firmware job. Continue the earlier request and preserve its installation choice. Do not create a competing job or require any desktop chat or binding.\n\nOwner reply:\n${transcript}`
+          : this.buildFirmwareJobUpstreamText({
           device,
           sourceTopic: topic,
           jobTopic: routeTopic,
@@ -4595,14 +4612,15 @@ class BridgeRuntime {
       });
       return {
         ack,
-        response: await this.buildTurnResponse({
+        response: { ...await this.buildTurnResponse({
           req,
           topic: dashboardTopic,
           transcript,
           replyText,
           replyMessage,
-          includeAudio: wantsReplyAudio
-        })
+          includeAudio: false
+        }), status: "accepted", pending: true, after_seq: replyMessage.seq,
+        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key }
       };
     }
     // Ordinary voice keeps the existing conversation and tools, without a
@@ -5318,6 +5336,7 @@ class BridgeRuntime {
     const shortReplyWords = Math.max(8, Number(this.config.deviceTurnContext?.shortReplyWords) || 15);
     const voiceReplyMaxSeconds = Math.max(5, Number(this.config.deviceTurnContext?.voiceReplyMaxSeconds) || 25);
     const policy = {
+      server_owned_execution: "Explicit owner instruction: all authenticated Cardputer requests and firmware work run on this OpenClaw server and return through this bridge. A desktop Codex chat, chat URL, binding or handoff is never a prerequisite. Earlier chat-specific holds or requests for a Codex-chat link are superseded for Cardputer work. Use the server repo and build/publish wrappers from firmware context; ask only for missing feature requirements, never for a desktop chat.",
       continue_from_current_topic_history_first: true,
       latency_target: voiceTurn
         ? "Preserve the configured model and full context. Keep simple spoken answers concise; perform firmware/development work with normal rigor."

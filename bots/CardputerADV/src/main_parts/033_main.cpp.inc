@@ -97,6 +97,7 @@ void startRecording() {
   }
 
   beginVoiceWifiPerformance();
+  beginVoiceRequestUi();
   startMic();
   if (gRecordingToFile) {
     serviceRecordingToFile();

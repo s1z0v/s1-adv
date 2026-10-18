@@ -108,7 +108,9 @@ inbox=(parts/'020_main.cpp.inc').read_text()
 assert inbox.index('if (kind == "text" && text.isEmpty())')<inbox.index('gInboxLastSeq = seq')
 assert 'voiceReplyWasPending && !gVoiceReplyPending' in inbox
 pending=(parts/'039_main.cpp.inc').read_text().split('if (resp["pending"] | false)')[1].split('gVoiceReplyPending = false')[0]
-assert 'gAssistantPendingVisible = true' in pending and 'showVoiceNotice(transcript, true)' in pending
+assert 'gAssistantPendingVisible = false' in pending and 'showVoiceNotice(transcript, true)' in pending
+assert 'setFaceMode(FaceMode::Idle)' in pending and '"Request accepted", 1500' in pending
+assert 'receiptSeq>gInboxLastSeq' in pending
 assert 'setUiMode(UiMode::ChatFull)' not in pending
 print('PASS actual drained/rebuffered playback and 12/24h boundaries; connected TCP_NODELAY; visible voice receipt and delayed reply')
 
@@ -121,14 +123,32 @@ notice=r'''
 #include <cstdint>
 struct String:std::string {using std::string::string;String(const std::string& s):std::string(s){};};
 enum class UiMode {Home,ChatFull,Other}; UiMode gUiMode=UiMode::Home;
-struct Keyboard_Class {struct KeysState {bool enter=false;};};
+struct Keyboard_Class {struct KeysState {bool enter=false,ctrl=false;};};
 bool gVoiceNoticeVisible=false,gInboxUnread=true;
+enum class VoiceRequestPhase {None,Recording,Sending,Processing,Accepted,Reply,Error};
+VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::None;
+String gVoiceRequestTranscript,gVoiceNoticeText;unsigned gVoiceRequestProgress=0;
+bool gVoiceNoticePending=false,gLauncherVisible=false,gChatCommandsVisible=false;
+bool gRecording=false,gSubmitting=false,gThinking=false,gAssistantPendingVisible=false,gPlaybackActive=false;
+bool gVoiceReplyPending=true;unsigned gVoiceNoticeShownMs=0;
+enum class AssistantPulseState{Realtime,Recording,Thinking,Playback,Ready};
+bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
+enum class FaceMode {Idle};void setFaceMode(FaceMode){}
+unsigned millis(){return 100;}void markUserActivity(){}
+void removeLastUtf8Char(String& s){s.pop_back();}String cleanReplyForDevice(const String& s){return s;}
+void cancelRecordingDiscard(){gRecording=false;}
+void stopPlaybackStream(){}void setStatus(const char*,int){}
 String gQueuedVoiceReplySpeech="voice";uint32_t gVoiceReplySpeechGeneration=4;
 bool isAssistantUi(){return gUiMode!=UiMode::Other;}
 void setUiMode(UiMode mode){gUiMode=mode;}void logf(const char*,...){}
 '''
 notice+='\n'+function('065_main.cpp.inc','void dismissVoiceNotice()')
+notice+='\n'+function('065_main.cpp.inc','void beginVoiceRequestUi()')
+notice+='\n'+function('065_main.cpp.inc','void showVoiceNotice(')
+notice+='\n'+function('065_main.cpp.inc','void showVoiceRequestError(')
+notice+='\n'+function('065_main.cpp.inc','bool handleVoiceRequestEscape()')
 notice+='\n'+function('065_main.cpp.inc','bool handleVoiceNoticeKey(')
+notice+='\n'+function('009_main.cpp.inc','AssistantPulseState assistantPulseState()')
 notice+=r'''
 int main(){
  Keyboard_Class::KeysState keys;
@@ -141,6 +161,23 @@ int main(){
  gUiMode=UiMode::Home;gVoiceNoticeVisible=true;dismissVoiceNotice();
  assert(!gVoiceNoticeVisible&&gQueuedVoiceReplySpeech.empty()&&gVoiceReplySpeechGeneration==5);
  assert(gUiMode==UiMode::Home);
+ // One request window survives capture, submission and receipt. Esc cannot
+ // discard a transport still in flight, and accepting a receipt never cancels
+ // the server task when the UI is dismissed.
+ beginVoiceRequestUi();assert(gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Recording);
+ gRecording=true;keys.enter=false;keys.ctrl=true;assert(!handleVoiceNoticeKey('v',keys));
+ keys.ctrl=false;assert(handleVoiceNoticeKey('x',keys));
+ gRecording=false;gSubmitting=true;gThinking=true;gVoiceRequestPhase=VoiceRequestPhase::Sending;
+ assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Sending);
+ keys.enter=true;assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible);
+ gSubmitting=false;gThinking=false;showVoiceNotice("Russian input is retained",true);
+ gAssistantPendingVisible=true;assert(assistantPulseState()==AssistantPulseState::Ready);
+ assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceRequestTranscript=="Russian input is retained");
+ assert(handleVoiceRequestEscape()&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home&&gVoiceReplyPending);
+ showVoiceNotice("Actual answer",false);assert(gVoiceRequestPhase==VoiceRequestPhase::Reply);
+ assert(handleVoiceNoticeKey('\n',keys)&&!gVoiceNoticeVisible&&gUiMode==UiMode::ChatFull&&gVoiceReplyPending);
+ showVoiceRequestError("Connection interrupted");assert(gVoiceRequestPhase==VoiceRequestPhase::Error);
+ assert(handleVoiceRequestEscape()&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-notice-') as d:
@@ -150,8 +187,10 @@ with tempfile.TemporaryDirectory(prefix='s1-notice-') as d:
 worker=function('065_main.cpp.inc','VoiceSpeechResult* performVoiceReplySpeech(')
 for forbidden in ['setUiMode(', 'setStatus(', 'render(', 'gCanvas', 'logf(', 'vTaskDelete(']: assert forbidden not in worker
 escape=function('047_main.cpp.inc','bool handleGlobalEscape()')
-assert escape.index('gVoiceNoticeVisible') < escape.index('setUiMode(UiMode::Home)')
-print('PASS actual notice Enter/open and dismiss/cancel; background speech has no UI mutations')
+assert escape.index('handleVoiceRequestEscape()') < escape.index('setUiMode(UiMode::Home)')
+state=function('009_main.cpp.inc','AssistantPulseState assistantPulseState()')
+assert 'gVoiceReplyPending' not in state
+print('PASS actual unified voice phases, busy dismissal guard, accepted receipt, Enter chat, Esc Home; pending server task survives UI dismissal')
 
 record=r'''
 #include <cassert>
@@ -243,7 +282,7 @@ void stopMic(bool restart){assert(!restart);++micStops;}void cancelVoicePreconne
 void endVoiceWifiPerformance(){++wifiRestores;}void initSpeaker(){++speakerStarts;}
 void setVoiceDiag(const char*){}void setFaceMode(FaceMode){}void setStatus(const char*,int){}
 void pushLine(const char*,const String& s,LineKind){lastError=s;}
-void showVoiceNotice(const String&,bool){++notices;}void logf(const char*,...){}
+void showVoiceRequestError(const String&){++notices;}void logf(const char*,...){}
 """
 storage+='\n'+function('033_main.cpp.inc','void writeWavHeader(')
 storage+='\n'+function('032_main.cpp.inc','size_t writeRecordedBytes(')

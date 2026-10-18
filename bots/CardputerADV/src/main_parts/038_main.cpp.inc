@@ -88,6 +88,8 @@ bool stopRecordingAndSend() {
     return false;
   }
   gRecording = false;
+  gVoiceRequestPhase=VoiceRequestPhase::Sending;
+  gVoiceRequestProgress=0;
   pulseButtonPress();
 
   float elapsed = (millis() - gRecordStartMs) / 1000.0f;
@@ -164,6 +166,7 @@ bool stopRecordingAndSend() {
     setFaceMode(FaceMode::Idle);
     setStatus("Voice turn canceled", 1200);
     logf("[VOICE] canceled: too short");
+    dismissVoiceNotice();
     if (gRecordingToFile) {
       fs::FS* fs = activeVoiceFs();
       if (!pcmUploadPath.isEmpty()) {
@@ -189,6 +192,7 @@ bool stopRecordingAndSend() {
   if (!gWifiReady) {
     cancelVoicePreconnect(); endVoiceWifiPerformance(); initSpeaker();
     pushError("Wi-Fi dropped during recording.");
+    showVoiceRequestError("Wi-Fi disconnected. Recording kept in Voice Notes.");
     setFaceMode(FaceMode::Error);
     setStatus("Wi-Fi lost", 2000);
     setVoiceDiag("voice: wifi lost");

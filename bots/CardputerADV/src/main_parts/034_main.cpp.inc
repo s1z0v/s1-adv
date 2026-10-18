@@ -42,6 +42,7 @@ bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length
       continue;
     }
     written += sent;
+    if (strcmp(label,"voice_body")==0) gVoiceRequestProgress=static_cast<uint8_t>(written*100ULL/length);
     lastProgress = millis();
     if ((written % (8 * 1024)) == 0 || written == length) {
       if (strcmp(label,"voice_body")==0)
@@ -115,6 +116,7 @@ bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, con
       }
       sentFromStage += sent;
       written += sent;
+      if (strcmp(label,"voice_body")==0) gVoiceRequestProgress=static_cast<uint8_t>(written*100ULL/length);
       lastProgress = millis();
       if ((written % (8 * 1024)) == 0 || written == length) {
         if (strcmp(label,"voice_body")==0)

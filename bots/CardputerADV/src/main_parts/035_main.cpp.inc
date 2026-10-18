@@ -193,6 +193,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(uploadBytes),
        static_cast<unsigned>(millis()-uploadStartedMs));
   setStatus("Transcribing / AI Agent...");
+  if(gVoiceNoticeVisible) gVoiceRequestPhase=VoiceRequestPhase::Processing;
   render();
   setHttpDiag("voice_post: wait reply");
   int contentLength = -1;

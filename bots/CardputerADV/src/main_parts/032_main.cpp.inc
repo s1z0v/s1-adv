@@ -252,7 +252,7 @@ void handleRecordingStorageFailure() {
   setFaceMode(FaceMode::Error);
   const String error = "SD recording failed. File kept on SD. Hold G0 to retry.";
   pushLine("ERR", error, LineKind::Error);
-  showVoiceNotice(error, false);
+  showVoiceRequestError(error);
   setStatus("SD write failed; retry G0", 10000);
   logf("[VOICE] record failed; mic stopped; connection canceled; retained=%s", retainedPath.c_str());
 }

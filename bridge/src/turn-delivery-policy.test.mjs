@@ -12,17 +12,60 @@ test('actual firmware routing owns voice UI changes once without a desktop chat 
  const classifier=new Function(`${re}\n${wants}\nreturn wantsFirmwareWork;`)();
  assert(classifier('С главного экрана убери индикатор AMPM'));
  assert(classifier('Develop and publish new firmware'));
+ assert(classifier('А сделай батарейку более крупными штрихами и верни ошибку новую.'));
+ assert(classifier('Make the battery bars larger'));
+ assert(!classifier('What is the battery percentage?'));
  assert(!classifier('Какая погода сегодня?'));
  const method=source.slice(source.indexOf('async tryFastLaneTurn('),source.indexOf('async runFirmwareWorkJob(')).trim();
  const route=new Function('wantsFirmwareWork','languageNameForText',`return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage);
  let jobs=0,sends=0,replies=0;
- const runtime={primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
+ const runtime={firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
   sendText:async v=>{++sends;assert.equal(v.topicKey,'job');assert.equal(v.waitForUpstream,false);return {seq:1};},
-  buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {};},buildTurnResponse:async()=>({ok:true})};
+  buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {seq:7};},buildTurnResponse:async()=>({ok:true})};
  const result=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'убери индикатор с главного экрана',inputMode:'voice'});
  assert.equal(result.response.ok,true);assert.deepEqual([jobs,sends,replies],[1,1,1]);
+ assert.equal(result.response.pending,true);assert.equal(result.response.status,'accepted');
+ assert.equal(result.response.after_seq,7);assert.equal(result.response.reply_seq,7);
  assert.equal(await route.call(runtime,{transcript:'hello',inputMode:'voice'}),null);
  assert.deepEqual([jobs,sends,replies],[1,1,1]);
+ runtime.firmwareClarificationTopic=()=>({topic_key:'job'});
+ await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'yes',inputMode:'text'});
+ assert.deepEqual([jobs,sends,replies],[1,2,2]);
+});
+
+test('a confirmation resumes the firmware job that asked, without a new owner',()=>{
+ const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
+ const code=source.slice(source.indexOf('  firmwareClarificationTopic('),source.indexOf('  async tryFastLaneTurn(')).trim();
+ const resolve=new Function(`return function ${code}`)();
+ const question={sender:{kind:'assistant'},content:{text:'Publish the new build?'},source:{transport:'cardputer_firmware_job_mirror'}};
+ const job={topic_key:'local:cardputer-firmware-job:one',mirror_topic_key:'main',updated_at:new Date().toISOString()};
+ const runtime={store:{state:{topics:{job}},getHistory:()=>({items:[question]})}};
+ assert.equal(resolve.call(runtime,{topic_key:'main'},'yes'),job);
+ assert.equal(resolve.call(runtime,{topic_key:'main'},'да, верно'),job);
+ assert.equal(resolve.call(runtime,{topic_key:'main'},'What is the weather?'),null);
+ question.source.transport='upstream';assert.equal(resolve.call(runtime,{topic_key:'main'},'yes'),null);
+});
+
+test('actual STT form keeps multilingual input independent of English replies',async()=>{
+ const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
+ const code=source.slice(source.indexOf('async function transcribeOpenAiAudio('),source.indexOf('async function transcribeGeminiAudio('));
+ const observed=[];
+ const transcribe=new Function('fetch',`const OPENAI_API_BASE='https://example.invalid';const openAiApiKey=()=>'';const openAiHeaders=()=>({});const openAiError=()=>{throw Error('HTTP error')};${code};return transcribeOpenAiAudio;`)(async(_url,request)=>{
+  observed.push(request.body);return {ok:true,json:async()=>({text:'Добавь батарею на главный экран.'})};});
+ const text=await transcribe({audioBytes:Buffer.from('test'),model:'gpt-4o-mini-transcribe'});
+ assert.match(text,/Добавь батарею/u);assert.equal(observed[0].get('language'),null);
+ assert.match(observed[0].get('prompt'),/Cardputer ADV/);
+ await transcribe({audioBytes:Buffer.from('test'),model:'gpt-4o-mini-transcribe',language:'ru'});
+ assert.equal(observed[1].get('language'),'ru');
+});
+
+test('Cardputer execution context never needs a desktop chat or Mac checkout',()=>{
+ const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
+ assert.match(source,/server_owned_execution:.*desktop Codex chat.*never a prerequisite/u);
+ const capabilities=source.slice(source.indexOf('const CARDPUTER_FIRMWARE_CAPABILITIES'),source.indexOf('const DEVICE_ACTION_TYPES'));
+ assert.match(capabilities,/firmware_repo: CARDPUTER_FIRMWARE_REPO/);
+ assert.doesNotMatch(capabilities,/\/Users\//);
+ assert.doesNotMatch(source,/existing OpenClaw\/Codex execution environment/);
 });
 
 test('voice upload can return a pending receipt without waiting for the full agent turn',()=>{

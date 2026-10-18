@@ -143,7 +143,8 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
   if (found) {
     const bool voiceReplyArrived = voiceReplyWasPending && !gVoiceReplyPending;
     if (voiceReplyArrived || (quiet && !forcePlay && gInboxLastFromAssistant)) {
-      showVoiceNotice(gInboxLastText, false);
+      if(gVoiceNoticeVisible || (gUiMode!=UiMode::ChatFull && gUiMode!=UiMode::ChatFace))
+        showVoiceNotice(gInboxLastText, false);
       if (voiceReplyArrived || static_cast<int32_t>(gVoiceReplyNotifyUntilMs - millis()) > 0)
         gQueuedVoiceReplySpeech = cleanReplyForDevice(gInboxLastText);
       M5Cardputer.Speaker.tone(1319,90);

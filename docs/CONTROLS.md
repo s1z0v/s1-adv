@@ -27,8 +27,11 @@ there is no topic browser or topic creation/switching.
 
 Device Settings → Clock format switches between 12h AM/PM (default) and 24h.
 Voice upload shows its percentage, then transcription and an accepted receipt.
-A pending agent request remains visible. Its later reply appears in a notification
-sheet above Home: Enter opens AI Chat and Escape closes the sheet.
+A single VOICE REQUEST window covers recording, sending, processing, acceptance
+and the reply. The accepted receipt shows the recognized text in its original
+language. Enter opens AI Chat; Escape closes the receipt and returns Home while
+the server task continues. The Home clock stays READY during background work.
+Replies appear in the same window or inline when chat is already open.
 The clock screen shows READY with its decorative animated bars when the
 microphone is off. REC and the live input meter appear after recording starts.
 A small striped battery gauge and percentage sit below READY; amber and red

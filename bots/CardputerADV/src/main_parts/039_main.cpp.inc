@@ -39,6 +39,8 @@
       transportError = statusCode <= 0 ? HTTPClient::errorToString(statusCode) : String("unknown");
     }
     pushError("Voice transport failed: " + transportError);
+    showVoiceRequestError("No delivery receipt. Open chat before retrying." +
+        String(pcmUploadPath.isEmpty()?"":" Recording kept in Voice Notes."));
     if (!pcmUploadPath.isEmpty()) pushSystem("Recording kept in Voice Notes.");
     setFaceMode(FaceMode::Error);
     setStatus("Voice transport failed", 2200);
@@ -51,6 +53,7 @@
   }
 
   if (statusCode < 200 || statusCode >= 300) {
+    showVoiceRequestError("Server could not accept the request. Recording kept in Voice Notes.");
     logf("[VOICE] HTTP error status=%d body=%s", statusCode, response.c_str());
     if (statusCode == 504) {
       pushError("Assistant reply timeout.");
@@ -73,6 +76,7 @@
   gVoiceReplyNotifyUntilMs = millis() + 600000U;
   auto err = deserializeJson(resp, response);
   if (err) {
+    showVoiceRequestError("Could not read the server receipt. Open chat to check delivery.");
     pushError("Could not parse voice reply.");
     setFaceMode(FaceMode::Error);
     setStatus("Voice parse failed", 2000);
@@ -99,19 +103,23 @@
   }
   if (resp["pending"] | false) {
     gVoiceReplyPending = true;
-    gAssistantPendingVisible = true;
+    gAssistantPendingVisible = false;
     gVoiceReplyAfterSeq = resp["after_seq"] | 0;
+    const uint32_t receiptSeq=resp["reply_seq"] | 0;
+    if(receiptSeq>gInboxLastSeq) gInboxLastSeq=receiptSeq;
     gVoiceReplyPendingMs = millis();
     gLastInboxAutoPollMs = 0;
-    pushSystem("AI Agent accepted the voice request. Waiting for reply...");
-    setFaceMode(FaceMode::Thinking);
-    setStatus("AI Agent working...", 0);
+    pushSystem("Request accepted. Reply will arrive in chat.");
+    setFaceMode(FaceMode::Idle);
+    setStatus("Request accepted", 1500);
     M5Cardputer.Speaker.tone(1047,90);
     showVoiceNotice(transcript, true);
     // A transport acknowledgement is not an assistant answer and never TTS.
     return true;
   }
   gVoiceReplyPending = false;
+  gAssistantPendingVisible = false;
+  setFaceMode(FaceMode::Idle);
   const uint32_t replySeq = resp["reply_seq"] | 0;
   if (replySeq > gInboxLastSeq) gInboxLastSeq = replySeq;
   if (!reply.isEmpty()) {

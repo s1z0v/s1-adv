@@ -2019,11 +2019,7 @@ bool handleKeyRushKey(char key, const Keyboard_Class::KeysState& keys) {
 }
 
 bool handleGlobalEscape() {
-  if (gVoiceNoticeVisible) {
-    dismissVoiceNotice();
-    if (gPlaybackActive) { stopPlaybackStream(); gPlaybackActive = false; }
-    return true;
-  }
+  if(handleVoiceRequestEscape()) return true;
   if (gChatCommandsVisible) { gChatCommandsVisible=false; return true; }
   if (gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty()) dismissVoiceNotice();
   gPendingRealtimeStart=false;

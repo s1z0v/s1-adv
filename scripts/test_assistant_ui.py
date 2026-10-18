@@ -155,7 +155,7 @@ poll=function('020_main.cpp.inc','void serviceAutoInboxPoll()')
 assert 'fetchLatestInboxMessage' not in poll and 'xTaskCreate(inboxHttpTask' in poll
 assert 'ensureWifiForHttp' not in function('043_main.cpp.inc','void maintainConnectivity()')
 typing=(parts/'048_main.cpp.inc').read_text()
-assert typing.index('handleAssistantMenuKey(key,keys)') < typing.index('handleVoiceNoticeKey(key, keys)')
+assert typing.index('handleVoiceNoticeKey(key, keys)') < typing.index('handleAssistantMenuKey(key,keys)')
 assert typing.index('handleEyeSkinKey(key,keys)') < typing.index('if (gRealtimeRecording')
 assert 'if (gRecording)' not in typing[typing.index('void pollTyping()'):]
 print('PASS actual submit/navigation: pending inbox, immediate chat, queue, six skins, Realtime gating; worker UI ownership')
