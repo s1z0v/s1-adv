@@ -1,5 +1,20 @@
 # Public source validation
 
+## English-only default audio and catalog name, plugin 0.3.1, 2026-10-19
+
+The displayed plugin name is **ESP32 S1-ADV**. Its description names the actual
+target, M5Stack Cardputer ADV with ESP32-S3, and its OpenClaw AI text/voice,
+Focus and optional firmware/OTA capabilities. The package `openclaw-s1-adv`,
+runtime ID `s1-adv`, commands and configuration identity stay compatible.
+
+Only three English cues (5,112,916 bytes) belong to the default plugin archive
+and built-in manifest. Russian WAVs were removed from the main source tree and
+archive. The [optional download guide](../extras/focus-audio/README.md) points
+to their preserved original bytes at `bridge-v0.3.0`, with SHA-256 metadata.
+No installer or background process follows those links automatically. Private
+overrides and manually installed Russian files remain available; updates do
+not delete files already on SD.
+
 ## Focus audio delivery, plugin 0.3.0, 2026-10-19
 
 The optional library contains six English/Russian PCM16 mono 16 kHz WAV cues,

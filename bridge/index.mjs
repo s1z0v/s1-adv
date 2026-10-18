@@ -17,7 +17,7 @@ async function printCommand(name, options) {
 
 export default {
   id: "s1-adv",
-  name: "S1-ADV Cardputer Bridge",
+  name: "ESP32 S1-ADV",
   register(api) {
     api.registerService(createBridgeService(api.pluginConfig || {}, { logger: api.logger }));
     api.registerCli(({ program }) => {

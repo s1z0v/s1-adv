@@ -1,6 +1,6 @@
 {
   "name": "openclaw-s1-adv",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "type": "module",
   "scripts": {
@@ -27,7 +27,7 @@
   "engines": {
     "node": ">=22"
   },
-  "description": "Authenticated Cardputer ADV bridge and optional OpenClaw firmware workflow",
+  "description": "ESP32-S3 AI companion for M5Stack Cardputer ADV: OpenClaw text and voice chat, Focus audio on SD, and optional firmware build and OTA updates.",
   "license": "MIT",
   "author": "Sergey Sizov",
   "repository": {
@@ -57,7 +57,8 @@
     "TURN-OUTBOX.md",
     "LICENSE",
     "CREDITS.md",
-    "assets/focus-audio"
+    "assets/focus-audio/en",
+    "assets/focus-audio/manifest.json"
   ],
   "openclaw": {
     "extensions": [
@@ -73,5 +74,16 @@
   },
   "bin": {
     "s1-adv-setup": "./scripts/setup.mjs"
-  }
+  },
+  "keywords": [
+    "esp32",
+    "esp32-s3",
+    "m5stack",
+    "cardputer",
+    "cardputer-adv",
+    "ai-assistant",
+    "openclaw",
+    "voice",
+    "ota"
+  ]
 }

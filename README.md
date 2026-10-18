@@ -32,7 +32,7 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | Spoken replies and an SD audio library | Server-side STT/TTS and device audio playback |
 | Firmware updates over Wi-Fi | Your bridge's authenticated OTA manifest |
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
-| Optional Focus audio | Six English/Russian cues delivered by the bridge to SD; [setup and requirements](docs/FOCUS-AUDIO.md) |
+| Optional Focus audio | English cues delivered to SD; [Russian audio is a separate download](extras/focus-audio/README.md). [Setup](docs/FOCUS-AUDIO.md) |
 | NES game library on SD | Nofrendo, mapper 0/4; your own ROM files |
 
 The interface and assistant replies default to English. Russian input and
@@ -79,7 +79,7 @@ The community bridge is published in
 [ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv). On a current OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.0
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.1
 ```
 
 Review its native security/capability report, then follow the

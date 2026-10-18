@@ -19,9 +19,9 @@ test("bundled Focus cues use the authenticated asset API with exact bytes and la
   const headers = { authorization: `Bearer ${token}` };
   assert.equal((await fetch(`${base}/api/cardputer/assets/manifest`)).status, 401);
   const manifest = await (await fetch(`${base}/api/cardputer/assets/manifest`, { headers })).json();
-  assert.equal(manifest.files.length, 6);
-  assert.equal(manifest.files.reduce((sum, file) => sum + file.size, 0), 9935646);
-  for (const language of ["en", "ru"]) for (const cue of ["start", "break", "reflection"]) {
+  assert.equal(manifest.files.length, 3);
+  assert.equal(manifest.files.reduce((sum, file) => sum + file.size, 0), 5112916);
+  for (const language of ["en"]) for (const cue of ["start", "break", "reflection"]) {
     const file = manifest.files.find(row => row.path === `/pomodoro/audio/${language}/${cue}.wav`);
     assert.equal(file.language, language);
     assert.equal((await fetch(file.url)).status, 401);
@@ -32,24 +32,31 @@ test("bundled Focus cues use the authenticated asset API with exact bytes and la
     assert.equal(createHash("sha256").update(bytes).digest("hex"), file.sha256);
     assert.equal(response.headers.get("x-content-sha256"), file.sha256);
   }
-  for (const file of ["en/unknown.wav", "en/start.wav.owner.json", "manifest.json", "focus-audio/manifest.json"])
+  for (const file of ["ru/start.wav", "ru/break.wav", "ru/reflection.wav", "en/unknown.wav", "en/start.wav.owner.json", "manifest.json", "focus-audio/manifest.json"])
     assert.equal((await fetch(`${base}/api/cardputer/assets/file/${file}`, { headers })).status, 404);
 }));
 
-test("private Focus overrides are preserved without copying bundled files into state", () => withBridge(async ({ base, token, config }) => {
+test("private overrides and manually added language assets remain available without automatic downloads", () => withBridge(async ({ base, token, config }) => {
   const root = path.join(config.assets.rootDir, config.assets.deviceClass, "audio", "en");
   await mkdir(root, { recursive: true });
   const original = await readFile(new URL("../assets/focus-audio/en/break.wav", import.meta.url));
   await writeFile(path.join(root, "start.wav"), original);
+  const optionalRoot = path.join(root, "..", "ru");
+  await mkdir(optionalRoot);
+  const optional = Buffer.from(original); // Known WAV bytes stand in for a manual language asset.
+  await writeFile(path.join(optionalRoot, "start.wav"), optional);
   const headers = { authorization: `Bearer ${token}` };
   const manifest = await (await fetch(`${base}/api/cardputer/assets/manifest`, { headers })).json();
-  assert.equal(manifest.files.length, 6);
+  assert.equal(manifest.files.length, 4);
   const entry = manifest.files.find(file => file.path === "/pomodoro/audio/en/start.wav");
   assert.equal(entry.size, original.length);
   assert.equal(entry.language, "en");
   assert.deepEqual(Buffer.from(await (await fetch(entry.url, { headers })).arrayBuffer()), original);
   assert.deepEqual(await readFile(path.join(root, "start.wav")), original);
   assert.deepEqual(await readdir(root), ["start.wav"]);
+  const ru = manifest.files.find(file => file.path === "/pomodoro/audio/ru/start.wav");
+  assert.equal(ru.language, "ru");
+  assert.deepEqual(Buffer.from(await (await fetch(ru.url, { headers })).arrayBuffer()), optional);
 }));
 
 test("disabling bundled cues leaves private asset service available", () => withBridge(async ({ base, token }) => {

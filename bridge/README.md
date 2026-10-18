@@ -1,7 +1,8 @@
-# S1-ADV Cardputer Bridge
+# ESP32 S1-ADV
 
-A community OpenClaw plugin and standalone Node.js bridge for M5Stack Cardputer
-ADV. It provides authenticated text/voice, device events and OTA endpoints for
+A community OpenClaw plugin and standalone Node.js bridge for the ESP32-S3 based
+M5Stack Cardputer ADV. Connect the handheld to your own AI agent for authenticated
+text/voice chat, device events and optional firmware build/OTA workflows with
 [your S1-ADV firmware](https://github.com/srg0/s1-adv). No hosted account or model
 subscription is included. Full guide:
 [OpenClaw setup](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md).
@@ -32,12 +33,12 @@ If your release requests explicit noninteractive consent, repeat that reviewed
 install with `--accept-capabilities`; local archives/paths can also require
 `--force` for source acknowledgement. Do not treat `--yes` as capability consent.
 
-From a reviewed clone of `srg0/s1-adv` (tag `bridge-v0.3.0` for this release):
+From a reviewed clone of `srg0/s1-adv` (tag `bridge-v0.3.1` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.0.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.1.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply
@@ -88,10 +89,12 @@ The setup skill is guidance; it cannot host the endpoints by itself.
 
 ## Optional capabilities
 
-- Six bundled Focus cues (English/Russian, 9.48 MiB total) are available through
+- Three bundled English Focus cues (4.88 MiB total) are available through
   the authenticated asset manifest for download onto SD. Playback is optional
   in matching firmware; nothing is added to the firmware flash. Private files
-  at the same path take precedence. See the
+  at the same path take precedence. Russian cues are separate
+  [optional downloads](https://github.com/srg0/s1-adv/blob/main/extras/focus-audio/README.md)
+  and are never downloaded automatically. See the
   [Focus audio guide](https://github.com/srg0/s1-adv/blob/main/docs/FOCUS-AUDIO.md).
 - Ordinary voice needs configured STT/TTS. See the
   [local speech recipe](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW-VOICE.md).
@@ -121,7 +124,7 @@ never attach a personal candidate or config to a public release.
 
 There are no install/postinstall scripts or automatic root/model downloads.
 The artifact allowlist excludes private config, state, recordings and dependency
-caches. Its only bundled WAV files are the six reviewed public Focus cues.
+caches. Its only bundled WAV files are the three reviewed English Focus cues.
 All plugin/service code is in this package for review. Disable/uninstall through
 OpenClaw when needed; private configuration is retained for an intentional
 backup/revocation decision. Do not delete identity/state as a troubleshooting

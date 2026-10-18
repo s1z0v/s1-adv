@@ -9,7 +9,7 @@ test("a modified cue or out-of-bundle path cannot pass the bundle integrity chec
   const root = await mkdtemp(path.join(os.tmpdir(), "s1-focus-integrity-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   await cp(new URL("../assets/focus-audio/", import.meta.url), root, { recursive: true });
-  assert.equal((await loadFocusAudioBundle(root)).length, 6);
+  assert.equal((await loadFocusAudioBundle(root)).length, 3);
   const cuePath = path.join(root, "en/start.wav");
   const original = await readFile(cuePath);
   const modified = Buffer.from(original);

@@ -85,7 +85,7 @@ export async function planInstall(options = {}) {
       existingConfigurationPreserved: !!existing, firmwareAutomation: config.firmwareAutomation?.enabled === true,
       writes: existing ? [] : ["config.json (0600)", "firmware.env (0600)", "openclaw-plugin-config.json (0600)"],
       notes: ["No gateway, channel, provider, OAuth or firewall settings are changed.",
-        "Six bundled Focus cues are available for authenticated SD download. Playback is controlled on the device; no audio is copied into firmware flash.",
+        "Three English Focus cues are available for authenticated SD download. Other languages are optional manual downloads. Playback is controlled on the device; no audio is copied into firmware flash.",
         "The device token grants access to the selected agent. Use a dedicated restricted agent for shared devices.",
         "Firmware automation is off until explicitly provisioned. Voice needs the selected STT/TTS providers."] }
   };

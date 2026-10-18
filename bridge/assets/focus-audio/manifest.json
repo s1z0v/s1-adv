@@ -26,30 +26,6 @@
       "size": 1842814,
       "sha256": "8d3e52058aa6aa1707fc0860ede002efe78906a76b1ab406391e9bf518d3ada5",
       "duration_sec": 57.586
-    },
-    {
-      "path": "/pomodoro/audio/ru/break.wav",
-      "language": "ru",
-      "title": "Break",
-      "size": 1061138,
-      "sha256": "7f40aad5790ecf3a84b802352accc5c5d9feddc55273ced5db0fc8e749513b70",
-      "duration_sec": 33.158
-    },
-    {
-      "path": "/pomodoro/audio/ru/reflection.wav",
-      "language": "ru",
-      "title": "Reflection",
-      "size": 2015374,
-      "sha256": "b63e2ee005ae1bb71f8c13e5eed7d30621eac9be03979be06a5eb2f37152b4a4",
-      "duration_sec": 62.978
-    },
-    {
-      "path": "/pomodoro/audio/ru/start.wav",
-      "language": "ru",
-      "title": "Start",
-      "size": 1746218,
-      "sha256": "c2c84339a3489bdc082f62b0af79d4e2f55f0494151f29bd99a116c0f1f31fde",
-      "duration_sec": 54.567
     }
   ]
 }

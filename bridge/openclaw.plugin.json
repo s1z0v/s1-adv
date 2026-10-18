@@ -1,8 +1,8 @@
 {
   "id": "s1-adv",
-  "name": "S1-ADV Cardputer Bridge",
-  "description": "Connect a Cardputer ADV to your OpenClaw through a local authenticated bridge. Optional, explicitly enabled firmware automation.",
-  "version": "0.3.0",
+  "name": "ESP32 S1-ADV",
+  "description": "Connect M5Stack Cardputer ADV (ESP32-S3) to OpenClaw for AI text and voice chat, Focus audio on SD, and optional firmware build and OTA updates.",
+  "version": "0.3.1",
   "categories": ["channels"],
   "activation": { "onStartup": true },
   "skills": ["./skills"],

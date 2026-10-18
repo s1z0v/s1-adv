@@ -4,10 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const bundleRoot = fileURLToPath(new URL("../assets/focus-audio/", import.meta.url));
-export const focusAudioPaths = ["en", "ru"].flatMap(language =>
+export const focusAudioPaths = ["en"].flatMap(language =>
   ["start", "break", "reflection"].map(cue => `${language}/${cue}.wav`));
 
-// Only these six reviewed package assets can enter the existing download API.
+// Only these three English package assets enter the default download API.
+// Other languages are optional personal assets, never fetched automatically.
 // This library is read-only; a private asset at the same path takes precedence.
 export async function loadFocusAudioBundle(root = bundleRoot) {
   const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
