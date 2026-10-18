@@ -75,7 +75,7 @@ uint32_t uiSceneKey() {
 void presentUiFrame() {
   if (gCanvasSpriteActive) {
     gCanvasBuffer.pushSprite(0, 0);
-    // The sprite is loaned to TLS later. Never free a buffer still owned by DMA.
+    // A complete frame must finish DMA before an app can release its storage.
     M5Cardputer.Display.waitDMA();
   }
   gUiFramePolicy.presented(uiSceneKey());
@@ -144,6 +144,15 @@ bool tlsHandshakeNeedsCanvas() {
 }
 
 bool releaseUiCanvasForNetwork(const char* reason) {
+  // Keeping this allocation stable prevents both partial direct-TFT frames
+  // and a 32 KB canvas reallocation splitting the heap needed by later TLS.
+  // NES owns a separate renderer and is the sole explicit canvas handoff.
+  if (!reason || strcmp(reason,"NES")!=0) {
+    logf("[MEM] ui canvas retained reason=%s free=%u largest=%u",
+         reason ? reason : "net", static_cast<unsigned>(ESP.getFreeHeap()),
+         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+    return false;
+  }
   if (!gCanvasSpriteActive) {
     return false;
   }

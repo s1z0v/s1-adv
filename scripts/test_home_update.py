@@ -144,7 +144,9 @@ int main(){
  }
  for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled}){
   state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
-  assert(gCanvas.h==18&&gCanvas.labels.size()==1);
+  assert(gCanvas.h==18&&gCanvas.labels.size()==(sample==firmware_job_display::State::Stalled?2U:1U));
+  if(sample==firmware_job_display::State::Stalled)
+   assert((gCanvas.labels==std::vector<std::string>{"CHECK LINK","F retry"}));
  }
  // The actual timer badge supersedes firmware states, then restores them on pause.
  state=firmware_job_display::State::Building;gFocus.state=FocusState::Focus;

@@ -40,6 +40,7 @@ bool focusStateRuns(FocusState s){return s==FocusState::Focus||s==FocusState::Sh
 for sig in ['void focusEnterState(', 'void focusStartOrResume()', 'void focusReset()', 'void focusAdvance()', 'void updateFocusTimer()']:
  code+=extract('028_main.cpp.inc',sig)+'\n'
 code+=extract('048_main.cpp.inc','bool handleFocusShortcut(')
+code+=extract('044_main.cpp.inc','focus_lamp::Phase focusLampPhase()')
 code+=r'''
 int main(){
  int n=-1;assert(cardputer_smartlamp::parsePresencePacket("GL_ONL1",n)&&n==1);
@@ -106,6 +107,29 @@ int main(){
  stopped.setPhase(Phase::Idle,true,1,5,true,1100);assert(stopped.command(2000,true,false)==-1);
  focus_lamp::Link resumed;resumed.observe(1,1000);resumed.setPhase(Phase::Break,true,1,5,true,1000);
  assert(resumed.active&&resumed.command(2000,true,false)==1);
+ // Pause keeps the automation lease and selects the break preset. Opening
+ // Home cannot change that phase; resume returns to focus, reset restores
+ // the original preset rather than adopting the break preset as original.
+ focus_lamp::Link pausedLamp;int actualPreset=8;
+ pausedLamp.observe(actualPreset,1000);gFocus.state=FocusState::Stopped;
+ focusStartOrResume();
+ auto settle=[&](uint32_t start){
+  pausedLamp.setPhase(focusLampPhase(),true,1,5,true,start);
+  for(uint32_t t=start;t<start+10000;t+=100){
+   int command=pausedLamp.command(t,true,false);
+   if(command==4)--actualPreset;else if(command==5)++actualPreset;
+   pausedLamp.observe(actualPreset,t);
+  }
+ };
+ settle(1000);assert(actualPreset==1&&pausedLamp.original==8);
+ focusStartOrResume();assert(gFocus.state==FocusState::Paused);
+ settle(12000);assert(actualPreset==5&&pausedLamp.active&&pausedLamp.original==8);
+ gUiMode=UiMode::Home;
+ settle(23000);assert(actualPreset==5&&pausedLamp.original==8);
+ focusStartOrResume();settle(34000);assert(actualPreset==1&&pausedLamp.original==8);
+ gFocus.state=FocusState::ShortBreak;settle(45000);
+ focusStartOrResume();settle(56000);assert(actualPreset==5&&pausedLamp.original==8);
+ focusReset();settle(67000);assert(actualPreset==8&&!pausedLamp.active);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-focus-link-') as d:

@@ -349,12 +349,17 @@ bool bindFocusLampPreset(bool breakPreset) {
   return true;
 }
 
+focus_lamp::Phase focusLampPhase() {
+  if(gFocus.state==FocusState::Focus) return focus_lamp::Phase::Focus;
+  if(gFocus.state==FocusState::ShortBreak || gFocus.state==FocusState::LongBreak ||
+     gFocus.state==FocusState::Paused) return focus_lamp::Phase::Break;
+  return focus_lamp::Phase::Idle;
+}
+
 void serviceFocusLamp() {
   const bool fresh=WiFi.status()==WL_CONNECTED && gSmartLamp.online &&
     millis()-gSmartLamp.lastSeenMs<=kSmartLampOnlineTimeoutMs;
-  const auto phase=gFocus.state==FocusState::Focus ? focus_lamp::Phase::Focus :
-    (gFocus.state==FocusState::ShortBreak || gFocus.state==FocusState::LongBreak) ?
-      focus_lamp::Phase::Break : focus_lamp::Phase::Idle;
+  const auto phase=focusLampPhase();
   const bool before=gFocusLampLink.active;
   gFocusLampLink.setPhase(phase,gFocusSettings.lampSync,gFocusSettings.lampFocusPreset,
     gFocusSettings.lampBreakPreset,fresh,millis());
