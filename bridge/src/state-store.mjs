@@ -149,7 +149,14 @@ export class StateStore {
             (topicKey) => defaults.topics[topicKey] || this.state.topics[topicKey]
           )
         : [];
-      const topics = [...new Set([...configuredTopics, ...retainedTopics])];
+      // A device-created firmware job remains admitted after restart only
+      // while that exact owner still has access to its source conversation.
+      const ownedFirmwareTopics = (existing.topics || []).filter(topicKey => {
+        const topic = this.state.topics[topicKey];
+        return topicKey.startsWith('local:cardputer-firmware-job:') && topic?.hidden === true &&
+          topic.owner_device_id === deviceId && configuredTopics.includes(topic.mirror_topic_key);
+      });
+      const topics = [...new Set([...configuredTopics, ...retainedTopics, ...ownedFirmwareTopics])];
       const defaultTopicKey = [
         defaultDevice.default_topic_key,
         existing.default_topic_key,

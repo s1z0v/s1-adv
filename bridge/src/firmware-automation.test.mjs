@@ -64,6 +64,35 @@ test("release verifies clean pushed source, exclusive build ownership and served
   const release=JSON.parse(await readFile(path.join(f.state,"firmware-release.json"),"utf8"));assert.equal(release.sha256,build.sha256);
 });
 
+test("smoke verifies only the configured canonical HTTPS origin and retains the lease on rejection",async t=>{
+  const f=await fixture(t);await provisionFirmware(f.configPath,{repoDir:f.repo,branch:"main"});
+  const build=await firmwareCommand(f.configPath,"build");
+  await firmwareCommand(f.configPath,"publish",["0.2.1-dev"]);
+  const config=JSON.parse(await readFile(f.configPath,"utf8"));
+  config.publicBaseUrl="https://bridge.example.invalid";
+  await writeFile(f.configPath,JSON.stringify(config),{mode:0o600});
+  const manifest=JSON.parse(await readFile(path.join(config.firmware.rootDir,"cardputer_adv/manifest.json"),"utf8"));
+  const bytes=await readFile(path.join(config.firmware.rootDir,"cardputer_adv",manifest.filename));
+  let firmwareUrl='https://unrelated.example.invalid/file',downloads=0;
+  const originalFetch=globalThis.fetch;t.after(()=>{globalThis.fetch=originalFetch;});
+  globalThis.fetch=async(url,options)=>{
+    assert.equal(options.headers.Authorization,`Bearer ${config.devices[0].device_token}`);
+    if(String(url).endsWith('/manifest'))return new Response(JSON.stringify({...manifest,firmware_url:firmwareUrl}));
+    downloads++;assert.equal(String(url),firmwareUrl);return new Response(bytes);
+  };
+  await assert.rejects(firmwareCommand(f.configPath,'smoke'),/Unexpected firmware download origin/);
+  assert.equal(downloads,0);await stat(path.join(f.state,'firmware-release.lock'));
+  config.publicBaseUrl='http://bridge.example.invalid';firmwareUrl=config.publicBaseUrl+'/file';
+  await writeFile(f.configPath,JSON.stringify(config),{mode:0o600});
+  await assert.rejects(firmwareCommand(f.configPath,'smoke'),/must use HTTPS/);
+  assert.equal(downloads,0);await stat(path.join(f.state,'firmware-release.lock'));
+  config.publicBaseUrl='https://bridge.example.invalid';firmwareUrl=config.publicBaseUrl+'/file';
+  await writeFile(f.configPath,JSON.stringify(config),{mode:0o600});
+  const result=await firmwareCommand(f.configPath,'smoke');
+  assert.equal(result.verified,true);assert.equal(result.sha256,build.sha256);assert.equal(downloads,1);
+  await assert.rejects(stat(path.join(f.state,'firmware-release.lock')));
+});
+
 test("provisioning is data, never sourced shell code",()=>{
   assert.deepEqual(provisioningEnvironment("DEFAULT_DEVICE_ID='cardputer-adv-01'\nDEFAULT_WIFI_SSID=''\n"),{DEFAULT_DEVICE_ID:"cardputer-adv-01",DEFAULT_WIFI_SSID:""});
   for(const text of ["DEFAULT_DEVICE_TOKEN=$(touch bad)","DEFAULT_WIFI_SSID=`date`","PATH=/tmp",'DEFAULT_WIFI_PASSWORD="a; b"'])

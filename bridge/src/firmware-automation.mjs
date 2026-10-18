@@ -159,7 +159,9 @@ export async function firmwareCommand(configPath, action, args = []) {
   if (manifest.sha256 !== receipt.sha256 || manifest.build_git_sha !== sourceSha || manifest.version !== receipt.version || manifest.size !== receipt.size)
     throw new Error("Served firmware manifest differs from the verified candidate.");
   const url = new URL(manifest.firmware_url || manifest.url, base);
-  if (url.origin !== base) throw new Error("Unexpected firmware download origin.");
+  const publicOrigin = config.publicBaseUrl ? new URL(config.publicBaseUrl).origin : null;
+  if (url.origin !== base && url.origin !== publicOrigin) throw new Error("Unexpected firmware download origin.");
+  if (url.origin !== base && url.protocol !== 'https:') throw new Error("Public firmware download must use HTTPS.");
   const download = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
   const downloaded = Buffer.from(await download.arrayBuffer());
   if (!download.ok || downloaded.length !== receipt.size || sha256(downloaded) !== receipt.sha256) throw new Error("Served firmware file verification failed.");

@@ -41,6 +41,25 @@ async function fixture(run) {
   }
 }
 
+test('a real newly created firmware job is admitted only to its owner and survives restart', async () => fixture(async f => {
+  f.runtime.primaryCardputerTopicForDevice=()=>f.runtime.store.getTopic(f.topicKey);
+  f.runtime.ensureUpstreamSessionForTopic=async()=>{};
+  const job=await f.runtime.createFirmwareJobTopicForDevice(f.device,'Change the clock');
+  assert.equal(job.owner_device_id,f.device.device_id);
+  assert(f.runtime.store.getDevice(f.device.device_id).topics.includes(job.topic_key));
+  const ack=await f.send('created-firmware-job',f.runtime,job.topic_key);
+  assert.equal(f.sends.length,1);
+  assert.equal(f.runtime.firmwareJobStatusForDevice(f.device).state,'building');
+  const restarted=await f.open();
+  assert(restarted.store.getDevice(f.device.device_id).topics.includes(job.topic_key));
+  assert.equal(restarted.store.getDevice(f.device.device_id).default_topic_key,f.topicKey);
+  f.config.devices[0].topics=[];
+  f.config.devices[0].default_topic_key=null;
+  const revoked=await f.open();
+  assert(!revoked.store.getDevice(f.device.device_id).topics.includes(job.topic_key));
+  f.finish(ack);
+}));
+
 test('firmware status survives durable acceptance and only its owned reply updates it', async () => fixture(async f => {
   const key = 'local:cardputer-firmware-job:status-test';
   const topic = { ...f.runtime.store.getTopic(f.topicKey), topic_key:key,

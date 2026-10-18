@@ -3923,11 +3923,13 @@ class BridgeRuntime {
       icon: "🛠️",
       contour_id: sourceTopic?.contour_id || "root/main",
       mirror_topic_key: sourceTopic?.topic_key || null,
+      owner_device_id: device.device_id,
       hidden: true,
       created_at: iso,
       updated_at: iso,
       last_activity_at: iso
     });
+    this.store.ensureDeviceTopic(device.device_id, topic.topic_key);
     await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
     this.registerRuntimeTopic(topic);
     await this.store.save();
