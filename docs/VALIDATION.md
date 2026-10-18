@@ -6,7 +6,7 @@ The bridge package is `openclaw-s1-adv@0.2.0`, native plugin ID `s1-adv`.
 Local Node host tests cover private/dry-run setup, native config targeting,
 agent routing, build/release ownership and source/hash fences, lifecycle races,
 HTTP/WS authorization, audio ownership/remapping, upload cleanup and storage
-budgets. The final boundary suite has 49 tests; installer/release/lifecycle has
+budgets. The final boundary suite has 70 tests; installer/release/lifecycle has
 12; gateway interruption has 3. Mock, opted-in compatibility and Realtime
 contract smokes pass. Package allowlist and dependency audit are checked too.
 These are different checks, not one large certification count.
@@ -14,9 +14,18 @@ These are different checks, not one large certification count.
 Turn ownership tests cover overlapping requests in one session, late replies
 after HTTP timeout, restart/idempotent retry, opaque Gateway run receipts and
 tool commentary. Matching uses the persisted Gateway run ID rather than the
-first assistant message after a timestamp. Thirteen focused cases also cover
+first assistant message after a timestamp. Focused cases also cover
 legacy final-chat events, duplicate transports, an in-flight opaque receipt and
 answers that repeat their own or a neighboring request's text.
+
+The durable outbox serializes dispatch per exact Gateway session until an exact
+`agent.wait` terminal receipt. Tests cover disk-before-RPC ordering, restart with
+no resend, alias sessions, bounded admission, pinned unfinished ACKs, independent
+duplicate-ID fencing, observation-only retries and correlated terminal failures.
+Both small and large legacy migrations keep HTTP observable and report an
+explicit delivery hold. Quiescence alone is never used as completion evidence.
+The packaged [upgrade runbook](../bridge/TURN-OUTBOX.md) describes exact audits and
+fresh-state alternatives that preserve old history.
 
 On a second Linux host, the tarball was installed with the native OpenClaw
 installer in an isolated profile. OpenClaw `2026.7.2-beta.1` and Node `22.23.0`
@@ -36,8 +45,26 @@ The pinned Whisper build was v1.9.5 (`d1be6fde11ac6e0407606b4e42fe72d34add8037`)
 multilingual base model SHA-256
 `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`.
 
+Native qualification also covered official OpenClaw `2026.10.4` with Node
+`26.1.0` in a second isolated profile, without copying model accounts. Native
+install, private init, exact-runtime enable and doctor passed. Two overlapping
+turns used a synthetic local model provider, received pending receipts, then
+their own Inbox answers and exact terminal receipts. Idempotent retries returned
+the original answers/sequence numbers. This checks the real Gateway contract,
+not model quality or external-provider latency. That queue qualification used
+`1419eb3`; `9e32044` additionally fixes cosmetic session-label collisions and was
+qualified on the older Gateway with two actual model turns through its existing
+configured provider. Both returned their own Inbox answers, exact terminal
+receipts and unchanged replies on retry. The old occupied label was retained to
+exercise the fallback without adopting its existing session.
+
+The official Gateway qualification was stopped by its initial 1,536 MiB test
+cgroup ceiling. The repeat passed with a 2,560 MiB ceiling. These are test-host
+limits for the full Gateway, not a measured bridge memory requirement. Production
+Gateway service configuration was not used as the test profile or restarted.
+
 ClawHub package validation against the OpenClaw 2026.10.4 API reported no
-contract issues. Static API validation is not a runtime test of that version.
+contract issues. Static API validation remains separate from the native tests.
 Firmware wrapper host tests use a disposable tiny image to exercise refusal
 and publication fences; they do not count as an ESP32 build or hardware proof.
 A real ESP32-S3/8 MB build also passed on that host through the generated
