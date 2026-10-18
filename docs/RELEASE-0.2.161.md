@@ -13,7 +13,7 @@ known, Ctrl+U only checks and leaves the user on the same screen. Ordinary U,
 chat input, open menus and busy voice/OTA operations do not trigger installation.
 
 Bridge update checks refresh the status without switching away from the current
-screen. A configured boot check also uses that queue after startup. Notifications
+screen. No extra blocking network check is added to startup. Notifications
 and their sound may expire; the Home badge remains until the candidate is no
 longer newer than the installed firmware. No candidate binary is installed by
 merely showing the badge.
