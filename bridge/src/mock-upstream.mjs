@@ -10,6 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOST = process.env.MOCK_UPSTREAM_HOST || "127.0.0.1";
 const PORT = Number(process.env.MOCK_UPSTREAM_PORT || 31890);
 const TOKEN = process.env.MOCK_UPSTREAM_TOKEN || "upstream-secret";
+const REPLY_DELAYS = JSON.parse(process.env.MOCK_UPSTREAM_REPLY_DELAYS || "{}");
+const FAIL_MESSAGE = process.env.MOCK_UPSTREAM_FAIL_MESSAGE || "";
 
 const TOPICS = [
   {
@@ -275,6 +277,10 @@ wss.on("connection", (ws) => {
         visibleText,
         recorded_at: nowIso()
       };
+      if (FAIL_MESSAGE && visibleText === FAIL_MESSAGE) {
+        ws.send(JSON.stringify({ type:"res",id:frame.id,ok:false,error:{message:"deliberate dispatch failure"} }));
+        return;
+      }
       const message = {
         role: "user",
         content: [{ type: "text", text: frame.params.message }],
@@ -292,9 +298,9 @@ wss.on("connection", (ws) => {
             stopReason: "stop",
             __openclaw: { runId: frame.params.idempotencyKey }
           },
-          `assistant_${Date.now()}`
+          `assistant_${frame.params.idempotencyKey || Date.now()}`
         );
-      }, 30);
+      }, Math.max(0, Math.min(5000, Number(REPLY_DELAYS[visibleText] ?? 30))));
       ws.send(
         JSON.stringify({
           type: "res",

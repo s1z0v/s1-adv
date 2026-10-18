@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { createServer } from 'node:net';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -185,3 +188,60 @@ test('each final may repeat the other overlapping request without being dropped'
   assert.equal((await wait(first)).content.text,'Request cross-second');
   assert.equal((await wait(second)).content.text,'Request cross-first');
 }));
+
+async function availablePort() {
+  const server = createServer(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port; await new Promise(resolve => server.close(resolve)); return port;
+}
+
+test('HTTP text timeout is pending and a late A cannot become the next B response', { timeout:15000 }, async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'cardputer-pending-http-'));
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const upstreamPort = await availablePort(); let bridgePort = await availablePort();
+  while (bridgePort === upstreamPort) bridgePort = await availablePort();
+  const config = JSON.parse(await readFile(new URL('../config.example.json', import.meta.url), 'utf8'));
+  const token = 'test-device-token-correlation-00000000000000000000001';
+  config.server = { host:'127.0.0.1',port:bridgePort }; config.stateDir = path.join(dir,'state');
+  config.media = Object.fromEntries(['inboundDir','canonicalDir','playbackDir','tmpDir'].map(k=>[k,path.join(dir,k)]));
+  config.assets.rootDir = path.join(dir,'assets');config.assets.logsDir = path.join(dir,'logs');
+  config.firmware.rootDir = path.join(dir,'firmware');
+  config.upstream.url = `ws://127.0.0.1:${upstreamPort}`;config.upstream.token = 'test-gateway-correlation-00000000000000000000001';
+  config.topics = [{topic_key:'cardputer:main',session_key:'agent:main:telegram:group:-1001234567890:topic:323',title:'Correlation test',thread_id:323}];
+  config.devices = [{...config.devices[0],device_token:token,topics:['cardputer:main'],default_topic_key:'cardputer:main'}];
+  config.telegram = {enabled:false};config.fastLane = {enabled:false};config.deviceTurnContext = {enabled:false};
+  config.omnibotShim = {...config.omnibotShim,enabled:true,turnWaitMs:1500,turnPollMs:50};
+  const configPath = path.join(dir,'config.json');await writeFile(configPath,JSON.stringify(config),{mode:0o600});
+  const children=[];let log='';
+  const start = (file, extra) => {
+    const child=spawn(process.execPath,[file],{cwd:root,env:{PATH:process.env.PATH,...extra},stdio:['ignore','pipe','pipe']});
+    children.push(child);child.stdout.on('data',b=>{log=(log+b).slice(-12000);});child.stderr.on('data',b=>{log=(log+b).slice(-12000);});return child;
+  };
+  const base=`http://127.0.0.1:${bridgePort}`;const headers={Authorization:`Bearer ${token}`,'content-type':'application/json'};
+  const post=(id,message,reply_audio=false)=>fetch(base+'/api/device-text-turn',{method:'POST',headers,body:JSON.stringify({client_msg_id:id,message,reply_audio})});
+  try {
+    start('src/mock-upstream.mjs',{MOCK_UPSTREAM_PORT:String(upstreamPort),MOCK_UPSTREAM_TOKEN:config.upstream.token,
+      MOCK_UPSTREAM_REPLY_DELAYS:JSON.stringify({CORRELATION_ALPHA:2200,CORRELATION_BRAVO:1000}),MOCK_UPSTREAM_FAIL_MESSAGE:'CORRELATION_DISPATCH_FAIL'});
+    start('src/server.mjs',{CARDPUTER_BRIDGE_CONFIG:configPath});
+    let ready=false;
+    for(let i=0;i<100;++i){
+      if(children.some(p=>p.exitCode!==null))throw Error('fixture exited: '+log);
+      try{const h=await(await fetch(base+'/healthz',{headers})).json();if(h.upstream_connected){ready=true;break;}}catch{}
+      await delay(50);
+    }
+    assert(ready,'gateway fixture not ready: '+log);
+    const pendingResponse=await post('http-alpha','CORRELATION_ALPHA',true);const pending=await pendingResponse.json();
+    assert.equal(pendingResponse.status,202);assert.equal(pending.ok,true);assert.equal(pending.pending,true);
+    assert.equal(pending.status,'pending');assert.equal(pending.upstream_accepted,true);assert.equal(pending.client_msg_id,'http-alpha');assert(pending.after_seq>0);
+    assert.match(pending.reply,/accepted/i);assert.equal(pending.audio,undefined);
+    const secondResponse=await post('http-bravo','CORRELATION_BRAVO');const second=await secondResponse.json();
+    assert.equal(secondResponse.status,200);assert.equal(second.transcript,'CORRELATION_BRAVO');
+    assert.equal(second.reply,'Echo: CORRELATION_BRAVO');
+    const retryResponse=await post('http-alpha','CORRELATION_ALPHA');const retry=await retryResponse.json();
+    assert.equal(retryResponse.status,200);assert.equal(retry.reply,'Echo: CORRELATION_ALPHA');assert.notEqual(retry.reply_seq,second.reply_seq);
+    const failedResponse=await post('http-failed','CORRELATION_DISPATCH_FAIL');const failed=await failedResponse.json();
+    assert.equal(failedResponse.status,503);assert.notEqual(failed.pending,true);assert.match(failed.error,/dispatch failure/);
+  } finally {
+    for(const child of children.reverse()){if(child.exitCode===null){child.kill('SIGTERM');await new Promise(resolve=>child.once('exit',resolve));}}
+    await rm(dir,{recursive:true,force:true});
+  }
+});
