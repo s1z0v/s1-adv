@@ -1,10 +1,24 @@
+// These writers run on the UI thread. Reserve their bounded workspace before
+// TLS fragments the heap; recording and SD storage never share this buffer.
+alignas(4) uint8_t gHttpStageBuffer[kHttpStageChunkBytes];
+bool gHttpStageInUse = false;
+struct HttpStageLease {
+  bool acquired;
+  HttpStageLease() : acquired(!gHttpStageInUse) { if (acquired) gHttpStageInUse=true; }
+  ~HttpStageLease() { if (acquired) gHttpStageInUse=false; }
+  HttpStageLease(const HttpStageLease&)=delete;
+  HttpStageLease& operator=(const HttpStageLease&)=delete;
+  explicit operator bool() const { return acquired; }
+  uint8_t* get() { return gHttpStageBuffer; }
+};
+
 bool writeClientAll(WiFiClient& client, const String& text, const char* label) {
   return writeClientAll(client, reinterpret_cast<const uint8_t*>(text.c_str()), text.length(), label);
 }
 
 bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length, const char* label) {
-  std::unique_ptr<uint8_t[]> stage(new (std::nothrow) uint8_t[kHttpStageChunkBytes]);
-  if (!stage) { setHttpDiag(String(label) + ": no staging memory"); return false; }
+  HttpStageLease stage;
+  if (!stage) { setHttpDiag(String(label) + ": staging busy"); return false; }
   size_t written = 0;
   unsigned long deadline = millis() + 45000;
   unsigned long lastProgress = millis();
@@ -67,8 +81,8 @@ bool writeClientAllStaged(WiFiClient& client, const uint8_t* data, size_t length
 }
 
 bool writeClientAllFileStaged(WiFiClient& client, File& file, size_t length, const char* label) {
-  std::unique_ptr<uint8_t[]> stage(new (std::nothrow) uint8_t[kHttpStageChunkBytes]);
-  if (!stage) { setHttpDiag(String(label) + ": no staging memory"); return false; }
+  HttpStageLease stage;
+  if (!stage) { setHttpDiag(String(label) + ": staging busy"); return false; }
   size_t written = 0;
   uint32_t readMs = 0, writeMs = 0, uiMs = 0;
   unsigned long deadline = millis() + 90000;

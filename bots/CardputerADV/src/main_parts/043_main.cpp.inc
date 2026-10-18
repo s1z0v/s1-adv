@@ -431,68 +431,44 @@ bool runLiveVoiceSmokeFromDevice() {
     return false;
   }
 
-  const String pcmPath = "/voice/__live_smoke.pcm";
+  File input = fs->open(note.audioPath, "r");
   WavInfo wav;
-  if (!copyWavDataToPcmFile(*fs, note.audioPath, pcmPath, wav)) {
-    logf("[SMOKE] voice live wav failed path=%s err=%s",
-         note.audioPath.c_str(),
-         wav.error.c_str());
-    pushError("Smoke WAV read failed: " + wav.error);
-    setStatus("Smoke WAV failed", 1800);
+  const bool valid = input && parseWavInfo(input, wav) && wav.sampleRate==kMicSampleRate &&
+      wav.dataOffset==44 && wav.dataBytes>0 && input.size()==wav.dataBytes+44;
+  input.close();
+  if (!valid) {
+    logf("[SMOKE] voice live invalid wav path=%s", note.audioPath.c_str());
     return false;
   }
 
   int statusCode = -1;
   String response;
   String turnId = makeClientTurnId("live");
+  beginVoiceRequestUi();
+  gVoiceRequestPhase=VoiceRequestPhase::Sending;
   gSubmitting = true;
   gThinking = true;
   setFaceMode(FaceMode::Thinking);
-  setStatus("Live voice smoke...");
+  setStatus("Uploading voice...");
   render();
   pauseHubWebSocketForVoice();
-  bool prevRenderPump = gBlockingRenderPumpEnabled;
+  const bool prevRenderPump = gBlockingRenderPumpEnabled;
   gBlockingRenderPumpEnabled = true;
   gLastBlockingRenderPumpMs = 0;
   pumpBlockingNetworkUi();
   logf("[SMOKE] voice live start note=%s bytes=%u ms=%u turn=%s",
-       note.audioPath.c_str(),
-       static_cast<unsigned>(wav.dataBytes),
-       static_cast<unsigned>(note.durationMs),
-       turnId.c_str());
-  bool transportOk = postRawVoiceTurn(nullptr, pcmPath, wav.dataBytes, turnId, statusCode, response);
+       note.audioPath.c_str(), static_cast<unsigned>(wav.dataBytes),
+       static_cast<unsigned>(note.durationMs), turnId.c_str());
+  const bool transportOk = postRawVoiceTurn(nullptr, note.audioPath, wav.dataBytes,
+                                           turnId, statusCode, response, true);
   gBlockingRenderPumpEnabled = prevRenderPump;
-  fsRemove(*fs, pcmPath);
   gSubmitting = false;
   gThinking = false;
+  initSpeaker();
   resumeHubWebSocketAfterVoice();
-
-  if (!transportOk || statusCode <= 0) {
-    String transportError = gLastHttpDiag;
-    if (transportError.isEmpty()) {
-      transportError = statusCode <= 0 ? HTTPClient::errorToString(statusCode) : String("unknown");
-    }
-    logf("[SMOKE] voice live result ok=0 stage=transport code=%d err=%s bytes=%u",
-         statusCode,
-         transportError.c_str(),
-         static_cast<unsigned>(wav.dataBytes));
-    pushError("Live smoke transport failed: " + transportError);
-    setFaceMode(FaceMode::Error);
-    setStatus("Live smoke transport failed", 2200);
-    return false;
-  }
-
-  if (statusCode < 200 || statusCode >= 300) {
-    logf("[SMOKE] voice live result ok=0 stage=http code=%d body=%s",
-         statusCode,
-         response.c_str());
-    pushError("Live smoke HTTP error: " + String(statusCode));
-    setFaceMode(FaceMode::Error);
-    setStatus("Live smoke HTTP failed", 2000);
-    return false;
-  }
-
-  return playVoiceSmokeResponse(response, "voice live");
+  const bool accepted=finishVoiceSubmission(transportOk,statusCode,response,note.audioPath,wav.dataBytes);
+  logf("[SMOKE] voice live result ok=%d code=%d note_retained=1",accepted,statusCode);
+  return accepted;
 }
 
 void runRealtimeSmokeFromDevice(bool verifyTls = true) {
@@ -862,6 +838,17 @@ bool handleHostSerialCommand(String line) {
   if (cmd == "ota.rollback" || cmd == "/ota.rollback" || cmd == "fw.rollback" || cmd == "/fw.rollback") {
     logf("[HOST] ota.rollback requested");
     rollbackPendingOta("serial rollback");
+    return true;
+  }
+  if (cmd == "voice.note.latest") {
+    VoiceNote note;
+    if(findLatestUserVoiceNote(note)) {
+      fs::FS* fs=activeVoiceFs();
+      File file=fs ? fs->open(note.audioPath,"r") : File();
+      logf("[HOST] voice.note.latest path=%s bytes=%u ms=%u",note.audioPath.c_str(),
+           static_cast<unsigned>(file ? file.size() : 0),static_cast<unsigned>(note.durationMs));
+      file.close();
+    } else logf("[HOST] voice.note.latest none");
     return true;
   }
   if (cmd == "voice.smoke.large") {

@@ -33,6 +33,13 @@
     releaseRecordBuffer();
   }
 
+  return finishVoiceSubmission(transportOk, statusCode, response, pcmUploadPath, dataSize);
+}
+
+// Ordinary capture and an explicit operator retry share receipt/error handling.
+// A 2xx response alone must never leave the device on THINK indefinitely.
+bool finishVoiceSubmission(bool transportOk, int statusCode, const String& response,
+                           const String& pcmUploadPath, size_t dataSize) {
   if (!transportOk || statusCode <= 0) {
     String transportError = gLastHttpDiag;
     if (transportError.isEmpty()) {
@@ -129,6 +136,7 @@
   } else {
     setFaceMode(FaceMode::Idle);
     setStatus("No reply", 1200);
+    showVoiceNotice("Server returned no text. Open chat to check.", false);
   }
   if (!deviceActionsJson.isEmpty()) {
     executeOrDeferDeviceActionsJson(deviceActionsJson);

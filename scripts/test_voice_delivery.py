@@ -115,14 +115,14 @@ assert 'setUiMode(UiMode::ChatFull)' not in pending
 print('PASS actual drained/rebuffered playback and 12/24h boundaries; connected TCP_NODELAY; visible voice receipt and delayed reply')
 
 staging=(parts/"034_main.cpp.inc").read_text()
-assert "uint8_t stage[" not in staging and staging.count("std::unique_ptr<uint8_t[]> stage")==2
+assert "uint8_t stage[" not in staging and staging.count("HttpStageLease stage")==2
 
 notice=r'''
 #include <cassert>
 #include <string>
 #include <cstdint>
 struct String:std::string {using std::string::string;String(const std::string& s):std::string(s){};};
-enum class UiMode {Home,ChatFull,Other}; UiMode gUiMode=UiMode::Home;
+enum class UiMode {Home,ChatFull,ChatFace,Other}; UiMode gUiMode=UiMode::Home;
 struct Keyboard_Class {struct KeysState {bool enter=false,ctrl=false;};};
 bool gVoiceNoticeVisible=false,gInboxUnread=true;
 enum class VoiceRequestPhase {None,Recording,Sending,Processing,Accepted,Reply,Error};
@@ -148,6 +148,7 @@ notice+='\n'+function('065_main.cpp.inc','void showVoiceNotice(')
 notice+='\n'+function('065_main.cpp.inc','void showVoiceRequestError(')
 notice+='\n'+function('065_main.cpp.inc','bool handleVoiceRequestEscape()')
 notice+='\n'+function('065_main.cpp.inc','bool handleVoiceNoticeKey(')
+notice+='\n'+function('065_main.cpp.inc','bool voiceRequestBusyUi()')
 notice+='\n'+function('009_main.cpp.inc','AssistantPulseState assistantPulseState()')
 notice+=r'''
 int main(){
@@ -161,23 +162,35 @@ int main(){
  gUiMode=UiMode::Home;gVoiceNoticeVisible=true;dismissVoiceNotice();
  assert(!gVoiceNoticeVisible&&gQueuedVoiceReplySpeech.empty()&&gVoiceReplySpeechGeneration==5);
  assert(gUiMode==UiMode::Home);
- // One request window survives capture, submission and receipt. Esc cannot
+ // The owned request survives capture, submission and receipt. Esc cannot
  // discard a transport still in flight, and accepting a receipt never cancels
  // the server task when the UI is dismissed.
- beginVoiceRequestUi();assert(gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Recording);
+ beginVoiceRequestUi();assert(gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Recording&&voiceRequestBusyUi());
  gRecording=true;keys.enter=false;keys.ctrl=true;assert(!handleVoiceNoticeKey('v',keys));
  keys.ctrl=false;assert(handleVoiceNoticeKey('x',keys));
  gRecording=false;gSubmitting=true;gThinking=true;gVoiceRequestPhase=VoiceRequestPhase::Sending;
  assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Sending);
  keys.enter=true;assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible);
  gSubmitting=false;gThinking=false;showVoiceNotice("Russian input is retained",true);
+ assert(!voiceRequestBusyUi());
  gAssistantPendingVisible=true;assert(assistantPulseState()==AssistantPulseState::Ready);
  assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gVoiceRequestTranscript=="Russian input is retained");
  assert(handleVoiceRequestEscape()&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home&&gVoiceReplyPending);
  showVoiceNotice("Actual answer",false);assert(gVoiceRequestPhase==VoiceRequestPhase::Reply);
  assert(handleVoiceNoticeKey('\n',keys)&&!gVoiceNoticeVisible&&gUiMode==UiMode::ChatFull&&gVoiceReplyPending);
  showVoiceRequestError("Connection interrupted");assert(gVoiceRequestPhase==VoiceRequestPhase::Error);
+ assert(!gVoiceNoticeVisible); // Already in chat: errors and replies stay inline.
+ gUiMode=UiMode::Home;showVoiceRequestError("Connection interrupted");
  assert(handleVoiceRequestEscape()&&!gVoiceNoticeVisible&&gUiMode==UiMode::Home);
+ for(auto mode:{UiMode::ChatFull,UiMode::ChatFace}){
+  gUiMode=mode;beginVoiceRequestUi();gRecording=true;assert(voiceRequestBusyUi());
+  gRecording=false;gVoiceRequestPhase=VoiceRequestPhase::Sending;
+  assert(voiceRequestBusyUi()&&assistantPulseState()==AssistantPulseState::Thinking);
+  gVoiceRequestPhase=VoiceRequestPhase::Processing;assert(voiceRequestBusyUi());
+  showVoiceNotice("Request",true);assert(!voiceRequestBusyUi()&&!gVoiceNoticeVisible&&gUiMode==mode);
+  assert(assistantPulseState()==AssistantPulseState::Ready&&gVoiceReplyPending);
+  showVoiceNotice("Answer",false);assert(!gVoiceNoticeVisible&&gUiMode==mode);
+ }
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-notice-') as d:
@@ -190,7 +203,7 @@ escape=function('047_main.cpp.inc','bool handleGlobalEscape()')
 assert escape.index('handleVoiceRequestEscape()') < escape.index('setUiMode(UiMode::Home)')
 state=function('009_main.cpp.inc','AssistantPulseState assistantPulseState()')
 assert 'gVoiceReplyPending' not in state
-print('PASS actual unified voice phases, busy dismissal guard, accepted receipt, Enter chat, Esc Home; pending server task survives UI dismissal')
+print('PASS voice transitions, busy dismissal guard, accepted receipt, Enter chat, Esc Home; pending server task survives UI dismissal')
 
 record=r'''
 #include <cassert>

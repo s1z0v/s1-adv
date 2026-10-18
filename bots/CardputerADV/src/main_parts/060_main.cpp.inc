@@ -318,8 +318,8 @@ void render() {
     renderSetupPortalUi();
     return;
   }
-  if(gVoiceNoticeVisible && isAssistantUi() && !gRealtimeActive) {
-    renderVoiceNotice();
+  if (voiceRequestBusyUi()) {
+    renderAssistantPulseUi();
     gCanvas.pushSprite(0,0);
     return;
   }

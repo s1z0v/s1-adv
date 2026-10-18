@@ -18,11 +18,11 @@ void endVoiceWifiPerformance() {
 void showVoiceNotice(const String& text, bool pending) {
   if(pending) gVoiceRequestTranscript=cleanReplyForDevice(text);
   while(gVoiceRequestTranscript.length()>512) removeLastUtf8Char(gVoiceRequestTranscript);
-  gVoiceNoticeText = pending ? String("Reply will arrive in chat. You can close this window.") : cleanReplyForDevice(text);
+  gVoiceNoticeText = pending ? String("Reply will arrive in chat. You said: ")+gVoiceRequestTranscript : cleanReplyForDevice(text);
   while (gVoiceNoticeText.length() > 1200) removeLastUtf8Char(gVoiceNoticeText);
   gVoiceNoticePending = pending;
   gVoiceRequestPhase=pending ? VoiceRequestPhase::Accepted : VoiceRequestPhase::Reply;
-  gVoiceNoticeVisible = true;
+  gVoiceNoticeVisible = gUiMode!=UiMode::ChatFull && gUiMode!=UiMode::ChatFace;
   gVoiceNoticeShownMs = millis();
   gLauncherVisible = false;
   gChatCommandsVisible = false;
@@ -79,49 +79,42 @@ bool handleVoiceNoticeKey(char key, const Keyboard_Class::KeysState& keys) {
   return true;
 }
 
+bool voiceRequestBusyUi() {
+  return gVoiceNoticeVisible && isAssistantUi() && !gRealtimeActive &&
+      (gRecording || gSubmitting || gThinking ||
+       gVoiceRequestPhase==VoiceRequestPhase::Recording ||
+       gVoiceRequestPhase==VoiceRequestPhase::Sending ||
+       gVoiceRequestPhase==VoiceRequestPhase::Processing);
+}
+
 void renderVoiceNotice() {
-  if (!gVoiceNoticeVisible || !isAssistantUi() || gRealtimeActive) return;
+  if (!gVoiceNoticeVisible || !isAssistantUi() || voiceRequestBusyUi() || gRealtimeActive) return;
   auto& d = gCanvas;
-  const uint16_t bg=rgb565_local(5,13,20),muted=rgb565_local(147,173,192);
-  const bool recording=gVoiceRequestPhase==VoiceRequestPhase::Recording;
-  const bool sending=gVoiceRequestPhase==VoiceRequestPhase::Sending;
-  const bool processing=gVoiceRequestPhase==VoiceRequestPhase::Processing;
-  const bool accepted=gVoiceRequestPhase==VoiceRequestPhase::Accepted;
+  const uint16_t panel = rgb565_local(9, 27, 42);
   const bool error=gVoiceRequestPhase==VoiceRequestPhase::Error;
-  const uint16_t accent=error ? rgb565_local(255,96,80) :
-      recording||sending||processing ? rgb565_local(47,227,255) : rgb565_local(105,255,156);
-  d.fillScreen(bg);d.drawRoundRect(4,4,232,126,5,rgb565_local(29,62,81));
-  d.setFont(&fonts::Font0);d.setTextSize(1);d.setTextColor(muted,bg);
-  d.setCursor(14,13);d.print("VOICE REQUEST");d.fillCircle(221,16,2,accent);
-  const char* title=recording?"Recording":sending?"Sending":processing?"Processing":
-      accepted?"Request accepted":error?"Check delivery":"Agent replied";
-  d.setFont(&fonts::Font2);d.setTextColor(accent,bg);d.setCursor(14,29);d.print(title);
-  if(recording){
-    const uint32_t seconds=(millis()-gRecordStartMs)/1000U;char elapsed[12];
-    snprintf(elapsed,sizeof(elapsed),"%02u:%02u",static_cast<unsigned>(seconds/60U),static_cast<unsigned>(seconds%60U));
-    d.setFont(&fonts::Font4);d.setTextColor(TFT_WHITE,bg);d.setCursor(14,54);d.print(elapsed);
-    mic_input_meter::draw(d,126,62,88,gMicInputMeter.visibleLevel(gRecording,millis()),rgb565_local(23,48,59),accent,rgb565_local(157,102,255));
-    d.setFont(&fonts::Font0);d.setTextColor(muted,bg);d.setCursor(14,97);d.print("Release G0 / Ctrl+V to send");
-  }else if(sending||processing){
-    d.setFont(&fonts::Font0);d.setTextColor(muted,bg);d.setCursor(14,58);
-    d.print(processing?"Recognizing and delivering...":fitCurrentFontToWidth(gStatusText,208));
-    d.fillRoundRect(14,85,208,6,2,rgb565_local(23,48,59));
-    if(gVoiceRequestProgress) d.fillRoundRect(14,85,max<int>(1,208*gVoiceRequestProgress/100),6,2,accent);
-    d.setCursor(14,99);d.print("Keep this window open");
-  }else if(accepted){
-    d.setFont(&fonts::Font0);d.setTextColor(TFT_WHITE,bg);d.setCursor(14,53);d.print("Reply will arrive in chat.");
-    d.setTextColor(muted,bg);d.setCursor(14,66);d.print("You can close this window.");
-    d.setCursor(14,80);d.print("YOU SAID");d.setFont(&fonts::efontCN_12);
-    auto lines=wrapText(gVoiceRequestTranscript,208);d.setTextColor(TFT_WHITE,bg);
-    for(int i=0;i<min<int>(2,lines.size());++i){d.setCursor(14,91+i*12);d.print(fitCurrentFontToWidth(lines[i],208));}
-  }else{
-    d.setFont(&fonts::efontCN_12);auto lines=wrapText(gVoiceNoticeText,208);d.setTextColor(TFT_WHITE,bg);
-    for(int i=0;i<min<int>(4,lines.size());++i){d.setCursor(14,55+i*14);d.print(fitCurrentFontToWidth(lines[i],208));}
-  }
-  d.fillRoundRect(10,116,220,12,2,rgb565_local(9,27,42));
-  d.setFont(&fonts::Font0);d.setTextColor(muted,rgb565_local(9,27,42));d.setCursor(14,119);
-  d.print(recording?"Esc cancel":sending||processing?"Sending - please wait":"Enter chat         Esc OK");
+  const uint16_t accent = error ? rgb565_local(255,96,80) : gVoiceNoticePending ? rgb565_local(255, 194, 74) : rgb565_local(105, 255, 156);
+  d.setFont(&fonts::efontCN_12);
+  auto lines = wrapText(gVoiceNoticeText, 212);
+  const int count = min<int>(6, lines.size());
+  const int height = max<int>(80, 38 + count * 14);
+  const uint32_t age = millis() - gVoiceNoticeShownMs;
+  const int y = 4 - (age < 180 ? static_cast<int>((180 - age) * height / 180) : 0);
+  d.fillRoundRect(4, y, 232, height, 12, panel);
+  d.drawRoundRect(4, y, 232, height, 12, accent);
   d.setFont(&fonts::Font2);
+  d.setTextColor(accent, panel);
+  d.setCursor(14, y + 5);
+  d.print(error ? "Check delivery" : gVoiceNoticePending ? "Request accepted" : "AI Agent");
+  d.setFont(&fonts::efontCN_12);
+  d.setTextColor(TFT_WHITE, panel);
+  for (int i = 0; i < count; ++i) {
+    d.setCursor(14, y + 25 + i * 14);
+    d.print(fitCurrentFontToWidth(lines[i], 212));
+  }
+  d.setFont(&fonts::Font0);
+  d.setTextColor(rgb565_local(147, 173, 192), panel);
+  d.setCursor(14, y + height - 10);
+  d.print(lines.size() > 6 ? "Enter read more   Esc OK" : "Enter chat       Esc OK");
 }
 
 struct VoiceSpeechPayload {

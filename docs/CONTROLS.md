@@ -27,12 +27,14 @@ visible until retry or exit. The firmware uses one configured conversation;
 there is no topic browser or topic creation/switching.
 
 Device Settings → Clock format switches between 12h AM/PM (default) and 24h.
-Voice upload shows its percentage, then transcription and an accepted receipt.
-A single VOICE REQUEST window covers recording, sending, processing, acceptance
-and the reply. The accepted receipt shows the recognized text in its original
-language. Enter opens AI Chat; Escape closes the receipt and returns Home while
-the server task continues. The Home clock stays READY during background work.
-Replies appear in the same window or inline when chat is already open.
+Ordinary voice keeps the original REC graphics during capture and THINK while
+sending and waiting for the server receipt. A background task stops blocking the
+device as soon as its receipt arrives. On Home, a compact card shows the accepted
+request and recognized text, or the answer. Enter opens AI Chat; Escape closes
+the card while the server task continues. Voice started in chat returns its
+receipt and answer inline. The Home clock stays READY during background work.
+A transport failure shows a delivery warning and retains the original recording
+in Voice Notes. Check chat before retrying an uncertain delivery.
 The clock screen shows READY with its decorative animated bars when the
 microphone is off. REC and the live input meter appear after recording starts.
 A compact battery gauge with five broad diagonal strokes and a percentage sits

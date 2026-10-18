@@ -66,7 +66,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.161-dev"
+#define APP_VERSION "0.2.162-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -182,7 +182,7 @@ constexpr size_t kMaxHeapRecordFallbackBytes = 160 * 1024;
 constexpr size_t kMaxHeapTtsFallbackBytes = 160 * 1024;
 constexpr size_t kHeapReserveBytes = 48 * 1024;
 constexpr size_t kHttpWriteChunkBytes = 512;
-constexpr size_t kHttpStageChunkBytes = 16 * 1024;
+constexpr size_t kHttpStageChunkBytes = 4 * 1024;
 constexpr uint32_t kVoiceSocketSettleMs = 300;
 constexpr uint32_t kCtrlDoubleTapWindowMs = 420;
 constexpr uint32_t kLauncherToggleDebounceMs = 140;

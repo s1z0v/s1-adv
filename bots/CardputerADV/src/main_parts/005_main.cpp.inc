@@ -45,6 +45,7 @@ void showVoiceRequestError(const String& text);
 void dismissVoiceNotice();
 bool handleVoiceRequestEscape();
 bool handleVoiceNoticeKey(char key, const Keyboard_Class::KeysState& keys);
+bool voiceRequestBusyUi();
 void renderVoiceNotice();
 void serviceVoiceReplySpeech();
 void initSpeaker();
@@ -315,6 +316,8 @@ bool playVisibleVoiceHistoryLine();
 bool downloadAndPlayResponseAudio(const String& url, const String& localPath, const String& sha256,
                                   uint32_t expectedSize, const String& title, const String& preview);
 bool requestAndPlayTts(const String& text);
+bool finishVoiceSubmission(bool transportOk, int statusCode, const String& response,
+                           const String& pcmUploadPath, size_t dataSize);
 bool fetchLatestInboxMessage(bool forcePlay = false, bool speak = true, bool quiet = false, bool assistantOnly = false);
 bool injectInboxText(const String& text, bool speakAfter = true);
 void schedulePostInstallStoryIfNeeded();

@@ -124,6 +124,8 @@ bool stopRecordingAndSend() {
         cancelVoicePreconnect(); endVoiceWifiPerformance(); initSpeaker();
         gRecordingToFile = false;
         pushError("Voice WAV finalization failed; recording retained on SD.");
+        showVoiceRequestError("Could not finalize recording. File kept on SD.");
+        setFaceMode(FaceMode::Error);
         setStatus("Record storage failed", 2200); return false;
       }
     }
