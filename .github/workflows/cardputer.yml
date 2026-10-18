@@ -50,6 +50,7 @@ jobs:
       - run: python scripts/test_realtime_connection.py
       - run: python scripts/test_voice_delivery.py
       - run: python scripts/test_voice_capture.py
+      - run: python scripts/test_voice_usb_logging.py
       - run: python scripts/test_voice_transport.py
       - run: python scripts/test_voice_flow.py
       - run: python scripts/test_voice_receipt.py
