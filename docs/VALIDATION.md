@@ -1,5 +1,44 @@
 # Public source validation
 
+## Community plugin and portable setup, 2026-10-18
+
+The bridge package is `openclaw-s1-adv@0.2.0`, native plugin ID `s1-adv`.
+Local Node host tests cover private/dry-run setup, native config targeting,
+agent routing, build/release ownership and source/hash fences, lifecycle races,
+HTTP/WS authorization, audio ownership/remapping, upload cleanup and storage
+budgets. The final boundary suite has 36 tests; installer/release/lifecycle has
+12; gateway interruption has 3. Mock, opted-in compatibility and Realtime
+contract smokes pass. Package allowlist and dependency audit are checked too.
+These are different checks, not one large certification count.
+
+On a second Linux host, the tarball was installed with the native OpenClaw
+installer in an isolated profile. OpenClaw `2026.7.2-beta.1` and Node `22.23.0`
+loaded the plugin and started its bridge. Setup/enable/doctor and the real
+upstream connection were exercised. A real text response returned HTTP 200
+in 34.036 s. The first cold turn exceeded the HTTP wait but later appeared in
+the durable event queue; this is not a low-latency guarantee.
+
+A synthetic 66,256-byte WAV went through local Whisper and the actual agent.
+The pending receipt arrived in 19.598 s; its later assistant answer appeared
+in the authenticated event queue. Separate eSpeak TTS returned 107,862 PCM
+bytes in 0.033 s. Speech tests use synthetic host audio, not the physical mic.
+The pinned Whisper build was v1.9.5 (`d1be6fde11ac6e0407606b4e42fe72d34add8037`),
+multilingual base model SHA-256
+`60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`.
+
+ClawHub package validation against the OpenClaw 2026.10.4 API reported no
+contract issues. Static API validation is not a runtime test of that version.
+Firmware wrapper host tests use a disposable tiny image to exercise refusal
+and publication fences; they do not count as an ESP32 build or hardware proof.
+Fresh-owner HTTPS/device provisioning, USB boot readback, physical audio/OTA
+and the separate firmware stability canaries remain distinct acceptance.
+
+The security property harness reports one million generated transitions for
+its bounded admission/proxy checks and a small OTA persistence model. It makes
+no billion-combination, exhaustive-state or release-certificate claim.
+See the [current security review](SECURITY-REVIEW-2026-10-18.md).
+
+
 ## Source recovery, 2026-10-17
 
 Source `0.2.147-security.1` restores the released procedural eye changes on

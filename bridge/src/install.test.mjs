@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, stat, access, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { planInstall, applyInstall, gatewayToken, doctor, enablePlugin } from "./install.mjs";
+import { planInstall, applyInstall, gatewayToken, doctor, enablePlugin, configuredAgentExists } from "./install.mjs";
 
 test("preview writes nothing; apply isolates private configuration and repeat preserves identity", async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), "s1-install-"));
@@ -72,4 +72,10 @@ test("enable previews and targets only the intended host profile and plugin memb
   assert.equal(await readFile(result.backup,"utf8"),original);
   assert.equal((await stat(result.backup)).mode&0o777,0o600);
   assert.equal(await readFile(host,"utf8"),original);
+});
+
+test("native legacy list and current explicit agent maps preserve the selected identity",()=>{
+  assert.equal(configuredAgentExists({agents:{list:[{id:"cardputer"}]}},"cardputer"),true);
+  assert.equal(configuredAgentExists({agents:{ownership:"explicit",entries:{cardputer:{}}}},"cardputer"),true);
+  assert.equal(!!configuredAgentExists({agents:{ownership:"explicit",entries:{cardputer:{}}}},"main"),false);
 });

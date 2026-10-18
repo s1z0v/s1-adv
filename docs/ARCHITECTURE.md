@@ -4,10 +4,14 @@ The ESP32-S3 owns keyboard input, recording/playback, display, local apps and
 OTA application. It stores settings in NVS and optional media on microSD.
 It does not run an LLM or hold the OpenClaw gateway's credentials.
 
-The Node bridge authenticates each device with its own token and an explicit
+Each Node bridge instance authenticates one device identity with its own token and an explicit
 topic allowlist. It translates HTTP/WS calls into the configured OpenClaw
 gateway's session protocol. A separate topic key maps to an agent session key;
 Telegram is optional and is disabled in the public example.
+
+Multiple independent device identities cannot share an instance or its private
+storage. Generated reply audio also checks current topic/session ownership.
+See the [security review](SECURITY-REVIEW-2026-10-18.md).
 
 | Surface | Purpose |
 | --- | --- |

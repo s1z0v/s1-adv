@@ -8,6 +8,12 @@
   "historyBootstrapLimit": 80,
   "maxUploadBytes": 4194304,
   "maxVoiceDurationMs": 120000,
+  "storage": {
+    "maxBytes": 268435456,
+    "reservePerRequestBytes": 33554432,
+    "minFreeBytes": 134217728,
+    "maxEntries": 10000
+  },
   "reconnectRequiredCode": "HISTORY_RESET",
   "security": {
     "retainPersistedDeviceTopics": false,
@@ -99,6 +105,7 @@
   "firmwareAutomation": {
     "enabled": false
   },
+  "mininervaCompat": { "enabled": false },
   "fastLane": {
     "enabled": false
   },

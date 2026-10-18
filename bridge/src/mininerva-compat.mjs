@@ -353,7 +353,7 @@ function forwardCompatEvent(ws, payload) {
   }
 }
 
-export function createMininervaCompatServer({ runtime, config, recordAuthFailure = () => {}, clearAuthFailures = () => {} }) {
+export function createMininervaCompatServer({ runtime, config, recordAuthFailure = () => {}, clearAuthFailures = () => {}, requestAdmission, storageBudget }) {
   const path = config.mininervaCompat?.path || "/compat/mininerva/ws";
   const wss = new WebSocketServer({
     noServer: true,
@@ -484,6 +484,10 @@ export function createMininervaCompatServer({ runtime, config, recordAuthFailure
         ws.topicKey = requestedTopic.topic_key;
       }
 
+      const admission = requestAdmission?.acquire(ws.compatSession.device.device_id);
+      if (admission && !admission.ok) { sendCompatError(ws, "request_rate_or_concurrency_limit"); return; }
+      const storage = await storageBudget?.acquire();
+      if(storage&&!storage.ok){admission?.release();sendCompatError(ws,"bridge_storage_limit");return;}
       const clientMsgId = `mini:${ws.compatSession.id}:${Date.now()}`;
       ws.compatClientMsgIds.add(clientMsgId);
       sendCompatStatus(ws, "Sending...", { client_msg_id: clientMsgId });
@@ -493,13 +497,17 @@ export function createMininervaCompatServer({ runtime, config, recordAuthFailure
           device: ws.compatSession.device,
           topicKey: ws.compatSession.topicKey,
           clientMsgId,
-          text
+          text,
+          waitForUpstream: true
         });
       } catch (error) {
         sendCompatError(ws, String(error.message || error), {
           client_msg_id: clientMsgId,
           at: nowIso()
         });
+      } finally {
+        admission?.release();
+        storage?.release();
       }
     })().catch(() => {
       if (ws.readyState === 1) { sendCompatError(ws, "invalid request"); ws.close(1008); }

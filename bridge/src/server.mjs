@@ -1,5 +1,6 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
 import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
+import { PrivateStorageBudget } from "./storage-budget.mjs";
 import { createReadStream, createWriteStream, readFileSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
@@ -26,6 +27,7 @@ import {
 } from "./security-policy.mjs";
 import {
   ensureDir,
+  writeJsonAtomic,
   extractMetadataBlock,
   isTelegramVoiceTranscript,
   json,
@@ -155,6 +157,7 @@ async function loadConfig() {
   }
   const baseDir = path.dirname(configPath);
   config.stateDir = resolvePath(baseDir, config.stateDir);
+  config.media.inboundDir = resolvePath(baseDir, config.media.inboundDir || path.join(config.stateDir,"inbound"));
   config.media.canonicalDir = resolvePath(baseDir, config.media.canonicalDir);
   config.media.playbackDir = resolvePath(baseDir, config.media.playbackDir);
   config.media.tmpDir = resolvePath(baseDir, config.media.tmpDir);
@@ -3318,12 +3321,15 @@ async function transcode({ inputPath, outputPath, args }) {
 
 async function walkFiles(rootDir) {
   const files = [];
-  async function visit(currentDir) {
+  let visited=0;
+  async function visit(currentDir,depth=0) {
+    if(depth>12)throw new Error("asset_tree_depth_limit");
     const entries = await readdir(currentDir, { withFileTypes: true });
     for (const entry of entries) {
+      if(++visited>10000)throw new Error("asset_tree_entry_limit");
       const currentPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
-        await visit(currentPath);
+        await visit(currentPath,depth+1);
         continue;
       }
       if (entry.isFile()) {
@@ -3343,10 +3349,12 @@ async function walkFiles(rootDir) {
 }
 
 async function writeBufferAtomic(filePath, buffer) {
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tmpPath = `${filePath}.${process.pid}.${makeId("tmp")}.tmp`;
   await ensureDir(path.dirname(filePath));
-  await writeFile(tmpPath, buffer);
-  await rename(tmpPath, filePath);
+  try {
+    await writeFile(tmpPath, buffer,{mode:0o600,flag:"wx"});
+    await rename(tmpPath, filePath);
+  } finally { await rm(tmpPath,{force:true}); }
 }
 
 async function maybeTranscribeVoice(config, filePath) {
@@ -3540,7 +3548,11 @@ class BridgeRuntime {
 	  }
 
   async start() {
+    const legacyState = await readJsonFile(path.join(this.config.stateDir, "state.json"), null);
+    if (Object.keys(legacyState?.devices || {}).length > 1)
+      throw new Error("Legacy multi-device data cannot be reused by this single-device bridge. Migrate to separate private state, media, assets and firmware directories.");
     await ensureDir(this.config.stateDir);
+    await ensureDir(this.config.media.inboundDir);
     await ensureDir(this.config.media.canonicalDir);
     await ensureDir(this.config.media.playbackDir);
     await ensureDir(this.config.media.tmpDir);
@@ -4020,6 +4032,7 @@ class BridgeRuntime {
     const files = await walkFiles(rootDir);
     const assetFiles = [];
     for (const filePath of files) {
+      if(assetFiles.length>=this.config.assets.maxManifestFiles)break;
       if (!filePath.endsWith(".wav")) {
         continue;
       }
@@ -4028,6 +4041,8 @@ class BridgeRuntime {
       if (!segments || segments.length < 2) {
         continue;
       }
+      if (!this.canReadAsset(device, segments, filePath)) continue;
+      if ((await stat(filePath)).size > this.config.assets.maxFileBytes) continue;
       const wavBytes = await readFile(filePath);
       const relativeUrlPath = segments.join("/");
       const filename = segments.at(-1);
@@ -4060,7 +4075,7 @@ class BridgeRuntime {
 
   resolveAssetDownload(device, relativeUrlPath) {
     const segments = sanitizeAssetSegments(String(relativeUrlPath || "").split("/"));
-    if (!segments || segments.length < 2) {
+    if (!segments || segments.length < 2 || !segments.at(-1).endsWith(".wav")) {
       return null;
     }
     const filePath = path.join(this.assetsAudioRootDir(), ...segments);
@@ -4068,12 +4083,20 @@ class BridgeRuntime {
     if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
       return null;
     }
+    if (!this.canReadAsset(device, segments, filePath)) return null;
     return {
       filePath,
       relativeUrlPath: segments.join("/"),
       category: segments[0],
       filename: segments.at(-1)
     };
+  }
+
+  canReadAsset(device, segments, filePath) {
+    if (segments[0] !== this.config.assets.replyCategory) return true;
+    const owner = readJsonFileSyncSafe(`${filePath}.owner.json`, null);
+    return !!owner?.session_key && !!device?.topics?.includes(owner.topic_key) &&
+      this.store.getTopic(owner.topic_key)?.session_key === owner.session_key;
   }
 
   resolveFirmwareDownload(device, filename) {
@@ -4211,9 +4234,9 @@ class BridgeRuntime {
     };
   }
 
-  async saveReplyAudioAsset(req, replyText, traceId) {
+  async saveReplyAudioAsset(req, replyText, traceId, topic) {
     const cleaned = String(replyText || "").trim();
-    if (!cleaned) {
+    if (!cleaned || !topic?.session_key || this.store.getTopic(topic.topic_key)?.session_key !== topic.session_key) {
       return null;
     }
     const startedAt = Date.now();
@@ -4253,11 +4276,12 @@ class BridgeRuntime {
     if (!wavBytes?.length) {
       return null;
     }
-    const baseSlug = safeSlug(cleaned, "reply", 32);
-    const filename = `${baseSlug}-${String(traceId || makeId("tr")).replace(/^tr_/u, "").slice(0, 6)}.wav`;
+    const baseSlug = safeSlug(cleaned, "reply", 31);
+    const filename = `${baseSlug}-${makeId("audio").slice(-12)}.wav`;
     const relativeUrlPath = `${this.config.assets.replyCategory}/${filename}`;
     const filePath = path.join(this.assetsAudioRootDir(), this.config.assets.replyCategory, filename);
     await writeBufferAtomic(filePath, wavBytes);
+    await writeJsonAtomic(`${filePath}.owner.json`, { topic_key:topic.topic_key, session_key:topic.session_key });
     const durationSec = readWavDurationSeconds(wavBytes);
     console.info(
       `[tts] reply_audio trace=${traceId || "-"} provider=${provider} model=${this.config.omnibotShim.ttsModel} ` +
@@ -4820,7 +4844,7 @@ class BridgeRuntime {
     }
     if (includeAudio) {
       try {
-        response.audio = await this.saveReplyAudioAsset(req, fullText, traceId);
+        response.audio = await this.saveReplyAudioAsset(req, fullText, traceId, topic);
         response.audio_status = response.audio ? "ready" : "unavailable";
       } catch (error) {
         console.warn(`[tts] reply_audio_skipped trace=${traceId || "-"} err=${String(error.message || error).slice(0, 240)}`);
@@ -4841,13 +4865,20 @@ class BridgeRuntime {
   async appendDeviceLogs(device, payload) {
     const deviceId = safeSlug(device?.device_id || "unknown-device", "unknown-device", 64);
     const logPath = path.join(this.config.assets.logsDir, `${deviceId}.jsonl`);
-    await ensureDir(path.dirname(logPath));
-    await appendFile(logPath, `${JSON.stringify({
+    const line=`${JSON.stringify({
       ...payload,
       device_id: deviceId,
       received_at: nowIso()
-    })}\n`, "utf8");
-    return logPath;
+    })}\n`;
+    const write=(this.deviceLogWrites||Promise.resolve()).then(async()=>{
+      await ensureDir(path.dirname(logPath));
+      let size=0;try{size=(await stat(logPath)).size;}catch(error){if(error.code!=="ENOENT")throw error;}
+      if(size+Buffer.byteLength(line)>8*1024*1024)await rename(logPath,`${logPath}.previous`);
+      await appendFile(logPath,line,{encoding:"utf8",mode:0o600});
+      await chmod(logPath,0o600);
+      return logPath;
+    });
+    this.deviceLogWrites=write.catch(()=>{});return write;
   }
 
   scheduleBootstrap() {
@@ -5748,7 +5779,7 @@ class BridgeRuntime {
 
     void (async () => {
       try {
-        const transcription = await maybeTranscribeVoice(this.config, uploadPath).catch(() => "");
+        const transcription = await maybeTranscribeVoice(this.config, playbackPath).catch(() => "");
         await this.upstream.rpc("sessions.send", {
           key: topic.session_key,
           message: transcription || `[Voice message from Cardputer, ${Math.round(durationMs / 1000)}s]`,
@@ -5795,8 +5826,10 @@ async function main() {
     maxActiveGlobal: config.security.maxActiveRequestsGlobal,
     startLimitPerDevice: config.security.requestStartLimitPerDevice
   } });
+  const storageBudget = new PrivateStorageBudget(config);
   await runtime.start();
-  runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures });
+  if (config.mininervaCompat?.enabled === true)
+    runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures, requestAdmission, storageBudget });
 
   const server = createServer((req, res) => {
     let releaseRequest = () => {};
@@ -5888,14 +5921,23 @@ async function main() {
       return;
     }
 
-    if (device && req.method === "POST" &&
-        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname))) {
+    const persistentRequest = req.method === "POST" &&
+        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname));
+    if (device && (persistentRequest || (req.method==="GET"&&url.pathname==="/api/cardputer/assets/manifest"))) {
       const lease = requestAdmission.acquire(device.device_id);
       if (!lease.ok) {
         json(res, 429, { error: "device_request_limit", retryable: true, retry_after_ms: lease.retryAfterMs });
         return;
       }
       releaseRequest = lease.release;
+      if (persistentRequest) {
+        const storage = await storageBudget.acquire();
+        if (!storage.ok) {
+          json(res, 507, { error:"bridge_storage_limit", detail:"Private storage is full or unavailable. Archive old bridge data or increase the reviewed storage budget before retrying." });
+          return;
+        }
+        releaseRequest = () => { lease.release(); storage.release(); };
+      }
     }
 
     if (req.method === "GET" && url.pathname === "/api/cardputer/device-actions") {
@@ -6126,16 +6168,17 @@ async function main() {
         throw error;
       }
       if (!uploadedBytes) {
+        await rm(rawUploadPath,{force:true});
         requestError(res, 400, "audio body cannot be empty");
         return;
       }
       if (uploadedBytes > config.maxUploadBytes) {
+        await rm(rawUploadPath,{force:true});
         requestError(res, 413, "upload_too_large");
         return;
       }
       console.info(`[voice-raw] uploaded device=${device.device_id} turn=${turnId || "-"} bytes=${uploadedBytes} sample=${sampleRate} type=${contentType || "-"} reply_audio=${wantsReplyAudio ? "1" : "0"}`);
-      const audioBytesRaw = await readFile(rawUploadPath);
-      await rm(rawUploadPath, { force: true });
+      const audioBytesRaw = await readFile(rawUploadPath).finally(()=>rm(rawUploadPath,{force:true}));
       let audioBytes =
         contentType === "application/octet-stream" || contentType === "audio/pcm" || contentType === "audio/l16"
           ? Buffer.concat([createWavHeader(audioBytesRaw.length, sampleRate), audioBytesRaw])
@@ -6704,6 +6747,7 @@ async function main() {
         return;
       }
       const uploadPath = path.join(config.media.tmpDir, `${makeId("upload")}.wav`);
+      try {
       const upload = await readMultipartUpload(req, config, { toFilePath: uploadPath })
         .catch((error) => ({ error }));
       if (upload?.error) {
@@ -6738,6 +6782,9 @@ async function main() {
         bytes: upload.bytes
       });
       json(res, 200, ack);
+      } finally {
+        await rm(uploadPath, { force:true });
+      }
       return;
     }
 
@@ -6804,6 +6851,7 @@ async function main() {
       ws.close();
     }, Number(config.security.wsAuthTimeoutMs) || 5000);
     ws.on("message", (raw) => {
+      if (connected) { ws.close(1008,"connect already completed"); return; }
       let payload;
       try {
         payload = JSON.parse(raw.toString("utf8"));
@@ -7115,7 +7163,7 @@ async function main() {
       return;
     }
     if (url.pathname !== "/api/cardputer/v1/stream") {
-      socket.destroy();
+      socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {

@@ -47,3 +47,14 @@ Never flash an app-only firmware.bin at 0x0. Use the USB guide and existing owne
 authorization, try automatic entry/reset where supported, then verify actual
 boot/source and a device reply. Report code tests, package/native install, model
 round trip and hardware acceptance separately.
+
+## Security defaults
+
+Use one device identity per bridge instance and fresh private runtime directories
+for each independent owner/device. Start ordinary chat with all host tools denied
+under the selected dedicated agent's tool policy. Do not infer that creating an
+agent restricts its tools. Read docs/SECURITY-REVIEW-2026-10-18.md and validate the
+actual installed OpenClaw schema. Autonomous source/build/release work requires
+separately reviewed OS, repository, provisioning and command permissions.
+Storage-full errors preserve recordings; archive privately or review the budget,
+never disable bounds or erase user data just to make a check pass.

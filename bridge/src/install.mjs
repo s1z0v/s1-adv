@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { readFile, writeFile, mkdir, access, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, chmod, access, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -26,6 +26,12 @@ export function gatewayToken(config, env = process.env) {
 function validAgent(value) {
   if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(value)) throw new Error("Invalid agent ID");
   return value;
+}
+
+export function configuredAgentExists(gateway, agent) {
+  const agents=gateway.agents || {};
+  return (agent==="main"&&agents.ownership!=="explicit") ||
+    agents.list?.some(record=>record.id===agent) || Object.hasOwn(agents.entries || {},agent);
 }
 
 export async function planInstall(options = {}) {
@@ -71,8 +77,7 @@ export async function planInstall(options = {}) {
     config.installation = { publicUrl: publicUrl?.origin || "", agentId: agent, gatewayConfigPath: gatewayPath };
   }
   const selectedAgent = config.installation?.agentId || agent;
-  const agents = gateway.agents?.list || [];
-  const agentExists = selectedAgent === "main" || agents.some(a => a.id === selectedAgent);
+  const agentExists = !!configuredAgentExists(gateway, selectedAgent);
   return { config, configPath, stateDir, gatewayPath, existing: !!existing,
     summary: { configPath, stateDir, bridge: config.server, gateway: config.upstream.url,
       publicUrl: config.installation?.publicUrl || "not configured", agent: selectedAgent, agentExists,
@@ -88,6 +93,7 @@ const envQuote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 export async function applyInstall(plan) {
   if (!plan.summary.agentExists) throw new Error("Selected agent does not exist. Create a restricted cardputer agent with OpenClaw, or explicitly select an existing agent, then repeat setup.");
   await mkdir(plan.stateDir, { recursive: true, mode: 0o700 });
+  await chmod(plan.stateDir,0o700);
   if (plan.existing) return { ...plan.summary, applied: false, reason: "Existing configuration retained; device token unchanged." };
   for (const name of ["config.json", "firmware.env", "openclaw-plugin-config.json"]) {
     try { await stat(path.join(plan.stateDir, name)); }
@@ -117,12 +123,13 @@ export async function doctor(configPath, { probe = true } = {}) {
   const mode = (await stat(absolute)).mode & 0o777;
   add("private-config", process.platform === "win32" || (mode & 0o077) === 0, "Config should be readable only by its owner.");
   add("device-token", config.devices?.every(d => typeof d.device_token === "string" && d.device_token.length >= 32), "One unique random token per device.");
+  add("single-device",config.devices?.length===1,"One device identity per bridge instance; keep private state/media/OTA directories separate.");
   add("loopback-listener", ["127.0.0.1", "::1", "localhost"].includes(config.server?.host), "Expose through a verified TLS proxy, not a public raw listener.");
   add("gateway-token", !!config.upstream?.token && config.upstream.token !== "replace-me", "Gateway token present; value omitted.");
   try {
     const gateway = JSON5.parse(await readFile(config.installation?.gatewayConfigPath || defaultGatewayConfig(), "utf8"));
     const agent = config.installation?.agentId || config.topics?.[0]?.session_key?.split(":")[1];
-    add("agent-config", agent === "main" || gateway.agents?.list?.some(a => a.id === agent), "Configured session must name an existing agent; model response is checked separately.");
+    add("agent-config", !!configuredAgentExists(gateway,agent), "Configured session must name an existing agent; model response is checked separately.");
   } catch { add("agent-config", false, "Cannot verify selected agent against the local gateway configuration."); }
   for (const binary of ["ffmpeg", ...(config.omnibotShim?.ttsFallbackProvider === "espeak" ? ["espeak-ng"] : [])]) {
     const found = spawnSync(binary, [binary === "ffmpeg" ? "-version" : "--version"], { encoding: "utf8", timeout: 5000 });
@@ -144,7 +151,7 @@ export async function doctor(configPath, { probe = true } = {}) {
     } catch { add("bridge-http", false, "Not reachable. Start the reviewed bridge/plugin and approve its exact device identity if requested."); }
   }
   const firmware = await firmwareCapability(config);
-  return { configPath: absolute, checks, textReady: probe && checks.filter(c => ["private-config","device-token","loopback-listener","gateway-token","agent-config","bridge-http","upstream"].includes(c.name)).every(c => c.ok),
+  return { configPath: absolute, checks, textReady: probe && checks.filter(c => ["private-config","device-token","single-device","loopback-listener","gateway-token","agent-config","bridge-http","upstream"].includes(c.name)).every(c => c.ok),
     audioDependenciesReady: checks.filter(c => ["ffmpeg","espeak-ng","whisper-binary","whisper-model"].includes(c.name)).every(c => c.ok),
     firmwareAutomationEnabled: config.firmwareAutomation?.enabled === true, firmwareCapability: firmware,
     note: "A model round trip and physical-device acceptance are separate checks." };
@@ -153,7 +160,7 @@ export async function doctor(configPath, { probe = true } = {}) {
 export async function enablePlugin(configPath, { apply = false, gatewayConfigPath = defaultGatewayConfig(), runCommand = spawnSync } = {}) {
   gatewayConfigPath = path.resolve(gatewayConfigPath);
   const report = await doctor(configPath, { probe: false });
-  const required = ["private-config", "device-token", "loopback-listener", "gateway-token", "agent-config"];
+  const required = ["private-config", "device-token", "single-device", "loopback-listener", "gateway-token", "agent-config"];
   if (report.checks.some(check => required.includes(check.name) && !check.ok))
     throw new Error("Configuration is not ready to enable. Resolve the failed doctor checks first.");
   const host = JSON5.parse(await readFile(gatewayConfigPath, "utf8"));

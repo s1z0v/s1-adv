@@ -7,7 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export function createBridgeService(pluginConfig = {}, { logger = console, spawnChild = spawn } = {}) {
   let child = null;
   let stopping = false;
-  return {
+  const service = {
     id: "s1-adv-bridge",
     async start() {
       if (!pluginConfig.autoStart) {
@@ -71,4 +71,13 @@ export function createBridgeService(pluginConfig = {}, { logger = console, spawn
       child = null;
     }
   };
+  let lifecycle = Promise.resolve();
+  const serialize = operation => {
+    const next = lifecycle.then(operation);
+    lifecycle = next.catch(() => {});
+    return next;
+  };
+  return { id:service.id,
+    start:() => serialize(() => service.start()),
+    stop:() => serialize(() => service.stop()) };
 }

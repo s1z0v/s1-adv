@@ -18,6 +18,7 @@ bridge/config.json
 bridge/config.*.local.json
 bridge/data/
 bridge/tmp-*/
+bridge/gate-evidence/
 bridge/fixtures/
 bots/CardputerADV/test-results/
 

@@ -24,9 +24,20 @@ test("configured lifecycle starts once, masks credentials, and joins child termi
   child.kill=signal=>{signals.push(signal);child.emit("exit",0,signal);};
   const service=createBridgeService({configPath,autoStart:true},{logger:{info:s=>logs.push(s),warn:s=>logs.push(s),error:s=>logs.push(s)},
     spawnChild:(bin,args,options)=>{++calls;assert.equal(options.env.CARDPUTER_BRIDGE_CONFIG,configPath);assert.equal(args.length,1);assert.match(args[0],/server\.mjs$/);return child;}});
-  await service.start();await service.start();assert.equal(calls,1);
+  await Promise.all([service.start(),service.start()]);assert.equal(calls,1);
   child.stdout.write(`message ${secret}\n`);child.stderr.write(`failure ${secret}\n`);
   assert.doesNotMatch(logs.join("\n"),new RegExp(secret));assert.match(logs.join("\n"),/redacted/);
   await service.stop();assert.deepEqual(signals,["SIGTERM"]);
   await service.stop();assert.deepEqual(signals,["SIGTERM"]);
+});
+
+test("stop joins an in-progress start and leaves no untracked child",async t=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),"s1-service-race-"));t.after(()=>rm(root,{recursive:true,force:true}));
+  const configPath=path.join(root,"config.json");await writeFile(configPath,JSON.stringify({server:{host:"127.0.0.1"}}),{mode:0o600});
+  let spawned=0,terminated=0;
+  const service=createBridgeService({configPath,autoStart:true},{logger:{info(){},warn(){},error(){}},spawnChild:()=>{
+    ++spawned;const child=new EventEmitter();child.kill=()=>{++terminated;child.emit("exit",0,"SIGTERM");};return child;
+  }});
+  const starting=service.start();const stopping=service.stop();await Promise.all([starting,stopping]);
+  assert.equal(spawned,1);assert.equal(terminated,1);
 });

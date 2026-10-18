@@ -6,6 +6,14 @@ ADV. It provides authenticated text/voice, device events and OTA endpoints for
 subscription is included. Full guide:
 [OpenClaw setup](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md).
 
+**Video walkthrough coming soon:** [YouTube @s1z0v](https://www.youtube.com/@s1z0v).
+[Project repository](https://github.com/srg0/s1-adv) ·
+[Security review](https://github.com/srg0/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-18.md).
+
+One device identity per instance is enforced. Use separate private storage for
+other devices. Ordinary chat can use an agent with all host tools denied;
+firmware-building rights are separate and explicitly provisioned.
+
 ## Plugin setup
 
 Requirements: OpenClaw, Node.js 22+, a working selected agent and a device-facing
@@ -36,6 +44,11 @@ Use `--gateway-config PATH`, `--state-dir PATH`, `--port NUMBER` for custom
 installations. An explicit `--agent main` selects your existing private agent
 instead. A device token permits access to that selected agent's tools; keep it
 private and restrict shared devices. Setup refuses nonexistent agent routes.
+
+Private storage has a default 256 MiB admission budget and 128 MiB free-space
+floor. Full storage refuses new persistent work with HTTP 507; it does not erase
+your recordings. Legacy multi-device stores require migration. Generated speech
+without current topic/session ownership is not served.
 
 The bridge runs as the Gateway user on 127.0.0.1:31889, starts/stops with the
 Gateway and stores recordings/history outside the plugin package. Keep the

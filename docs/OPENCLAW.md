@@ -10,6 +10,7 @@ by the S1-ADV project; it is not an official bundled OpenClaw module.
 - An existing working OpenClaw installation; Node.js 22 or newer.
 - A Cardputer ADV with S1-ADV firmware and 2.4 GHz Wi-Fi.
 - A selected OpenClaw agent. Prefer a dedicated restricted `cardputer` agent.
+- One device identity per bridge instance, with separate private storage for each device.
 - A device-reachable HTTPS origin, with a certificate trusted by the firmware.
   The default CA is ISRG Root X1. The raw bridge stays on loopback.
 - Optional speech providers and optional firmware-build permissions, configured
@@ -45,6 +46,13 @@ rotating OAuth profile into a second independently writable credential store.
 Setup refuses to apply a route to a nonexistent agent. To deliberately use your
 existing private agent instead, choose `--agent main`; possession of the device
 token then grants access to that agent and its permitted tools.
+
+For ordinary chat, set that agent's `tools` to
+`{ "profile": "minimal", "deny": ["*"] }` using your installed schema and native
+config validation. Do not replace the whole agents configuration. See the
+[security review](SECURITY-REVIEW-2026-10-18.md) for the exact privilege boundary,
+storage limits and migration requirements. Building firmware needs a separately
+reviewed tool/OS policy; the chat-only setting deliberately grants no build tools.
 
 ## Preview and create private settings
 

@@ -9,12 +9,14 @@
 
 # S1-ADV for Cardputer ADV
 
-Security update: [2026-10-16 review and fixes](docs/SECURITY-REVIEW.md).
+Security: [bridge/plugin review and fixes](docs/SECURITY-REVIEW-2026-10-18.md).
 
 **S1-ADV** turns a M5Stack Cardputer ADV into a pocket workspace for your
 **OpenClaw** agent: keyboard, voice, local tools and firmware you can extend.
 Type a question, hold the talk button, check a reply, or use the offline apps.
 The agent runs on your computer or server; the Cardputer runs this firmware.
+
+**Video walkthrough coming soon.** Follow [s1z0v on YouTube](https://www.youtube.com/@s1z0v).
 
 S1-ADV is experimental firmware built on Arduino/FreeRTOS, with an included
 OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover details.
@@ -51,6 +53,10 @@ The repository includes both sides: [firmware](bots/CardputerADV) and
 or run the same bridge as a standalone service. The included
 [setup skill](skills/s1-adv) guides your agent through the reviewed configuration;
 no personal server settings or model account are bundled.
+
+Use one device identity per bridge instance, with separate private storage for
+each device. Start with a restricted chat agent; enable firmware-building rights
+only when you deliberately need them. Read the [security model](SECURITY.md).
 
 ## What you need
 
