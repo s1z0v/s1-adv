@@ -41,7 +41,7 @@ import {
   stripMarkdownForDevice,
   stripTelegramEnvelope
 } from "./utils.mjs";
-import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs } from "./turn-delivery-policy.mjs";
+import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs, gatewayTurnCorrelation, assistantReplyMatchesTurn } from "./turn-delivery-policy.mjs";
 import { decodeVoiceUpload } from "./voice-upload-codec.mjs";
 import { RealtimePacingBudget, REALTIME_MAX_AUDIO_LEAD_MS } from "./realtime-pacing-budget.mjs";
 
@@ -1618,7 +1618,8 @@ async function runRealtimeS1Tool({ runtime, device, topic, sessionId, call, inpu
     ack.seq,
     Math.max(3000, Number(config.realtimeVoice?.s1ToolTimeoutMs) || DEFAULT_REALTIME_VOICE.s1ToolTimeoutMs),
     config.omnibotShim?.turnPollMs,
-    replyStartedAtMs
+    replyStartedAtMs,
+    ack
   );
   if (!reply) {
     throw new Error("S1 did not answer before the Realtime tool timeout");
@@ -4955,6 +4956,8 @@ class BridgeRuntime {
           ? "openclaw:main"
           : "operator";
     const createdAt = normalizeTimestamp(raw?.timestamp || metadata.timestamp);
+    const correlation = gatewayTurnCorrelation(raw, meta);
+    const gatewayMessageId = meta.messageId || raw?.__openclaw?.id || raw?.id;
     const normalized = {
       id: meta.localId || makeId("msg"),
       created_at: createdAt,
@@ -4967,10 +4970,11 @@ class BridgeRuntime {
           (senderKind === "assistant" ? "OpenClaw" : senderKind === "device" ? "Cardputer" : "User")
       },
       source:
-        metadata.message_id || meta.messageId
+        metadata.message_id || gatewayMessageId || correlation.upstream_run_id
           ? {
               transport: metadata.message_id ? "telegram" : "upstream",
-              upstream_message_id: String(metadata.message_id || meta.messageId)
+              upstream_message_id: metadata.message_id || gatewayMessageId ? String(metadata.message_id || gatewayMessageId) : undefined,
+              ...correlation
             }
           : undefined,
       reply_to_message_id: metadata.reply_to_id ? String(metadata.reply_to_id) : undefined,
@@ -5136,7 +5140,8 @@ class BridgeRuntime {
       return;
     }
     const appended = await this.ingestUpstreamMessage(topic, frame.payload?.message || {}, {
-      messageId: frame.payload?.messageId || null
+      messageId: frame.payload?.messageId || null,
+      runId: frame.payload?.runId
     });
     if (
       appended &&
@@ -5470,32 +5475,25 @@ class BridgeRuntime {
     return null;
   }
 
-  async waitForAssistantReply(topicKey, afterSeq, waitMs, pollMs, replyStartedAtMs = 0) {
+  async waitForAssistantReply(topicKey, afterSeq, waitMs, pollMs, _replyStartedAtMs = 0, turnReceipt = null) {
     const timeoutMs = Math.max(1000, Number(waitMs) || this.config.omnibotShim.turnWaitMs);
     const intervalMs = Math.max(50, Number(pollMs) || this.config.omnibotShim.turnPollMs);
+    const request = this.store.getHistory(topicKey, 0, 100000).items.find(item =>
+      Number(item.seq) === Number(afterSeq) && item.sender?.kind === "device");
+    const clientMsgId = turnReceipt?.client_msg_id || request?.client_msg_id;
+    const deviceId = String(request?.sender?.id || "").startsWith("cardputer:")
+      ? request.sender.id.slice("cardputer:".length) : null;
+    const runId = turnReceipt?.upstream_run_id || request?.source?.upstream_run_id ||
+      (deviceId && clientMsgId ? `cardputer:${deviceId}:${topicKey}:${clientMsgId}` : null);
+    if (!runId && !clientMsgId) return null;
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       const items = this.store.getHistory(topicKey, 0, 100000).items;
-      const reply = items.find(
-        (item) =>
-          Number(item.seq || 0) > Number(afterSeq || 0) &&
-          item.sender?.kind === "assistant" &&
-          item.content?.kind === "text" &&
-          isMeaningfulAssistantReplyText(item.content?.text) &&
-          (() => {
-            if (!Number.isFinite(replyStartedAtMs) || replyStartedAtMs <= 0) {
-              return true;
-            }
-            const createdAtMs = Date.parse(item.created_at || item.updated_at || "");
-            if (!Number.isFinite(createdAtMs)) {
-              return false;
-            }
-            return createdAtMs >= replyStartedAtMs - 1000;
-          })()
-      );
-      if (reply) {
-        return reply;
-      }
+      const reply = items.find(item =>
+        Number(item.seq || 0) > Number(afterSeq || 0) &&
+        assistantReplyMatchesTurn(item, { runId, clientMsgId }) &&
+        isMeaningfulAssistantReplyText(item.content?.text));
+      if (reply) return reply;
       await sleep(intervalMs);
     }
     return null;
@@ -5573,6 +5571,7 @@ class BridgeRuntime {
     if (existing) {
       return existing;
     }
+    const expectedRunId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
     const message = this.store.appendMessage(topicKey, {
       id: makeId("msg"),
       created_at: nowIso(),
@@ -5584,7 +5583,8 @@ class BridgeRuntime {
         display_name: "Cardputer"
       },
       source: {
-        transport: "cardputer"
+        transport: "cardputer",
+        upstream_run_id: expectedRunId
       },
       content: {
         kind: "text",
@@ -5595,6 +5595,7 @@ class BridgeRuntime {
       type: "ack",
       topic_key: topicKey,
       client_msg_id: clientMsgId,
+      upstream_run_id: expectedRunId,
       message_id: message.id,
       seq: message.seq,
       accepted_at: nowIso()
@@ -5613,13 +5614,14 @@ class BridgeRuntime {
       const params = {
         key: topic.session_key,
         message: upstreamText || text,
-        idempotencyKey: `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`
+        idempotencyKey: expectedRunId
       };
       const thinking = voiceThinking(text, inputMode);
       if (thinking) params.thinking = thinking;
       console.info(`[turn] dispatch topic=${topicKey} client=${clientMsgId} mode=${inputMode} thinking=${thinking || "session-default"} context=full`);
+      let sent;
       try {
-        await this.upstream.rpc("sessions.send", params);
+        sent = await this.upstream.rpc("sessions.send", params);
       } catch (error) {
         const message = String(error.message || error || "");
         if (!message.toLowerCase().includes("session not found")) {
@@ -5627,7 +5629,15 @@ class BridgeRuntime {
         }
         await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
         this.registerRuntimeTopic(topic);
-        await this.upstream.rpc("sessions.send", params);
+        sent = await this.upstream.rpc("sessions.send", params);
+      }
+      // Some gateways return an opaque run ID rather than the idempotency key.
+      // Persist the actual receipt before any HTTP waiter reads the answer.
+      if (typeof sent?.runId === "string" && sent.runId.length > 0 && sent.runId.length <= 1024) {
+        ack.upstream_run_id = sent.runId;
+        message.source.upstream_run_id = sent.runId;
+        this.store.setIdempotent(topicKey, clientMsgId, ack);
+        await this.store.save();
       }
     };
     const mirrorToTelegram = async () => {
@@ -6018,7 +6028,8 @@ async function main() {
           ack.seq,
           config.omnibotShim.turnWaitMs,
           config.omnibotShim.turnPollMs,
-          replyStartedAtMs
+          replyStartedAtMs,
+          ack
         );
         if (!reply) {
           console.warn(`[turn] assistant timeout topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
@@ -6123,7 +6134,8 @@ async function main() {
           ack.seq,
           config.omnibotShim.turnWaitMs,
           config.omnibotShim.turnPollMs,
-          replyStartedAtMs
+          replyStartedAtMs,
+          ack
         );
         if (!reply) {
           console.warn(`[turn] assistant timeout topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
@@ -6258,7 +6270,8 @@ async function main() {
           ack.seq,
           voiceWaitMs,
           config.omnibotShim.turnPollMs,
-          replyStartedAtMs
+          replyStartedAtMs,
+          ack
         );
         if (!reply) {
           console.warn(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${voiceWaitMs}`);

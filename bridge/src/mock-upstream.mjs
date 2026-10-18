@@ -278,7 +278,8 @@ wss.on("connection", (ws) => {
       const message = {
         role: "user",
         content: [{ type: "text", text: frame.params.message }],
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        __openclaw: { runId: frame.params.idempotencyKey }
       };
       appendMessage(key, message, frame.params.idempotencyKey || `m_${Date.now()}`);
       setTimeout(() => {
@@ -287,7 +288,9 @@ wss.on("connection", (ws) => {
           {
             role: "assistant",
             content: [{ type: "text", text: `Echo: ${visibleText}` }],
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            stopReason: "stop",
+            __openclaw: { runId: frame.params.idempotencyKey }
           },
           `assistant_${Date.now()}`
         );
