@@ -6,10 +6,15 @@ The bridge package is `openclaw-s1-adv@0.2.0`, native plugin ID `s1-adv`.
 Local Node host tests cover private/dry-run setup, native config targeting,
 agent routing, build/release ownership and source/hash fences, lifecycle races,
 HTTP/WS authorization, audio ownership/remapping, upload cleanup and storage
-budgets. The final boundary suite has 36 tests; installer/release/lifecycle has
+budgets. The final boundary suite has 50 tests; installer/release/lifecycle has
 12; gateway interruption has 3. Mock, opted-in compatibility and Realtime
 contract smokes pass. Package allowlist and dependency audit are checked too.
 These are different checks, not one large certification count.
+
+Turn ownership tests cover overlapping requests in one session, late replies
+after HTTP timeout, restart/idempotent retry, opaque Gateway run receipts and
+tool commentary. Matching uses the persisted Gateway run ID rather than the
+first assistant message after a timestamp.
 
 On a second Linux host, the tarball was installed with the native OpenClaw
 installer in an isolated profile. OpenClaw `2026.7.2-beta.1` and Node `22.23.0`
@@ -98,6 +103,7 @@ credentials. It found no matches. This bounded scan is not a complete security
 audit. Private configs, recordings, runtime state and provisioned binaries are
 excluded from this publication.
 
-Remaining checks: USB flash of a freshly provisioned public build, boot/version
-readback, on-device text and push-to-talk round trips, and setup on another host.
-There is no prebuilt public firmware release in this publication.
+At that publication checkpoint, fresh USB/boot, physical text/push-to-talk and
+second-host setup were still pending. The later community-plugin qualification
+above records the second-host work; it does not replace physical-device checks.
+There was no prebuilt public firmware release in that source-only publication.
