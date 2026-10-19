@@ -17,7 +17,7 @@ code=r'''
 #include <string>
 #include <vector>
 struct String:std::string {using std::string::string;String(const std::string&s):std::string(s){}bool isEmpty()const{return empty();}};
-enum class UiMode{Home,ChatFace,Face,Hero,ChatFull,Ota,Clock,Focus,Settings,FocusSettings,ScreenSettings,Nes,Sonar,RfidLab,IrRemote,Tetris,KeyRush,BrainFlow};UiMode gUiMode=UiMode::Home;
+enum class UiMode{Home,ChatFace,Face,Hero,ChatFull,Ota,Clock,Focus,Settings,FocusSettings,ScreenSettings,Nes,Sonar,RfidLab,IrRemote,Tetris,KeyRush,BrainFlow,Files};UiMode gUiMode=UiMode::Home;
 namespace brainflow {enum class Phase {Menu,Playing,Feedback,Paused,Finished};}
 struct{brainflow::Phase phase=brainflow::Phase::Menu;}gBrainFlow;
 struct{bool running=false;}gKeyRush;
@@ -118,7 +118,9 @@ int main(){
  // A queued spoken reply gets the network owner before another background GET.
  gQueuedVoiceReplySpeech="Four";assert(!autoInboxPollAllowed());
  gQueuedVoiceReplySpeech="";assert(autoInboxPollAllowed());
- // Only active games and timing-sensitive peripherals suppress background work.
+ // File-management transactions suppress background network/storage work.
+ gUiMode=UiMode::Files;assert(!autoInboxPollAllowed());
+ // Active games and timing-sensitive peripherals also suppress background work.
  for(auto m:{UiMode::Settings,UiMode::FocusSettings,UiMode::ScreenSettings}){gUiMode=m;assert(autoInboxPollAllowed());}
  gUiMode=UiMode::Tetris;gTetrisStarted=true;assert(!autoInboxPollAllowed());
  gTetrisPaused=true;assert(autoInboxPollAllowed());
