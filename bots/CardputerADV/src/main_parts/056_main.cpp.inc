@@ -228,7 +228,13 @@ void renderOtaUi() {
     d.print(fitCurrentFontToWidth("Charge to " + String(minimum) + "% or connect USB", 202));
   } else if (strcmp(homeStatusLabel(updateReady),"CHECK LINK")==0) {
     d.setTextColor(amber, panel);
-    d.print("Check Wi-Fi; F retries Bridge");
+    d.print("Bridge status stale; F checks");
+  } else if (strcmp(homeStatusLabel(updateReady),"UNCONFIRMED")==0) {
+    d.setTextColor(amber, panel);
+    d.print("Request receipt not confirmed");
+  } else if (strcmp(homeStatusLabel(updateReady),"NO PROGRESS")==0) {
+    d.setTextColor(amber, panel);
+    d.print("No recent build progress");
   } else if (!gOtaManifest.error.isEmpty()) {
     d.setTextColor(amber, panel);
     d.print(fitCurrentFontToWidth(gOtaManifest.error, 202));

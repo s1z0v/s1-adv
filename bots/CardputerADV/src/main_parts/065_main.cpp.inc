@@ -78,7 +78,7 @@ void applyFirmwareJobState(const String& state, const String& requestId) {
   State next = State::Idle;
   if (state == "building") next = State::Building;
   else if (state == "ready") next = State::Ready;
-  else if (state == "uncertain") next = State::Stalled;
+  else if (state == "uncertain") next = State::Unconfirmed;
   else if (state == "attention") next = State::Attention;
   else if (state == "failed") next = State::Failed;
   else if (state == "stalled") next = State::Stalled;

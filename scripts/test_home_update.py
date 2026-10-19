@@ -57,6 +57,7 @@ bool startBackgroundManifestCheck(bool apply,bool){++fetched;gInboxHttpBusy=true
 void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOtaApplyAction=true;gPendingOtaActionAfterMs=now;}}
 firmware_job_display::State gFirmwareJobState=firmware_job_display::State::Idle;
 auto& state=gFirmwareJobState;uint32_t gFirmwareJobLastSyncMs=1000;
+String gFirmwareJobRequestId;
 bool gVoiceCapturePreparing=false,gG0VoicePending=false,gInboxUnread=false;
 String gInputBuffer;uint32_t gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
 enum class FocusState{Stopped,Focus,ShortBreak,LongBreak,Reflect,Paused};
@@ -89,6 +90,7 @@ struct Canvas {
 code += function('015_main.cpp.inc', 'bool homeFirmwareUpdateAvailable()')
 code += function('064_main.cpp.inc', 'bool handleHomeUpdateKey(')
 code += function('024_main.cpp.inc', 'void servicePendingOtaAction()')
+code += function('065_main.cpp.inc', 'void applyFirmwareJobState(')
 code += function('065_main.cpp.inc', 'const char* homeStatusLabel(')
 code += function('058_main.cpp.inc', 'void drawHomeReadyStatus(')
 code += function('064_main.cpp.inc', 'bool handleHomeLinkRetryKey(')
@@ -142,11 +144,13 @@ int main(){
   assert(gCanvas.labels==(update?std::vector<std::string>{"NEW UPDATE"}:std::vector<std::string>{"READY"}));
   assert(gCanvas.border==(update?rgb565_local(255,136,64):rgb565_local(47,227,255)));
  }
- for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled}){
+ for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled,firmware_job_display::State::Unconfirmed}){
   state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
-  assert(gCanvas.h==18&&gCanvas.labels.size()==(sample==firmware_job_display::State::Stalled?2U:1U));
+  assert(gCanvas.h==18&&gCanvas.labels.size()==1U);
   if(sample==firmware_job_display::State::Stalled)
-   assert((gCanvas.labels==std::vector<std::string>{"CHECK LINK","F retry"}));
+   assert((gCanvas.labels==std::vector<std::string>{"NO PROGRESS"}));
+  if(sample==firmware_job_display::State::Unconfirmed)
+   assert((gCanvas.labels==std::vector<std::string>{"UNCONFIRMED"}));
  }
  // The actual timer badge supersedes firmware states, then restores them on pause.
  state=firmware_job_display::State::Building;gFocus.state=FocusState::Focus;
@@ -186,8 +190,23 @@ int main(){
  assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,true,1000))=="BUILDING");
  for(auto sample:{firmware_job_display::State::Idle,firmware_job_display::State::Building,
       firmware_job_display::State::Ready,firmware_job_display::State::Attention,
-      firmware_job_display::State::Failed,firmware_job_display::State::Stalled})
+      firmware_job_display::State::Failed,firmware_job_display::State::Stalled,
+      firmware_job_display::State::Unconfirmed})
   assert(std::string(firmware_job_display::label(sample,true,90001))=="NEW UPDATE");
+ // A successful poll of the old uncertain request is fresh link evidence.
+ // F must not imply that a connectivity retry can resolve that request.
+ applyFirmwareJobState("uncertain","old-request");
+ assert(state==firmware_job_display::State::Unconfirmed&&gFirmwareJobRequestId=="old-request");
+ assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
+ resetQueue();assert(!handleHomeLinkRetryKey('f',keys));assert(!gPendingOtaCheckAction);
+ now+=90000;assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
+ ++now;assert(std::string(homeStatusLabel(false))=="CHECK LINK");
+ assert(handleHomeLinkRetryKey('f',keys));assert(gPendingOtaCheckAction&&!gPendingOtaApplyAction);
+ applyFirmwareJobState("uncertain","old-request");
+ assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
+ applyFirmwareJobState("stalled","old-request");
+ assert(std::string(homeStatusLabel(false))=="NO PROGRESS");
+ applyFirmwareJobState("idle","");assert(std::string(homeStatusLabel(false))=="READY");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-home-update-') as directory:
@@ -197,4 +216,4 @@ with tempfile.TemporaryDirectory(prefix='s1-home-update-') as directory:
                     '-Werror', '-I', str(root / 'bots/CardputerADV/src'),
                     str(p / 'test.cpp'), '-o', str(p / 'test')], check=True)
     subprocess.run([str(p / 'test')], check=True)
-print('PASS Home update: candidate boundaries, single queued Ctrl+U, worker ownership, quiet checks, badge text and bounds')
+print('PASS Home update: candidates, Ctrl+U, worker ownership, badge bounds, uncertain receipt versus stale link and F retry')
