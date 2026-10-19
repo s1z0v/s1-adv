@@ -332,9 +332,14 @@ void serviceInboxNetworkCompletion() {
          static_cast<unsigned>(millis() - gOtaLastAutoCheckMs));
     if (result->announce) setStatus(ok ? (homeFirmwareUpdateAvailable() ?
         "New update: Ctrl+U" : "Firmware is current") : "Update check failed", 2200);
-    if (ok && result->applyAfter) {
-      gPendingOtaApplyAction = true;
-      gPendingOtaActionAfterMs = millis() + 100;
+    if (result->applyAfter) {
+      if (ok && homeFirmwareUpdateAvailable()) {
+        gPendingOtaApplyAction = true;
+        gPendingOtaActionAfterMs = millis() + 100;
+      } else {
+        setUiMode(UiMode::Home);
+        setStatus(ok ? "Firmware is current" : "Update check failed", 2200);
+      }
     }
   } else if (result->code >= 200 && result->code < 300) {
     applyInboxResponse(result->body, false, false, true, true);

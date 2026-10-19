@@ -665,6 +665,13 @@ void handleHubJson(const JsonDocument& doc) {
   const String msgType = doc["type"] | "";
   const String status = doc["status"] | "";
 
+  if (msgType == "task_status" && doc["firmware_job"].is<JsonObject>()) {
+    applyFirmwareJobState(doc["firmware_job"]["state"] | "idle",
+                          doc["firmware_job"]["request_id"] | "");
+    gLastRenderMs = 0;
+    return;
+  }
+
   if (msgType == "assistant_speech_face") {
     const String event = doc["event"] | "";
     if (event == "start") {

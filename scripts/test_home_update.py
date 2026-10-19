@@ -54,7 +54,8 @@ int fetched=0,applied=0,painted=0;
 bool checkResult=true;
 bool applyAfter=false;
 bool startBackgroundManifestCheck(bool apply,bool){++fetched;gInboxHttpBusy=true;applyAfter=apply;return true;}
-void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOtaApplyAction=true;gPendingOtaActionAfterMs=now;}}
+bool freshCandidate=true;
+void completeCheck(){gInboxHttpBusy=false;if(checkResult&&freshCandidate&&applyAfter){gPendingOtaApplyAction=true;gPendingOtaActionAfterMs=now;}else if(applyAfter)gUiMode=UiMode::Home;}
 firmware_job_display::State gFirmwareJobState=firmware_job_display::State::Idle;
 auto& state=gFirmwareJobState;uint32_t gFirmwareJobLastSyncMs=1000;
 String gFirmwareJobRequestId;
@@ -131,14 +132,20 @@ int main(){
  servicePendingOtaAction();assert(applied==1);
  resetQueue();checkResult=false;assert(handleHomeUpdateKey('u',keys));now+=101;
  servicePendingOtaAction();completeCheck();servicePendingOtaAction();assert(applied==1); // failed refresh never applies
- resetQueue();checkResult=true;gOtaManifest.version=kAppVersion;
+ resetQueue();checkResult=true;freshCandidate=false;gOtaManifest.version=kAppVersion;
  assert(handleHomeUpdateKey('u',keys));now+=101;servicePendingOtaAction();
  completeCheck();servicePendingOtaAction();
  assert(applied==1&&gUiMode==UiMode::Home); // no candidate only checks
  assert(!gPendingOtaApplyAction&&!gPendingOtaCheckAction);
+ // No cached candidate when Ctrl+U is pressed: discovery still installs once.
+ resetQueue();gOtaManifest.parsed=false;freshCandidate=true;
+ assert(handleHomeUpdateKey('u',keys)&&gPendingOtaApplyAction);
+ now+=101;servicePendingOtaAction();candidate();completeCheck();servicePendingOtaAction();
+ assert(applied==2);servicePendingOtaAction();assert(applied==2);
+ resetQueue();
  // A bridge or startup check stays on Home and does not install.
  gPendingOtaCheckAction=true;gPendingOtaActionAfterMs=0;candidate();
- servicePendingOtaAction();assert(gUiMode==UiMode::Home&&applied==1);
+ servicePendingOtaAction();assert(gUiMode==UiMode::Home&&applied==2);
  for(bool update:{false,true})for(bool pressed:{false,true}){
   gCanvas=Canvas{};drawHomeReadyStatus(update,pressed);
   assert(gCanvas.x+gCanvas.w/2==185&&gCanvas.h==18);
@@ -147,7 +154,7 @@ int main(){
   assert(gCanvas.labels==(update?std::vector<std::string>{"NEW UPDATE"}:std::vector<std::string>{"READY"}));
   assert(gCanvas.border==(update?rgb565_local(255,136,64):rgb565_local(47,227,255)));
  }
- for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled,firmware_job_display::State::Unconfirmed}){
+ for(auto sample:{firmware_job_display::State::Building,firmware_job_display::State::Attention,firmware_job_display::State::Failed,firmware_job_display::State::Stalled,firmware_job_display::State::Unconfirmed,firmware_job_display::State::AwaitingInput,firmware_job_display::State::Working}){
   state=sample;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
   assert(gCanvas.h==18&&gCanvas.labels.size()==1U);
   if(sample==firmware_job_display::State::Stalled)
@@ -211,6 +218,13 @@ int main(){
  assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
  applyFirmwareJobState("stalled","old-request");
  assert(std::string(homeStatusLabel(false))=="NO PROGRESS");
+ applyFirmwareJobState("awaiting_input","question");gInboxUnread=false;
+ assert(std::string(homeStatusLabel(false))=="NEEDS INPUT");
+ applyFirmwareJobState("working","ordinary-task");
+ assert(std::string(homeStatusLabel(false))=="WORKING");
+ applyFirmwareJobState("completed","ordinary-task");
+ assert(std::string(homeStatusLabel(false))=="READY");
+ applyFirmwareJobState("stalled","old-request");
  // Deliberate transport pauses are not connection failures, even when a
  // previous HTTP attempt failed. Offline Wi-Fi remains an actual link loss.
  now+=600000;pollAllowed=false;gBridgeHttpFailed=true;

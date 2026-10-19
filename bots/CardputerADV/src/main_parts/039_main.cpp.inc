@@ -109,10 +109,10 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
     pushUser(transcript);
     setVoiceDiag("voice: transcript ok");
   }
+  if (resp["firmware_job"].is<JsonObject>())
+    applyFirmwareJobState(resp["firmware_job"]["state"] | "idle",
+                          resp["firmware_job"]["request_id"] | "");
   if (resp["pending"] | false) {
-    if (resp["firmware_job"].is<JsonObject>())
-      applyFirmwareJobState(resp["firmware_job"]["state"] | "idle",
-                            resp["firmware_job"]["request_id"] | "");
     acceptPendingAssistantRequest(transcript, reply, resp["after_seq"] | 0,
                                   resp["reply_seq"] | 0);
     // A transport acknowledgement is not an assistant answer and never TTS.

@@ -31,10 +31,12 @@ bool handleHomeUpdateKey(char key, const Keyboard_Class::KeysState& keys) {
   }
   // Queue on the UI thread. The existing OTA service waits for network workers
   // and retains its battery, version, trusted-URL, hash and rollback checks.
-  gPendingOtaApplyAction = homeFirmwareUpdateAvailable();
+  // One press means check AND install the fresh candidate. The manifest may
+  // not have arrived yet; the completion path still enforces all OTA guards.
+  gPendingOtaApplyAction = true;
   gPendingOtaCheckAction = true;
   gPendingOtaActionAfterMs = millis()+100;
-  setStatus(gPendingOtaApplyAction ? "Starting update..." : "Checking updates...",900);
+  setStatus("Checking and installing...",900);
   logf("[OTA_UI] Ctrl+U queued apply=%d",static_cast<int>(gPendingOtaApplyAction));
   return true;
 }

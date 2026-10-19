@@ -66,6 +66,13 @@
   renderDebugOverlay();
 }
 
+void renderChatVoiceHint(bool awaitingInput, uint16_t bg, uint16_t muted, uint16_t amber) {
+  gCanvas.setFont(&fonts::Font0);
+  gCanvas.setTextColor(awaitingInput ? amber : muted, bg);
+  gCanvas.setCursor(8,126);
+  gCanvas.print(awaitingInput ? "Hold G0: reply  Tab: menu" : "Hold G0: voice  Tab: menu");
+}
+
 void renderChatUi() {
   auto& d = gCanvas;
   const uint16_t bg = rgb565_local(3, 7, 13);
@@ -162,9 +169,7 @@ void renderChatUi() {
   d.setTextColor(accent, rgb565_local(2, 17, 29));
   d.setCursor(204, composerY + composerH - 9);
   d.print("ENT");
-  d.setFont(&fonts::Font0);
-  d.setTextColor(muted,bg); d.setCursor(8,128);
-  d.print("Tab menu  Ctrl+K commands");
+  renderChatVoiceHint(gFirmwareJobState == firmware_job_display::State::AwaitingInput, bg, muted, amber);
   renderLauncherOverlay();
   renderDebugOverlay();
 }
