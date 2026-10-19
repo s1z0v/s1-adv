@@ -54,6 +54,7 @@ bool readHttpResponseBody(WiFiClient& client, int contentLength, String& respons
 
 bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t dataSize,
                       const String& turnId, int& statusCode, String& response, bool wavFile = false) {
+  logf("[VOICE][LAT] request_start t=%u turn=%s", static_cast<unsigned>(millis()), turnId.c_str());
   struct WifiPerformanceGuard {
     bool owned;
     ~WifiPerformanceGuard() { if (owned) endVoiceWifiPerformance(); }
@@ -122,6 +123,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     return false;
   }
   logf("[VOICE] connected reused=%d ms=%u", static_cast<int>(prepared != nullptr), static_cast<unsigned>(millis() - connectStartedMs));
+  logf("[VOICE][LAT] tls_ready t=%u", static_cast<unsigned>(millis()));
   if (canvas.released) {
     restoreUiCanvasAfterNetwork();
     canvas.released=!gCanvasSpriteActive;
@@ -193,6 +195,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
 
   logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(uploadBytes),
        static_cast<unsigned>(millis()-uploadStartedMs));
+  logf("[VOICE][LAT] upload_complete t=%u", static_cast<unsigned>(millis()));
   setStatus("Transcribing / AI Agent...");
   if(gVoiceNoticeVisible) gVoiceRequestPhase=VoiceRequestPhase::Processing;
   render();
@@ -204,10 +207,12 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     client->stop();
     return false;
   }
+  logf("[VOICE][LAT] response_headers t=%u code=%d", static_cast<unsigned>(millis()), statusCode);
   if (!readHttpResponseBody(*client, contentLength, response, 15000)) {
     logf("[VOICE] raw post response body short status=%d body=%s", statusCode, response.c_str());
   }
   client->stop();
+  logf("[VOICE][LAT] response_complete t=%u", static_cast<unsigned>(millis()));
   setHttpDiag("voice_post: http " + String(statusCode));
   logf("[VOICE] raw post status=%d body=%u", statusCode, static_cast<unsigned>(response.length()));
   return true;

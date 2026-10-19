@@ -234,6 +234,7 @@ struct VoiceSpeechResult {
   String path;
   fs::FS* fs = nullptr;
   uint32_t generation = 0, sampleRate = kTtsDefaultSampleRate;
+  uint32_t startedMs = 0, headersMs = 0, finishedMs = 0;
   size_t bytes = 0;
   int code = 0;
   bool ok = false;
@@ -247,6 +248,7 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
   std::unique_ptr<VoiceSpeechResult> result(new (std::nothrow) VoiceSpeechResult());
   if (!result) return nullptr;
   result->path = payload->path; result->fs = payload->fs; result->generation = payload->generation;
+  result->startedMs = millis();
   HTTPClient http;
   std::unique_ptr<WiFiClientSecure> secure;
   std::unique_ptr<uint8_t[]> buffer(new (std::nothrow) uint8_t[4096]);
@@ -265,6 +267,7 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
     http.addHeader("Content-Type", "application/json");
     if (!payload->token.isEmpty()) http.addHeader("Authorization", "Bearer " + payload->token);
     result->code = http.POST(payload->body);
+    result->headersMs = millis();
     if (result->code == 200 && payload->generation == gVoiceReplySpeechGeneration) {
       const uint32_t rate = http.header("X-Audio-Sample-Rate").toInt();
       if (rate >= 8000 && rate <= 48000) result->sampleRate = rate;
@@ -300,6 +303,7 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
     http.end();
   }
   if (!result->ok && result->fs) fsRemove(*result->fs, result->path);
+  result->finishedMs = millis();
   return result.release(); // TLS, HTTP and file destructors finish before publication.
 }
 
@@ -343,6 +347,9 @@ void serviceVoiceReplySpeech() {
     const bool current = result->generation == gVoiceReplySpeechGeneration;
     const bool play = result->ok && current && !gRecording && !gRealtimeActive && !gPlaybackActive;
     bool started = play && startPlaybackStreamFromRawPcmFile(result->path, result->sampleRate, result->bytes, "voice reply",result->fs);
+    logf("[VOICE][LAT] speech_http start=%u headers=%u done=%u playback_request=%u started=%d",
+         static_cast<unsigned>(result->startedMs), static_cast<unsigned>(result->headersMs),
+         static_cast<unsigned>(result->finishedMs), static_cast<unsigned>(millis()), started);
     if (!started && result->fs) fsRemove(*result->fs, result->path);
     logf("[VOICE_TTS] code=%d bytes=%u playback=%d current=%d storage=%s", result->code,
          static_cast<unsigned>(result->bytes), started, current,result->fs==&LittleFS?"flash":"sd");
@@ -379,6 +386,7 @@ void serviceVoiceReplySpeech() {
   const bool flashStorage=payload->fs==&LittleFS;
   const size_t storageLimit=payload->maxBytes;
   VoiceSpeechPayload* raw = payload.release();
+  logf("[VOICE][LAT] speech_dispatch t=%u", static_cast<unsigned>(millis()));
   if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 12288, raw, 1, nullptr) != pdPASS) {
     delete raw; gVoiceReplySpeechBusy = false;
     if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }

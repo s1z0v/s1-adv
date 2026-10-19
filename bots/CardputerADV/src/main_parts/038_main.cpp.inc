@@ -100,6 +100,7 @@ bool stopRecordingAndSend() {
     return false;
   }
   gRecording = false;
+  logf("[VOICE][LAT] release t=%u", static_cast<unsigned>(millis()));
   gVoiceRequestPhase=VoiceRequestPhase::Sending;
   gVoiceRequestProgress=0;
   pulseButtonPress();

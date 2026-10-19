@@ -75,3 +75,4 @@ jobs:
       - run: python scripts/test_nes.py
       - run: python scripts/test_nes_ui.py
       - run: python scripts/cardputer.py build
+      - run: python scripts/test_realtime_frame_gate.py --require-upstream

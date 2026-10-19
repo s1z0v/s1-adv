@@ -24,15 +24,32 @@ inline uint32_t clockMs=0;
 inline uint32_t millis(){return clockMs;}
 inline uint32_t esp_random(){return 42;}
 inline unsigned destroyed=0,disconnected=0,baseLoops=0;
+inline unsigned unexpectedDial=0;
 inline unsigned perFrameMs=0;
-class WiFiClientSecure {
+class WiFiClient {
  public:
-  bool online=true;std::deque<char> input;
+  virtual ~WiFiClient()=default;
+  virtual uint8_t connected(){return 0;}
+  virtual int available(){return 0;}
+  virtual int read(){return -1;}
+  virtual int read(uint8_t*,size_t){return -1;}
+  virtual int peek(){return -1;}
+  virtual size_t write(const uint8_t*,size_t){return 0;}
+  virtual size_t write(uint8_t){return 0;}
+  virtual void flush(){}
+  virtual void stop(){}
+};
+class WiFiClientSecure:public WiFiClient {
+ public:
+  bool online=true;std::deque<char> input;unsigned timeoutSeconds=0;
   ~WiFiClientSecure(){++destroyed;}
-  bool connected(){return online;}
+  uint8_t connected(){return online;}
   int available(){return input.size();}
-  int read(){if(input.empty())return -1;char c=input.front();input.pop_front();return c;}
-  void setTimeout(unsigned){}
+  int read(){if(input.empty())return -1;uint8_t c=input.front();input.pop_front();return c;}
+  int read(uint8_t* p,size_t n){size_t i=0;while(i<n&&!input.empty()){p[i++]=input.front();input.pop_front();}return i;}
+  void setTimeout(unsigned seconds){timeoutSeconds=seconds;}
+  size_t write(const uint8_t*,size_t n){return n;}
+  void stop(){online=false;}
   void feed(const char* s){while(*s)input.push_back(*s++);}
 };
 ''')
@@ -41,21 +58,26 @@ class WiFiClientSecure {
 #include "WiFiClientSecure.h"
 #include <vector>
 constexpr unsigned WEBSOCKETS_TCP_TIMEOUT=5000;
+constexpr size_t WEBSOCKETS_MAX_DATA_SIZE=15*1024;
 enum Status {WSC_NOT_CONNECTED,WSC_HEADER,WSC_CONNECTED};
 inline std::vector<String> lines;
 class WebSocketsClient {
  protected:
   struct Client {
-   WiFiClientSecure* ssl=nullptr;WiFiClientSecure* tcp=nullptr;String cKey;Status status=WSC_NOT_CONNECTED;
+   WiFiClientSecure* ssl=nullptr;WiFiClient* tcp=nullptr;String cKey;Status status=WSC_NOT_CONNECTED;bool isSSL=true;
    struct {unsigned opCode=2;size_t payloadLen=1448;} cWsHeaderDecode;
    unsigned cWsRXsize=4,pongTimeoutCount=0;
   } _client;
   uint32_t _lastHeaderSent=0;
   String base64_encode(uint8_t*,size_t){return "nonce";}
-  void clientDisconnect(Client* c,const char*){++disconnected;delete c->tcp;c->tcp=nullptr;c->ssl=nullptr;c->status=WSC_NOT_CONNECTED;}
+  void clientDisconnect(Client* c,const char*){++disconnected;delete c->ssl;c->tcp=nullptr;c->ssl=nullptr;c->status=WSC_NOT_CONNECTED;}
   void handleHeader(Client* c,String* line){lines.push_back(*line);if(line->empty())c->status=WSC_CONNECTED;}
+  void handleClientData(){++baseLoops;while(_client.tcp&&_client.tcp->available())_client.tcp->read();clockMs+=perFrameMs;}
+  void handleHBPing(){}
+  void handleHBTimeout(Client*){}
  public:
-  void loop(){++baseLoops;if(_client.tcp&&_client.tcp->available())_client.tcp->read();clockMs+=perFrameMs;}
+  virtual ~WebSocketsClient()=default;
+  void loop(){++unexpectedDial;}
   void disconnect(){if(_client.tcp)clientDisconnect(&_client,"stop");}
 };
 ''')
@@ -68,15 +90,19 @@ int main(){
  assert(socket.receiveHeaderBytes()==4 && socket.heartbeatTimeouts()==0);
  socket.pollConnected();assert(baseLoops==0);
  auto* tls=new WiFiClientSecure();socket.adopt(tls,"nonce");
+ assert(tls->timeoutSeconds==5);
  tls->feed("HTTP/1.1 101 Switch");socket.pollConnected();
  assert(lines.empty() && baseLoops==0);
  tls->feed("ing Protocols\r\nUpgrade: websocket\r\n\r\n");
  socket.pollConnected();assert(lines.size()==3);
  assert(lines[0]=="HTTP/1.1 101 Switching Protocols" && lines.back().empty());
  socket.pollConnected();assert(baseLoops==1);
- tls->feed("123456789012");socket.pollConnected();assert(baseLoops==9 && tls->available()==4);
- tls->input.clear();tls->feed("abcdefghij");perFrameMs=2;unsigned before=baseLoops;
- socket.pollConnected();assert(baseLoops==before+2 && tls->available()==8);
+ const char* frame="\x81\x03" "123";
+ for(int i=0;i<10;++i)tls->feed(frame);
+ socket.pollConnected();assert(baseLoops==9 && tls->available()==10);
+ tls->input.clear();for(int i=0;i<3;++i)tls->feed(frame);
+ perFrameMs=2;unsigned before=baseLoops;
+ socket.pollConnected();assert(baseLoops==before+2 && tls->available()==5);
  perFrameMs=0;tls->input.clear();unsigned closedLoops=baseLoops;
  socket.disconnect();assert(destroyed==1 && disconnected==1);
  socket.pollConnected();assert(baseLoops==closedLoops);clockMs=0;
@@ -84,6 +110,26 @@ int main(){
  clockMs=8001;socket.pollConnected();assert(disconnected==2 && destroyed==2);
  auto* lost=new WiFiClientSecure();socket.adopt(lost,"nonce");
  lost->online=false;socket.pollConnected();assert(disconnected==3 && destroyed==3);
+ auto* partial=new WiFiClientSecure();socket.adopt(partial,"nonce");
+ partial->feed("HTTP/1.1 101 Switching Protocols\r\n\r\n");socket.pollConnected();
+ partial->feed("\x82\x04" "ab");socket.pollConnected();
+ assert(disconnected==3);clockMs+=5001;socket.pollConnected();
+ assert(disconnected==4 && destroyed==4);
+ // Disconnect during a partial frame deletes only the TLS owner; the view is
+ // a member, and another poll must never dereference that deleted socket.
+ auto* cancelled=new WiFiClientSecure();socket.adopt(cancelled,"nonce");
+ cancelled->feed("HTTP/1.1 101 Switching Protocols\r\n\r\n");socket.pollConnected();
+ cancelled->feed("\x82\x04" "a");socket.pollConnected();socket.disconnect();
+ socket.pollConnected();assert(disconnected==5 && destroyed==5);
+ // Test the production facade, including a fully buffered frame at EOF.
+ auto* eof=new WiFiClientSecure();WiFiClientSecure* owner=eof;
+ RealtimeFrameClient view;view.bind(&owner);eof->feed(frame);
+ assert(view.pump(clockMs));eof->online=false;
+ assert(view.connected() && view.available()==5 && view.peek()==0x81);
+ uint8_t wire[5];assert(view.read(wire,5)==5 && wire[4]=='3');
+ assert(!view.connected() && view.available()==0);
+ delete owner;owner=nullptr;assert(!view.connected());
+ assert(unexpectedDial==0);
 }
 '''
     cpp=out/'reader.cpp';cpp.write_text(source)

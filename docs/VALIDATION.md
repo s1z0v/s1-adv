@@ -1,5 +1,21 @@
 # Public source validation
 
+## Realtime partial-frame regression, firmware 0.2.181, 2026-10-19
+
+The actual pinned WebSockets 2.7.3 readCb reproduced a 250 ms stall while
+waiting for a delayed TLS tail, and a 5,001 ms stall when that tail never
+arrived. The incremental frame gate passes split headers and payloads through
+the same consumer without waiting. It also passes ordered PCM/text/ping/pong,
+continuation and close frames, invalid-length and payload bounds, and buffer
+reset/reuse checks. The connection test covers partial-frame timeout,
+disconnect ownership and the ESP32 socket timeout units. CI requires the
+upstream-consumer test after installing/building the pinned dependencies.
+
+Twelve focused firmware host checks passed. A local ESP32-S3/8 MB compile
+passed with 123,832 bytes of static RAM and 2,007,617 bytes of application
+flash. Source-linked provisioned build, installation and physical Realtime
+playback remain separate qualification steps.
+
 ## Spoken first replies, plugin 0.3.7 and firmware 0.2.180, 2026-10-19
 
 Source `1607f84d187e05309294d35b4cca5a0d41f95cb5` passed all 142 Bridge
@@ -25,7 +41,17 @@ completion and OpenAI TTS. It transcribed the arithmetic question, answered
 ready audio on host loopback. Microphone capture, Cardputer Wi-Fi and audible
 speaker output are outside this timing. Subsecond or three-second full voice
 response is not established. A physical G0/voice and visible-screen check was
-requested and remains separate from these host and installation results.
+requested separately from these host and installation results. The owner
+subsequently confirmed audible output from the physical G0 question, while
+reporting roughly 30 seconds of delay. That latency is not accepted: its
+server record shows about one second of STT and 6.224 seconds of LUNA, with
+the remaining device/network stages still under measurement.
+
+Two physical Realtime attempts then failed on the device. In one, the
+provider produced first audio 585 ms after speech stop and completed after
+1.039 s, but the device never logged playback and disconnected. Another
+device loop took 5.210 s and reported Audio send failed. These are runtime
+failures, despite earlier host protocol checks passing.
 
 The historical held record in another session remains untouched. Current
 front delivery has zero pending or held records; the old global delivery hold
