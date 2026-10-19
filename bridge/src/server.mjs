@@ -2642,29 +2642,31 @@ async function synthesizeOpenAiTtsPcm({ text, model, voice, timeoutMs = 0 }) {
   const timeout = timeoutMs > 0
     ? setTimeout(() => controller.abort(new Error(`OpenAI TTS timeout after ${timeoutMs}ms`)), timeoutMs)
     : null;
-  const response = await fetch(`${OPENAI_API_BASE}/audio/speech`, {
-    method: "POST",
-    headers: {
-      ...openAiHeaders(apiKey),
-      "Content-Type": "application/json"
-    },
-    signal: controller.signal,
-    body: JSON.stringify({
-      model,
-      voice,
-      input: cleaned,
-      response_format: "pcm"
-    })
-  }).finally(() => {
+  try {
+    const response = await fetch(`${OPENAI_API_BASE}/audio/speech`, {
+      method: "POST",
+      headers: {
+        ...openAiHeaders(apiKey),
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        voice,
+        input: cleaned,
+        response_format: "pcm"
+      })
+    });
+    if (!response.ok) {
+      await openAiError(response, "OpenAI TTS failed");
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } finally {
     if (timeout) {
       clearTimeout(timeout);
     }
-  });
-  if (!response.ok) {
-    await openAiError(response, "OpenAI TTS failed");
   }
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }
 
 function containsCyrillic(text) {
