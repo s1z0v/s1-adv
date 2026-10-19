@@ -202,7 +202,8 @@ class File {
   ~File(){close();}
   explicit operator bool()const{return open_;}
   size_t write(const uint8_t* bytes,size_t count){
-   if(!open_)return 0;count=min(count,f.writeLimit);
+   if(!open_)return 0;
+   count=min(count,f.writeLimit);
    auto& out=fs_->files[path_];out.insert(out.end(),bytes,bytes+count);return count;
   }
   void flush(){if(open_)++fs_->flushes;}
@@ -385,7 +386,8 @@ void dataAndStorage(){
  assert(primary.removed.empty() && secondary.removed.size()==1);
  for(unsigned failure=0;failure<3;++failure){
   reset();if(failure==0)primary.canOpen=false;
-  if(failure==1)f.writeLimit=2;if(failure==2)f.sizeMismatch=true;
+  if(failure==1)f.writeLimit=2;
+  if(failure==2)f.sizeMismatch=true;
   auto result=invoke();assert(!result->ok && primary.files.find(result->path.value)==primary.files.end());
  }
  reset();f.replies[0].rate="999";auto rate=invoke();assert(rate->ok && rate->sampleRate==kTtsDefaultSampleRate);
