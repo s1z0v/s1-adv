@@ -8,6 +8,12 @@ the compact Home badge, with actual transport status in the chat-hint area.
 The separate full-screen THINK card is removed. Accepted background work and
 its final replies retain the existing contextual task/inbox behavior.
 
+Pending replies with the explicit `front_reply_is_agent: true` Bridge field are
+real semantic first replies and may queue speech. G0 uses the existing voice
+reply policy; text follows the current text-speech setting. A generic pending
+transport receipt remains silent. Either case continues waiting for the main
+agent and retains the stored reply sequence for inbox deduplication.
+
 The firmware screen has one primary action, Enter / Install update. Enter
 queues one fresh authenticated manifest check and installs only its successful
 new-candidate result through the existing power/hash/boot gates. The normal

@@ -280,6 +280,7 @@ TextTurnTaskResult* performTextTurnRequest(void* arg) {
           }
           result->shortText = shortText;
           result->pending = resp["pending"] | false;
+          result->frontReplyIsAgent = resp["front_reply_is_agent"] | false;
           result->afterSeq = resp["after_seq"] | 0;
           result->replySeq = resp["reply_seq"] | 0;
           if (resp["firmware_job"].is<JsonObject>()) {

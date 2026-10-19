@@ -212,6 +212,7 @@ struct TextTurnTaskResult {
   bool hasAudio = false;
   bool telegramDelivered = false;
   bool pending = false;
+  bool frontReplyIsAgent = false;
   uint32_t afterSeq = 0;
   uint32_t replySeq = 0;
   bool hasFirmwareJobStatus = false;

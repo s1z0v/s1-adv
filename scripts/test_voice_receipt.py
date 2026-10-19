@@ -113,6 +113,13 @@ int main(){
   assert(!gVoiceNoticeVisible);
   assert(history.size()==1&&replyText==decoded["reply"].text&&gVoiceNoticeText==replyText);
   assert(cursorAtStorage==20); // Persist first, then skip/ACK the duplicated inbox receipt.
+  reset();decoded["pending"]={"",0,true,false};
+  decoded["front_reply_is_agent"]={"",0,true,false};
+  decoded["reply"]={"I will check that",0,false,false};
+  decoded["reply_seq"]={"",31,false,false};
+  assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
+  assert(gQueuedVoiceReplySpeech=="I will check that"&&gVoiceReplyPending);
+  assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gStoredAssistantSeqs.back()==31);
   reset();decoded["reply"]={"Done",0,false,false};
   assert(finishVoiceSubmission(true,200,"json","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Reply&&!gVoiceReplyPending&&replyText=="Done"&&gQueuedVoiceReplySpeech=="Done");
@@ -129,7 +136,7 @@ int main(){
   assert(gVoiceRequestPhase==VoiceRequestPhase::Error&&!gVoiceReplyPending&&tones==0);
   assert(gVoiceNoticeText.find("No delivery receipt")!=std::string::npos);
   }
- // Text acceptance must also keep the body, end THINK and never speak an ACK.
+ // Text acceptance keeps the body and ends THINK. Generic receipts stay silent.
  for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}) {
   reset();gUiMode=mode;tts=0;gActiveTextTurn="first";gSubmitting=gThinking=true;
   auto* accepted=new TextTurnTaskResult();accepted->ok=true;accepted->pending=true;
@@ -146,6 +153,13 @@ int main(){
   auto* error=new TextTurnTaskResult();error->error="HTTP 503";error->statusCode=503;
   gThinking=gSubmitting=true;gCompletedTextTurn=error;processCompletedTextTurn();assert(!gSubmitting&&!gThinking);
  }
+ // A semantic first reply may speak while the main agent remains pending.
+ reset();gUiMode=UiMode::Home;gActiveTextTurn="complex task";
+ auto* front=new TextTurnTaskResult();front->ok=front->pending=front->frontReplyIsAgent=true;
+ front->reply="I will check that";front->replySeq=33;front->afterSeq=33;
+ gCompletedTextTurn=front;processCompletedTextTurn();
+ assert(gVoiceReplyPending&&gQueuedVoiceReplySpeech=="I will check that");
+ assert(gStoredAssistantSeqs.back()==33&&!gSubmitting&&!gThinking);
  // A later HTTP receipt must not advance past an unseen earlier final.
  reset();acceptPendingAssistantRequest("second","Second accepted",30,30);
  assert(gInboxLastSeq==20&&consumeStoredAssistantSeq(30)&&!consumeStoredAssistantSeq(29));

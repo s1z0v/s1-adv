@@ -52,6 +52,8 @@ void processCompletedTextTurn() {
     setStatus("Text turn failed", 2000);
   } else if (done->ok && done->pending) {
     acceptPendingAssistantRequest(submittedText, done->reply, done->afterSeq, done->replySeq);
+    if (done->frontReplyIsAgent && shouldSpeakAssistantTextReply(done->reply))
+      gQueuedVoiceReplySpeech = cleanReplyForDevice(done->reply);
     logf("[TEXT] async accepted receipt_seq=%u", static_cast<unsigned>(done->replySeq));
   } else if (done->ok && done->hasReply) {
     gVoiceReplyPending = false;

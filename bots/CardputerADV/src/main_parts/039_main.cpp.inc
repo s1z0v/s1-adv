@@ -115,7 +115,10 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
   if (resp["pending"] | false) {
     acceptPendingAssistantRequest(transcript, reply, resp["after_seq"] | 0,
                                   resp["reply_seq"] | 0);
-    // A transport acknowledgement is not an assistant answer and never TTS.
+    // Only a real semantic first reply is speech. A generic transport receipt
+    // remains silent; both keep waiting for the main agent's final response.
+    if ((resp["front_reply_is_agent"] | false) && !reply.isEmpty())
+      gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
     return true;
   }
   gVoiceReplyPending = false;
