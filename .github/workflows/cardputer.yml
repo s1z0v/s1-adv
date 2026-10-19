@@ -55,11 +55,13 @@ jobs:
       - run: python scripts/test_auto_ota.py
       - run: python scripts/test_ui_surface.py
       - run: python scripts/test_home_battery.py
+      - run: python scripts/test_home_clock.py
       - run: python scripts/test_realtime_screen.py
       - run: python scripts/test_realtime_connection.py
       - run: python scripts/test_realtime_scheduler.py
       - run: python scripts/test_network_recovery.py
       - run: python scripts/test_voice_reply_connection.py
+      - run: python scripts/test_wifi_memory_budget.py
       - run: python scripts/test_voice_delivery.py
       - run: python scripts/test_voice_capture.py
       - run: python scripts/test_voice_usb_logging.py

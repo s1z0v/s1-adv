@@ -5,8 +5,9 @@ This is not FreeRTOS emulation or proof of the physical Wi-Fi failure. On the
 pinned Arduino 2.0.14 / IDF 4.4.6 build, delay(1) blocks for one tick. The model
 checks the idle opportunity when CPU0 is busy and no higher-priority CPU1 task
 is ready. An unpinned deleted worker can also be reclaimed by CPU0's idle;
-that counterexample is tested explicitly. Only the worker's 12288 stack bytes
-are counted, not a guessed TCB size. No network/device/provider is contacted.
+that counterexample is tested explicitly. Only the worker's actual configured
+stack bytes are counted, not a guessed TCB size. No network/device/provider is
+contacted.
 
 References reviewed for these assumptions:
 https://github.com/espressif/esp-idf/blob/v4.4.6/components/freertos/tasks.c#L3835
@@ -21,6 +22,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = 'bots/CardputerADV/src/main_parts/061_main.cpp.inc'
+DIAL_SOURCE = 'bots/CardputerADV/src/main_parts/064_main.cpp.inc'
 
 
 def extract_function(text, signature):
@@ -50,7 +52,7 @@ CPP = r'''
 #include <cstdio>
 #include <string>
 #include <vector>
-constexpr size_t workerStackBytes=12288, initialFreeBytes=65536;
+constexpr size_t workerStackBytes=WORKER_STACK_BYTES, initialFreeBytes=65536;
 struct PendingWorker {int affinity=-1;bool stillRunning=false;};
 struct Fixture {
  uint32_t now=0,rtCost=0;
@@ -121,7 +123,7 @@ void idleOpportunity(){
  assert(f.calls==expected);
  for(unsigned i=0;i<64;++i){addDeletedWorker();loop();assert(f.freeBytes==initialFreeBytes);}
  assertServices(65);assert(f.reaped==65 && f.delayCalls==65);
- std::puts("PASS actual exclusive loop preserves USB/RT services and offers idle1 a tick; conditional model reclaims 12288-byte worker stack");
+ std::printf("PASS actual exclusive loop preserves USB/RT services and offers idle1 a tick; conditional model reclaims %zu-byte worker stack\n", workerStackBytes);
 }
 void limitsAndCounterexamples(){
  // An unpinned worker is eligible on either idle, even without a loop delay.
@@ -166,17 +168,20 @@ int main(){
  assert(f.renders.size()==199/kBusyRenderIntervalMs);
  // This is conditional, not proof of a leak on every dual-core device.
  idle(0);assert(f.pending.empty() && f.freeBytes==initialFreeBytes);
- std::puts("NEGATIVE CONTROL actual old exclusive loop: idle1 gets no block opportunity; 12288 bytes retained only in CPU0-busy model, released by idle0 control");
+ std::printf("NEGATIVE CONTROL actual old exclusive loop: idle1 gets no block opportunity; %zu bytes retained only in CPU0-busy model, released by idle0 control\n", workerStackBytes);
 }
 '''
 
 
-def run_case(text, tests):
+def run_case(text, tests, dial_source):
     main_source = (ROOT / 'bots/CardputerADV/src/main_parts/001_main.cpp.inc').read_text()
     interval = re.search(r'constexpr uint32_t kBusyRenderIntervalMs\s*=\s*\d+;', main_source)
     if not interval:
         raise SystemExit('Render interval declaration changed; review test extraction.')
-    code = CPP + interval.group() + '\n' + extract_function(text, 'void serviceRealtimeExclusiveLoop(')
+    stack = re.search(r'xTaskCreate\(realtimeDialTask,\s*"rt-connect",\s*(\d+),', dial_source)
+    if not stack:
+        raise SystemExit('Realtime worker stack declaration changed; review test extraction.')
+    code = CPP.replace('WORKER_STACK_BYTES', stack.group(1)) + interval.group() + '\n' + extract_function(text, 'void serviceRealtimeExclusiveLoop(')
     code += '\n' + extract_exclusive_prefix(text) + tests
     with tempfile.TemporaryDirectory(prefix='s1-rt-scheduler-') as directory:
         cpp = Path(directory) / 'test.cpp'
@@ -194,8 +199,10 @@ def main():
     if args.baseline_ref:
         old = subprocess.run(['git', 'show', f'{args.baseline_ref}:{SOURCE}'], cwd=ROOT,
                              check=True, capture_output=True, text=True).stdout
-        run_case(old, NEGATIVE)
-    run_case((ROOT / SOURCE).read_text(), POSITIVE)
+        old_dial = subprocess.run(['git', 'show', f'{args.baseline_ref}:{DIAL_SOURCE}'], cwd=ROOT,
+                                  check=True, capture_output=True, text=True).stdout
+        run_case(old, NEGATIVE, old_dial)
+    run_case((ROOT / SOURCE).read_text(), POSITIVE, (ROOT / DIAL_SOURCE).read_text())
     print('Scope: actual C++ service ordering + conditional scheduling model; not physical Wi-Fi/TX acceptance.')
 
 
