@@ -99,6 +99,7 @@ void applyFirmwareJobState(const String& state, const String& requestId) {
 const char* homeStatusLabel(bool updateReady) {
   if (gG0VoicePending || gVoiceCapturePreparing) return "LOADING";
   if (gSubmitting || gThinking || voiceRequestBusyUi()) return "THINKING";
+  if (gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty()) return "LOADING";
   // Voice/Realtime can intentionally pause polling for minutes. An old job
   // timestamp alone is not evidence that the Bridge connection has failed.
   const bool linkFailed = !gWifiReady || (gBridgeHttpFailed && autoInboxPollAllowed());

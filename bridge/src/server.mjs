@@ -4859,13 +4859,16 @@ class BridgeRuntime {
     const message=this.store.getHistory(topic.topic_key,0,100000).items.find(m=>m.id===record.reply_message_id) ||
       {id:record.reply_message_id,seq:record.reply_seq};
     transcript=record.text;
-    if(record.phase==='answered') return {response:await this.buildTurnResponse({req,topic,transcript,
-      replyText:record.reply,replyMessage:message,includeAudio:wantsReplyAudio,allowDeviceActions:false})};
+    const speakReply=record.input_mode==='voice' && record.agent_reply===true;
+    if(record.phase==='answered') return {response:{...await this.buildTurnResponse({req,topic,transcript,
+      replyText:record.reply,replyMessage:message,includeAudio:wantsReplyAudio,allowDeviceActions:false}),
+      speak_reply:speakReply}};
     const ack=this.store.getIdempotent(topic.topic_key,clientMsgId);
     if(!ack) throw new Error('This request was already sent. Open chat to check its result; it will not be resent.');
     return {ack,response:{...await this.buildPendingTurnResponse({req,device,topic,transcript,ack}),
       reply:record.reply,full_text:record.reply,short_text:this.shortReplyText(record.reply),
-      reply_seq:record.reply_seq,after_seq:record.reply_seq,front_reply_is_agent:record.agent_reply===true}};
+      reply_seq:record.reply_seq,after_seq:record.reply_seq,front_reply_is_agent:record.agent_reply===true,
+      speak_reply:speakReply}};
   }
 
   async runFirmwareWorkJob({ device, topic, transcript, clientMsgId }) {

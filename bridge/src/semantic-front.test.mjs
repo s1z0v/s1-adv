@@ -57,6 +57,7 @@ test('semantic escalation gives an owned quick reply and submits exactly one ful
  await f.turn('earlier');f.setResult({decision:'escalate',reply:'I will check the requested firmware change.'});
  const response=await f.turn('work','Add a TV remote.','voice');
  assert(response.response.pending&&response.response.front_reply_is_agent);
+  assert.equal(response.response.speak_reply,true);
  assert.equal(response.response.reply,'I will check the requested firmware change.');
  for(let n=0;n<100&&f.calls.length<3;n++)await delay(5);
  const main=f.calls.find(c=>c.agentId==='main');assert(main);assert.equal(main.thinking,'high');
@@ -68,6 +69,15 @@ test('semantic escalation gives an owned quick reply and submits exactly one ful
  const entry=f.runtime.turnOutbox.entries()[0];f.terminals.set(entry.run_id,{runId:entry.run_id,status:'ok',endedAt:Date.now()});
  for(let n=0;n<100&&!f.runtime.store.getTopic(f.topic.topic_key).front_synced_seq;n++)await delay(5);
  assert(f.runtime.store.getTopic(f.topic.topic_key).front_synced_seq>0);
+}));
+
+test('voice speaks even a one-word fast answer; text does not request speech',()=>fixture(async f=>{
+ const voice=await f.turn('short-voice','What is two plus two?','voice');
+ assert.equal(voice.response.reply,'Four.');assert.equal(voice.response.speak_reply,true);
+ const text=await f.turn('short-text');assert.equal(text.response.speak_reply,false);
+ const retry=await f.turn('short-voice','What is two plus two?','voice');
+ assert.equal(retry.response.speak_reply,true);assert.equal(retry.response.reply_seq,voice.response.reply_seq);
+ assert.equal(f.calls.filter(c=>c.kind==='fast').length,2);
 }));
 
 test('a failed native smart run is visible and never confirms context synchronization',()=>fixture(async f=>{
@@ -114,11 +124,12 @@ test('completed fast replies survive model changes; an unfinished owner change i
 }));
 
 test('deadline escalation ignores a late fast answer without duplicating smart work',()=>fixture(async f=>{
- f.setAutoFinish(false);const response=await f.turn('slow');assert(response.response.pending);assert.equal(response.response.front_reply_is_agent,false);
+ f.setAutoFinish(false);const response=await f.turn('slow','A slow voice request','voice');assert(response.response.pending);assert.equal(response.response.front_reply_is_agent,false);
+ assert.equal(response.response.speak_reply,false);
  const fast=f.calls.find(c=>c.agentId!=='main');assert(fast);
  f.setResult({decision:'answer',reply:'Too late.'});
  const late=f.messages.get(fast.run_id);late.resolve(late.finish());
- await delay(50);await f.turn('slow');
+ await delay(50);await f.turn('slow','A slow voice request','voice');
  assert.equal(f.calls.filter(c=>c.agentId==='main').length,1);
  assert(!f.runtime.store.getHistory(f.topic.topic_key,0,100).items.some(m=>m.content?.text==='Too late.'));
 }));

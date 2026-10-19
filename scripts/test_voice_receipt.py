@@ -120,6 +120,18 @@ int main(){
   assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
   assert(gQueuedVoiceReplySpeech=="I will check that"&&gVoiceReplyPending);
   assert(gVoiceRequestPhase==VoiceRequestPhase::Accepted&&gStoredAssistantSeqs.back()==31);
+  reset();decoded["pending"]={"",0,true,false};
+  decoded["speak_reply"]={"",0,true,false};decoded["reply"]={"Checking.",0,false,false};
+  assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
+  assert(gVoiceReplyPending&&gQueuedVoiceReplySpeech=="Checking.");
+  reset();decoded["pending"]={"",0,true,false};
+  decoded["front_reply_is_agent"]={"",0,true,false};decoded["speak_reply"]={"",0,false,false};
+  decoded["reply"]={"Receipt only",0,false,false};
+  assert(finishVoiceSubmission(true,202,"json","saved.wav",749568));
+  assert(gVoiceReplyPending&&gQueuedVoiceReplySpeech.empty());
+  reset();decoded["speak_reply"]={"",0,true,false};decoded["reply"]={"Four.",0,false,false};
+  assert(finishVoiceSubmission(true,200,"json","saved.wav",749568));
+  assert(!gVoiceReplyPending&&gQueuedVoiceReplySpeech=="Four.");
   reset();decoded["reply"]={"Done",0,false,false};
   assert(finishVoiceSubmission(true,200,"json","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Reply&&!gVoiceReplyPending&&replyText=="Done"&&gQueuedVoiceReplySpeech=="Done");

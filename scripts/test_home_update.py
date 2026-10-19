@@ -65,7 +65,7 @@ uint32_t gBridgeLastSuccessMs=1000;
 bool gBridgeHttpFailed=false,gWifiReady=true,pollAllowed=true;
 bool autoInboxPollAllowed(){return pollAllowed;}
 bool gVoiceCapturePreparing=false,gG0VoicePending=false,gInboxUnread=false;
-String gInputBuffer;uint32_t gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
+String gInputBuffer,gQueuedVoiceReplySpeech;uint32_t gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
 enum class FocusState{Stopped,Focus,ShortBreak,LongBreak,Reflect,Paused};
 struct{FocusState state=FocusState::Stopped;unsigned remainingSec=0;}gFocus;
 bool applyOtaFromManifest(){++applied;return true;}
@@ -188,6 +188,11 @@ int main(){
  gVoiceCapturePreparing=false;gG0VoicePending=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"LOADING"}));
  gVoiceCapturePreparing=false;gG0VoicePending=false;gFocus.state=FocusState::Stopped;
+ gQueuedVoiceReplySpeech="Four.";gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+ assert((gCanvas.labels==std::vector<std::string>{"LOADING"}));
+ gQueuedVoiceReplySpeech.clear();gVoiceReplySpeechBusy=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
+ assert((gCanvas.labels==std::vector<std::string>{"LOADING"}));
+ gVoiceReplySpeechBusy=false;
  state=firmware_job_display::State::Idle;gInboxUnread=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"NEW MESSAGE"})&&gCanvas.w==74);
  gInboxUnread=false;state=firmware_job_display::State::Building;now=gBridgeLastSuccessMs+90001;

@@ -117,7 +117,7 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
                                   resp["reply_seq"] | 0);
     // Only a real semantic first reply is speech. A generic transport receipt
     // remains silent; both keep waiting for the main agent's final response.
-    if ((resp["front_reply_is_agent"] | false) && !reply.isEmpty())
+    if ((resp["speak_reply"] | (resp["front_reply_is_agent"] | false)) && !reply.isEmpty())
       gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
     return true;
   }
@@ -129,7 +129,7 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
     appendAssistantReply(reply);
     rememberStoredAssistantSeq(replySeq);
     showVoiceNotice(reply, false);
-    gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
+    if (resp["speak_reply"] | true) gQueuedVoiceReplySpeech = cleanReplyForDevice(reply);
   } else {
     setFaceMode(FaceMode::Idle);
     setStatus("No reply", 1200);
