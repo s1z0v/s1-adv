@@ -184,9 +184,9 @@ int main(){
  }
  gFocus.state=FocusState::Focus;
  gVoiceCapturePreparing=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
- assert((gCanvas.labels==std::vector<std::string>{"MIC SETUP"}));
+ assert((gCanvas.labels==std::vector<std::string>{"LOADING"}));
  gVoiceCapturePreparing=false;gG0VoicePending=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
- assert((gCanvas.labels==std::vector<std::string>{"VOICE WAIT"}));
+ assert((gCanvas.labels==std::vector<std::string>{"LOADING"}));
  gVoiceCapturePreparing=false;gG0VoicePending=false;gFocus.state=FocusState::Stopped;
  state=firmware_job_display::State::Idle;gInboxUnread=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"NEW MESSAGE"})&&gCanvas.w==74);

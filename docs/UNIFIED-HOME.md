@@ -25,6 +25,12 @@ and never fetches history or starts audio as part of opening. An in-flight
 voice wait can be left for chat; actual capture/preparation keeps its input
 ownership. Existing explicit playback from an already-read chat is unchanged.
 
+PTT preparation shows `Loading voice...` (compact badge: `LOADING`) only while
+an existing network operation drains or microphone/storage startup runs. The
+red `RECORDING` scene starts only after microphone initialization and acceptance
+of its first audio buffer. Failed microphone/queue startup shows an error and
+never advertises successful capture; its empty temporary WAV is cleaned up.
+
 The firmware screen has one primary action, Enter / Install update. Enter
 queues one fresh authenticated manifest check and installs only its successful
 new-candidate result through the existing power/hash/boot gates. The normal

@@ -301,7 +301,7 @@ void render() {
   if (gStatusUntilMs != 0 && millis() > gStatusUntilMs) {
     gStatusUntilMs = 0;
     if (gRecording) {
-      gStatusText = "Listening...";
+      gStatusText = "Recording";
     } else if (gPlaybackActive) {
       gStatusText = "Speaking...";
     } else {

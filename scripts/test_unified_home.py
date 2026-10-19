@@ -12,7 +12,8 @@ source = '\n'.join(p.read_text() for p in sorted(parts.glob('*.inc')))
 
 
 def function(signature):
-    start = re.search(re.escape(signature) + r'\s*\{', source).start()
+    tail = r'[^;{]*\{' if signature.endswith('(') else r'\s*\{'
+    start = re.search(re.escape(signature) + tail, source).start()
     end, depth = source.index('{', start) + 1, 1
     while depth:
         depth += (source[end] == '{') - (source[end] == '}')
@@ -26,6 +27,7 @@ code = r'''
 #include <cmath>
 #include <cstdio>
 #include <cstdint>
+#include <cstring>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -41,6 +43,7 @@ enum class VoiceRequestPhase{None,Recording,Sending,Processing,Accepted,Reply,Er
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false,gRealtimeConnected=false;
 bool gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false,gVoiceNoticeVisible=false;
 bool gAssistantPendingVisible=false,gBootBackgroundActive=false;
+bool gVoiceCapturePreparing=false,gG0VoicePending=false;
 VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::None;
 uint32_t nowMs=13000,gRecordStartMs=1000,gHomeUpdatePreviewUntilMs=0,gAssistantPulsePressUntilMs=0;
 uint32_t millis(){return nowMs;}
@@ -73,7 +76,6 @@ struct Canvas {
 int badges=0,batteries=0;
 void drawHomeReadyStatus(bool,bool){++badges;}
 void drawHomeBatteryStatus(int32_t){++batteries;}
-void drawAssistantPulseButton(int,int,int,int,const char*s,uint16_t,bool){gCanvas.printed.push_back(s);}
 void drawAssistantPulseArc(int,int,int,int,float,float,uint16_t c){gCanvas.arcs.push_back(c);}
 void renderLauncherOverlay(){}void renderDebugOverlay(){}void ensureBangkokTimezone(){}
 String fitCurrentFontToWidth(const String&s,int w){return s.substr(0,w/8);}
@@ -96,7 +98,7 @@ void updateBatterySnapshot(){}bool batteryExternalPowerPresent(){return false;}
 template<class...T>void drawServiceOrb(T...){}
 template<class...T>void drawInfoRow(T...){}
 '''
-for signature in ['AssistantPulseState assistantPulseState()', 'void renderAssistantPulseChatHint()',
+for signature in ['AssistantPulseState assistantPulseState()', 'void drawAssistantPulseButton(', 'void renderAssistantPulseChatHint()',
                   'void renderAssistantPulseUi()', 'void renderOtaUi()']:
     code += function(signature) + '\n'
 code += r'''
@@ -105,9 +107,17 @@ bool printed(const char*s){return std::find(gCanvas.printed.begin(),gCanvas.prin
 int main(){
  reset();renderAssistantPulseUi();assert(gCanvas.clockRects==1&&gCanvas.chatRects==1&&badges==1&&batteries==1);
  assert(printed("> type to chat"));
+ for(bool pending:{false,true}){
+  gVoiceCapturePreparing=!pending;gG0VoicePending=pending;gInputBuffer="saved draft";
+  reset();renderAssistantPulseUi();
+  assert(printed("Loading voice...")&&!printed("RECORDING")&&!printed("00:12"));
+  assert(gCanvas.clockRects==1&&gInputBuffer=="saved draft");
+ }
+ gVoiceCapturePreparing=gG0VoicePending=false;
  gRecording=true;gInputBuffer="saved draft";reset();renderAssistantPulseUi();
  assert(gCanvas.clockRects==1&&gCanvas.chatRects==0&&batteries==0&&badges==0&&printed("00:12"));
  assert(!printed("saved draft")&&!printed("> type to chat"));
+ assert(printed("RECORDING")&&!printed("Loading voice..."));
  for(uint16_t color:{rgb565_local(255,63,85),rgb565_local(255,111,128)})
   assert(std::find(gCanvas.arcs.begin(),gCanvas.arcs.end(),color)!=gCanvas.arcs.end());
  gRecording=false;gVoiceNoticeVisible=true;gVoiceRequestPhase=VoiceRequestPhase::Sending;

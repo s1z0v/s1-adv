@@ -187,7 +187,7 @@ void updateG0VoiceTrigger() {
       if (gInboxHttpBusy) {
         gG0VoicePending = true;
         gInboxCancelRequested = true;
-        setStatus("Hold G0: network finishing", 0);
+        setStatus("Loading voice...", 0);
         render();
       } else startRecording();
     }

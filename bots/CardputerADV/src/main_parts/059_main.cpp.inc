@@ -23,7 +23,7 @@
     c2 = rgb565_local(255, 111, 128);
     c3 = rgb565_local(88, 32, 42);
     fg = rgb565_local(255, 241, 239);
-    label = "REC";
+    label = "RECORDING";
   } else if (state == AssistantPulseState::Thinking) {
     c1 = amber;
     c2 = cyan;

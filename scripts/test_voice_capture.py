@@ -31,6 +31,8 @@ struct String:std::string {
  bool isEmpty()const{return empty();}
 };
 uint32_t now=100, micReadyAt=0;
+bool micAvailable=true,queueAvailable=true;
+bool gVoiceCapturePreparing=false;
 uint32_t millis(){return now;}
 bool gRealtimeDialBusy=false,gVoiceReplySpeechBusy=false,gInboxHttpBusy=false;
 bool gRealtimeExclusiveMode=false,gRealtimeActive=false,gWifiReady=true;
@@ -51,11 +53,12 @@ struct File {
 namespace fs {struct FS {File open(const String&,const char*){now+=50;return {};}};}
 fs::FS storage;
 struct {void reset(){}} gMicInputMeter;
-struct {struct {bool record(int16_t*,size_t,uint32_t){return true;}} Mic;
+struct {struct {bool record(int16_t*,size_t,uint32_t){return queueAvailable;}} Mic;
  struct {bool pressed=false;bool isPressed(){return pressed;}} BtnA;} M5Cardputer;
 auto& M5=M5Cardputer;
-int starts=0,stops=0,networkCalls=0,frames=0,queued=0,wakes=0;bool sleeping=false;
-void setStatus(const char*,int=0){}void logf(const char*,...){}void setVoiceDiag(const char*){}
+int starts=0,stops=0,networkCalls=0,frames=0,queued=0,wakes=0,captureUis=0,startErrors=0;bool sleeping=false;
+String status;std::vector<String> frameLabels;
+void setStatus(const char*s,int=0){status=s;}void logf(const char*,...){}void setVoiceDiag(const char*){}
 void setFaceMode(FaceMode){}void pushError(const char*){}void releaseTtsBuffer(){}
 void dismissVoiceNotice(){}void cancelVoicePreconnect(){}
 bool remountSdStorage(const char*){return true;}void showVoiceNotice(const char*,bool){}
@@ -65,16 +68,21 @@ String makeVoiceNoteId(bool){return "test";}String voiceAudioPath(const String&)
 String recordingAudioPath(const String&){return "/recordings/20261018/test.wav";}
 void writeWavHeader(uint8_t*,uint32_t,uint32_t){}void fsRemove(fs::FS&,const String&){}
 void handleRecordingStorageFailure(){assert(false);}void logHeapStats(const char*){}
-bool ensureRecordBuffer(){return true;}void beginVoiceWifiPerformance(){}void beginVoiceRequestUi(){}
-void startMic(){++starts;now+=150;micReadyAt=now;}
-void serviceRecordingToFile(){++queued;}
-void render(){++frames;assert(gCanvasSpriteActive);}
+bool ensureRecordBuffer(){return true;}void beginVoiceWifiPerformance(){}
+void beginVoiceRequestUi(){++captureUis;assert(gRecording&&!gVoiceCapturePreparing);}
+bool startMic(){assert(!gRecording&&gVoiceCapturePreparing);++starts;now+=150;micReadyAt=now;return micAvailable;}
+void serviceRecordingToFile(){++queued;if(queueAvailable)gRecordInflightChunks.push_back(0);}
+void render(){++frames;assert(gCanvasSpriteActive);frameLabels.push_back(status);
+ if(gVoiceCapturePreparing)assert(!gRecording);
+ if(status=="Recording")assert(gRecording&&!gVoiceCapturePreparing);
+}
+void stopMic(bool){}void releaseRecordBuffer(){}void endVoiceWifiPerformance(){}void initSpeaker(){}
+void showVoiceRequestError(const char*){++startErrors;assert(!gVoiceCapturePreparing&&!gRecording);}
 // The former "optimization" both froze the canvas and aged an unused socket.
 void beginVoicePreconnect(){++networkCalls;gCanvasSpriteActive=false;now+=6000;}
 bool handleScreensaverWake(){++wakes;bool was=sleeping;sleeping=false;return was;}
 struct {void printf(const char*,...){} } Serial;
 void noteUiInput(const char*){}
-bool gVoiceCapturePreparing=false;
 bool gG0VoicePending=false,gInboxCancelRequested=false;uint32_t gG0VoiceRequestedMs=0;
 bool gG0VoiceHeld=false,gCtrlSoloCandidate=false;uint32_t gLastCtrlTapMs=0;
 bool stopRecordingAndSend(){++stops;gRecording=false;return true;}
@@ -90,6 +98,7 @@ int main(){
   M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();
   assert(starts==before+1&&gRecording&&!sleeping);
   assert(now-requested==220&&gRecordStartMs==micReadyAt); // Excludes initialization from REC time.
+  assert(frameLabels[frameLabels.size()-2]=="Loading voice..."&&frameLabels.back()=="Recording");
   assert(networkCalls==0&&gCanvasSpriteActive&&queued==starts);
   for(int sec=0;sec<20;++sec){now+=1000;updateG0VoiceTrigger();render();}
   assert(starts==before+1&&gRecording&&networkCalls==0&&gCanvasSpriteActive);
@@ -107,6 +116,15 @@ int main(){
  gInboxHttpBusy=true;M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();
  M5Cardputer.BtnA.pressed=false;updateG0VoiceTrigger();assert(!gG0VoicePending&&!gRecording);
  gInboxHttpBusy=false;updateG0VoiceTrigger();assert(starts==prior+1);
+ // Neither a failed mic nor a rejected first buffer may publish REC.
+ for(bool sd:{false,true})for(bool mic:{false,true}){
+  gStorageReady=sd;micAvailable=mic;queueAvailable=false;
+  gRecording=false;int beforeUi=captureUis,beforeError=startErrors;
+  frameLabels.clear();startRecording();
+  assert(!gRecording&&!gRecordingToFile&&!gVoiceCapturePreparing);
+  assert(captureUis==beforeUi&&startErrors==beforeError+1);
+  assert(frameLabels.size()==1&&frameLabels[0]=="Loading voice...");
+ }
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-voice-capture-') as directory:

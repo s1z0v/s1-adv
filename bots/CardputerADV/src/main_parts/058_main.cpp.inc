@@ -138,7 +138,8 @@ void drawAssistantPulseButton(int16_t x, int16_t y, int16_t w, int16_t h,
   if (pressed) {
     d.drawFastHLine(x + 8, py + 4, w - 16, rgb565_local(170, 200, 210));
   }
-  d.setFont(&fonts::Font2);
+  if (strlen(label) > 8) d.setFont(&fonts::Font0);
+  else d.setFont(&fonts::Font2);
   d.setTextColor(accent, fill);
   int tw = d.textWidth(label);
   d.setCursor(x + (w - tw) / 2, py + 6);
@@ -212,6 +213,7 @@ void drawHomeBatteryStatus(int32_t rawLevel) {
 
 void renderAssistantPulseChatHint() {
   const bool hasInput = !gInputBuffer.isEmpty();
+  const bool preparing = gG0VoicePending || gVoiceCapturePreparing;
   AssistantPulseState state = assistantPulseState();
   if (state == AssistantPulseState::Recording) return;
   const bool processing = state == AssistantPulseState::Thinking;
@@ -230,7 +232,10 @@ void renderAssistantPulseChatHint() {
   d.setFont(&fonts::efontCN_12);
   d.setTextColor(text, bg);
   d.setCursor(17, 112);
-  if (processing)
+  if (preparing) {
+    d.setFont(&fonts::Font0); d.setCursor(17,113); d.print("Loading voice...");
+  }
+  else if (processing)
     d.print(fitCurrentFontToWidth(gStatusText.isEmpty() ? String("Thinking...") : gStatusText, 116));
   else d.print(hasInput ? tailUtf8ToFit("> " + gInputBuffer, 116) : (realtime ? "> realtime" : "> type to chat"));
 }

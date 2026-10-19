@@ -42,8 +42,9 @@ void startRecording() {
   struct PreparationScope {
     PreparationScope() { gVoiceCapturePreparing = true; }
     ~PreparationScope() { gVoiceCapturePreparing = false; }
+    void finish() { gVoiceCapturePreparing = false; }
   } preparation;
-  setStatus("Preparing microphone...", 0);
+  setStatus("Loading voice...", 0);
   render(); // First feedback precedes SD open and I2S setup; REC means capture.
   if (gRecordFileWriteFailed) {
     cancelVoicePreconnect();
@@ -55,8 +56,6 @@ void startRecording() {
     gRecordFileWriteFailed = false;
   }
   gRecordedSamples = 0;
-  gRecording = true;
-  gRecordStartMs = millis();
   gVoiceLevel8 = 36;
   gMicInputMeter.reset();
   pulseButtonPress();
@@ -105,18 +104,41 @@ void startRecording() {
 
   const uint32_t storageReadyMs = millis();
   beginVoiceWifiPerformance();
-  beginVoiceRequestUi();
-  startMic();
-  gRecordStartMs = millis(); // Time captured audio, not SD/microphone initialization.
+  auto failCaptureStart = [&]() {
+    gRecording = false;
+    stopMic(false);
+    if (gActiveRecordFile) gActiveRecordFile.close();
+    if (gRecordingToFile && gActiveRecordBytes == 0 && !gActiveRecordPath.isEmpty()) {
+      fs::FS* fs = activeVoiceFs();
+      if (fs) fsRemove(*fs, gActiveRecordPath);
+    }
+    gRecordInflightChunks.clear();
+    gRecordingToFile = false; gActiveRecordPath = "";
+    gActiveRecordBytes = gActiveRecordCommittedBytes = gActiveRecordExpectedBytes = 0;
+    releaseRecordBuffer(); endVoiceWifiPerformance(); initSpeaker();
+    preparation.finish();
+    setFaceMode(FaceMode::Error);
+    setStatus("Microphone unavailable", 3000);
+    showVoiceRequestError("Microphone did not start. Hold G0 to retry.");
+  };
+  if (!startMic()) { failCaptureStart(); return; }
+  gRecording = true; // Mic is initialized; the first accepted buffer proves capture.
+  gRecordStartMs = millis();
+  bool captureQueued = false;
   if (gRecordingToFile) {
     serviceRecordingToFile();
+    if (gRecordFileWriteFailed) { preparation.finish(); return; }
+    captureQueued = !gRecordInflightChunks.empty();
     setVoiceDiag("voice: recording fs");
   } else {
-    M5Cardputer.Mic.record(gRecordBuffer, gRecordCapacitySamples, kMicSampleRate);
+    captureQueued = M5Cardputer.Mic.record(gRecordBuffer, gRecordCapacitySamples, kMicSampleRate);
     setVoiceDiag("voice: recording");
   }
+  if (!captureQueued) { failCaptureStart(); return; }
+  preparation.finish();
+  beginVoiceRequestUi();
   setFaceMode(FaceMode::Listening);
-  setStatus("Listening...");
+  setStatus("Recording");
   render();
   // No TLS during capture: it borrows the display buffer and its idle socket
   // can expire before a longer recording is released. Dial only for upload.

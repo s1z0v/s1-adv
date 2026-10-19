@@ -184,7 +184,7 @@ bool remountSdStorage(const char* reason) {
   return false;
 }
 
-void startMic() {
+bool startMic() {
   M5Cardputer.Speaker.end();
   auto micCfg = M5Cardputer.Mic.config();
   micCfg.sample_rate = kMicSampleRate;
@@ -192,7 +192,7 @@ void startMic() {
   micCfg.noise_filter_level = 64;
   micCfg.task_priority = 1;
   M5Cardputer.Mic.config(micCfg);
-  M5Cardputer.Mic.begin();
+  return M5Cardputer.Mic.begin();
 }
 
 void startRealtimeMic() {
