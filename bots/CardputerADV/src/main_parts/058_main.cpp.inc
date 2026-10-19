@@ -115,17 +115,37 @@ void renderHeroUi() {
 
 void drawAssistantPulseArc(int16_t cx, int16_t cy, int16_t outerR, int16_t innerR,
                            float startRad, float endRad, uint16_t color) {
-  int32_t startDeg = static_cast<int32_t>(startRad * 180.0f / kPi) % 360;
-  int32_t endDeg = static_cast<int32_t>(endRad * 180.0f / kPi) % 360;
+  float startDeg = fmodf(startRad * 180.0f / kPi, 360.0f);
+  float endDeg = fmodf(endRad * 180.0f / kPi, 360.0f);
   if (startDeg < 0) startDeg += 360;
   if (endDeg < 0) endDeg += 360;
-  gCanvas.drawArc(cx, cy, outerR, innerR, startDeg, endDeg, color);
-  int16_t capR = max<int16_t>(2, (outerR - innerR) / 2);
+  // Fill the band: outline-only arcs left the round caps looking detached.
+  gCanvas.fillArc(cx, cy, outerR, innerR, startDeg, endDeg, color);
+  int16_t capR = max<int16_t>(1, (outerR - innerR - 1) / 2);
   float midR = (outerR + innerR) * 0.5f;
-  gCanvas.fillCircle(cx + static_cast<int16_t>(cosf(startRad) * midR),
-                     cy + static_cast<int16_t>(sinf(startRad) * midR), capR, color);
-  gCanvas.fillCircle(cx + static_cast<int16_t>(cosf(endRad) * midR),
-                     cy + static_cast<int16_t>(sinf(endRad) * midR), capR, color);
+  float start = startDeg * kPi / 180.0f;
+  float end = endDeg * kPi / 180.0f;
+  gCanvas.fillCircle(cx + static_cast<int16_t>(lroundf(cosf(start) * midR)),
+                     cy + static_cast<int16_t>(lroundf(sinf(start) * midR)), capR, color);
+  gCanvas.fillCircle(cx + static_cast<int16_t>(lroundf(cosf(end) * midR)),
+                     cy + static_cast<int16_t>(lroundf(sinf(end) * midR)), capR, color);
+}
+
+void drawAssistantThinkingOrbit(int16_t cx, int16_t cy, float spin, uint16_t c1, uint16_t c2) {
+  for (int i = 0; i < 4; ++i) {
+    float a = spin * 1.9f + i * (kPi * 0.5f);
+    drawAssistantPulseArc(cx, cy, 22, 16, a, a + 0.72f, (i % 2) ? c2 : c1);
+  }
+  // Both dots follow the same circular centerline as the 23..31 px ring.
+  // Their fixed phase offsets stay inside its moving arc rather than drifting
+  // along independent ellipses into the gaps between rings.
+  const float orbit = 0.58f - spin * 1.08f;
+  for (int i = 0; i < 2; ++i) {
+    const float a = fmodf(orbit + (i == 0 ? 0.6f : 2.7f), 2.0f * kPi);
+    gCanvas.fillCircle(cx + static_cast<int16_t>(lroundf(cosf(a) * 27.0f)),
+                       cy + static_cast<int16_t>(lroundf(sinf(a) * 27.0f)),
+                       3, i == 0 ? c1 : c2);
+  }
 }
 
 void drawAssistantPulseButton(int16_t x, int16_t y, int16_t w, int16_t h,

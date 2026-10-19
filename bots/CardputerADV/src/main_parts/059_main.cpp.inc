@@ -110,14 +110,7 @@
     d.fillCircle(cx, cy, pulseR, c1);
     d.fillCircle(cx, cy, 9, fg);
   } else if (state == AssistantPulseState::Thinking || (realtime && gRealtimeAwaiting)) {
-    for (int i = 0; i < 4; ++i) {
-      float a = spin * 1.9f + i * 1.55f;
-      drawAssistantPulseArc(cx, cy, 22, 16, a, a + 0.72f, (i % 2) ? c2 : c1);
-    }
-    d.fillCircle(cx + static_cast<int16_t>(cosf(spin * 2.4f) * 27.0f),
-                 cy + static_cast<int16_t>(sinf(spin * 2.4f) * 21.0f), 4, c1);
-    d.fillCircle(cx + static_cast<int16_t>(cosf(spin * 2.0f + 2.1f) * 26.0f),
-                 cy + static_cast<int16_t>(sinf(spin * 2.0f + 2.1f) * 23.0f), 3, c2);
+    drawAssistantThinkingOrbit(cx, cy, spin, c1, c2);
   } else if (state == AssistantPulseState::Playback || (realtime && gPlaybackActive)) {
     d.fillCircle(cx, cy, 16, fg);
     d.fillTriangle(cx - 4, cy - 8, cx - 4, cy + 8, cx + 9, cy, bg);
