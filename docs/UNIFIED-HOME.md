@@ -13,6 +13,10 @@ real semantic first replies and may queue speech. G0 uses the existing voice
 reply policy; text follows the current text-speech setting. A generic pending
 transport receipt remains silent. Either case continues waiting for the main
 agent and retains the stored reply sequence for inbox deduplication.
+Inbox messages with an explicit JSON boolean `source.actions_allowed: false`
+are displayed/acknowledged normally but never reach the inline device-action
+parser. This applies to both pending-event batches and single-item envelopes.
+Primary-agent messages without that field retain supported device actions.
 
 The firmware screen has one primary action, Enter / Install update. Enter
 queues one fresh authenticated manifest check and installs only its successful

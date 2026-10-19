@@ -25,9 +25,10 @@ struct JsonArray {std::vector<JsonObject> data;auto begin(){return data.begin();
 struct Value {int kind=0;String text;unsigned number=0;JsonObject object;JsonArray array;
  Value():object(nullptr){} // Child objects remain lazy to avoid recursive allocation.
  Value(const char*s):kind(1),text(s),object(nullptr){}Value(unsigned n):kind(2),number(n),object(nullptr){}
+ Value(bool b):kind(5),number(b),object(nullptr){}
  Value(JsonObject o):kind(3),object(o){}Value(JsonArray a):kind(4),object(nullptr),array(a){}
- template<class T>bool is()const{return std::is_same_v<T,JsonObject>?kind==3:kind==4;}
- template<class T>T as()const{if constexpr(std::is_same_v<T,JsonObject>)return object;else return array;}
+ template<class T>bool is()const{if constexpr(std::is_same_v<T,JsonObject>)return kind==3;else if constexpr(std::is_same_v<T,JsonArray>)return kind==4;else return std::is_same_v<T,bool>&&kind==5;}
+ template<class T>T as()const{if constexpr(std::is_same_v<T,JsonObject>)return object;else if constexpr(std::is_same_v<T,bool>)return number!=0;else return array;}
  Value operator|(Value b)const{return kind?*this:b;}
  String operator|(const char*s)const{return kind?text:String(s);}
  unsigned operator|(int n)const{return kind?number:unsigned(n);}
@@ -58,12 +59,13 @@ String cleanReplyForDevice(String s){return s;}
 void pushLine(String,String s,LineKind){stored.push_back(s);}
 void pushVoiceHistoryLine(String,String s,LineKind,String,String,String,unsigned){stored.push_back(s);}
 unsigned millis(){return 1000;}void showVoiceNotice(String,bool){}bool playLastInboxMessage(){return false;}
-bool executeInlineDeviceActionsFromText(String){return false;}
+std::vector<String>inlineActions;
+bool executeInlineDeviceActionsFromText(String text){inlineActions.push_back(text);return true;}
 void applyFirmwareJobState(String s,String){jobState=s;}
 int highTones=0,updateKnocks=0;bool playUpdateChime(){++updateKnocks;return true;}
 struct{struct{void tone(int,int){++highTones;}}Speaker;}M5Cardputer;
 '''
-for f,s in [('065_main.cpp.inc','void rememberStoredAssistantSeq('),('065_main.cpp.inc','bool consumeStoredAssistantSeq('),('020_main.cpp.inc','bool handleInboxHistoryItem('),('020_main.cpp.inc','bool ackDeviceEvent('),('020_main.cpp.inc','bool applyInboxResponse(')]:code+=function(f,s)+'\n'
+for f,s in [('065_main.cpp.inc','void rememberStoredAssistantSeq('),('065_main.cpp.inc','bool consumeStoredAssistantSeq('),('020_main.cpp.inc','bool handleInboxHistoryItem('),('020_main.cpp.inc','bool ackDeviceEvent('),('020_main.cpp.inc','bool inboxInlineActionsAllowed('),('020_main.cpp.inc','bool applyInboxResponse(')]:code+=function(f,s)+'\n'
 code+=r'''
 JsonObject event(const char*id,unsigned seq,const char*text){
  JsonObject sender,content,message,event;
@@ -72,6 +74,12 @@ JsonObject event(const char*id,unsigned seq,const char*text){
  set(event,"event_id",id);set(event,"message",message);return event;
 }
 bool poll(std::initializer_list<JsonObject>items){decoded=JsonObject();JsonArray array;array.data=items;set(decoded,"items",array);String body="decoded JSON";return applyInboxResponse(body,false,false,true,true);}
+JsonObject permission(JsonObject event, Value allowed, const char*transport="fast_front"){
+ JsonObject source;set(source,"actions_allowed",allowed);set(source,"transport",transport);
+ set(event["message"].as<JsonObject>(),"source",source);return event;
+}
+bool single(JsonObject event){decoded=JsonObject();set(decoded,"item",event["message"].as<JsonObject>());
+ String body="decoded JSON";return applyInboxResponse(body,false,false,true,true);}
 int main(){
  stored.push_back("Second request accepted");rememberStoredAssistantSeq(30);
  assert(gInboxLastSeq==20);
@@ -90,10 +98,30 @@ int main(){
  // Status sync is delivered even when there is no new chat item.
  decoded=JsonObject();set(decoded,"items",JsonArray{});JsonObject job;set(job,"state","building");set(job,"request_id","two");set(decoded,"firmware_job",job);
  String body="decoded JSON";assert(!applyInboxResponse(body,false,false,true,true));assert(jobState=="building");
+ // A fast response can contain plausible ASCII markers. The explicit source
+ // permission must prevent even invoking the inline parser, in both envelopes.
+ const char*marker="[[CARDPUTER_ACTION:{\"type\":\"lamp\"}]]";
+ inlineActions.clear();
+ assert(poll({permission(event("fast-answer",60,marker),false,"fast_answer")}));
+ assert(inlineActions.empty()&&gInboxLastText==marker&&gInboxAckQueue.back()=="fast-answer");
+ assert(poll({permission(event("front-ack",61,marker),false,"front_ack")}));
+ assert(single(permission(event("receipt-fast",62,marker),false,"receipt")));
+ assert(inlineActions.empty());
+ // Parent messages keep their supported actions. A previous denied item must
+ // not disable a later parent message, including an urgent-first batch.
+ assert(poll({event("fast-answer",60,marker),event("parent",63,marker)}));
+ assert(inlineActions.size()==1&&inlineActions.back()==marker);
+ assert(single(permission(event("explicit-allow",64,marker),true)));
+ assert(inlineActions.size()==2);
+ // This contract denies only JSON boolean false, not missing/string/numeric
+ // metadata. These older supported messages keep their previous behavior.
+ assert(single(permission(event("string-flag",65,marker),"false")));
+ assert(single(permission(event("numeric-flag",66,marker),0U)));
+ assert(inlineActions.size()==4);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-inbox-receipts-') as d:
  p=Path(d);(p/'test.cpp').write_text(code)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-print('PASS actual inbox: receipt replay ACK, older final after urgent OTA, monotonic watermark, queued ACK dedupe and status-only poll')
+print('PASS actual inbox: receipt/ACK dedupe, urgent ordering, status sync, explicit action denial in batch/single, parent actions preserved')

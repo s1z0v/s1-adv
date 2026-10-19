@@ -92,6 +92,11 @@ bool ackDeviceEvent(const String& eventId) {
   return true;
 }
 
+bool inboxInlineActionsAllowed(JsonObject item) {
+  const auto permission = item["source"]["actions_allowed"];
+  return !permission.is<bool>() || permission.as<bool>();
+}
+
 bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bool assistantOnly) {
   const bool voiceReplyWasPending = gVoiceReplyPending;
   DynamicJsonDocument doc(8192);
@@ -109,6 +114,7 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
                           doc["firmware_job"]["request_id"] | "");
   bool found = false;
   bool firmwareNotice = false;
+  bool inlineActionsAllowed = true;
   String eventId = "";
   if (doc["items"].is<JsonArray>()) {
     JsonArray items = doc["items"].as<JsonArray>();
@@ -129,6 +135,7 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
       }
       if (handleInboxHistoryItem(item, !candidateEventId.isEmpty(), assistantOnly)) {
         eventId = candidateEventId;
+        inlineActionsAllowed = inboxInlineActionsAllowed(item);
         const String transport=item["source"]["transport"] | "";
         firmwareNotice=transport=="cardputer_ota_release" || transport=="cardputer_firmware_job_mirror";
         found = true;
@@ -145,6 +152,7 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
   } else if (doc["item"].is<JsonObject>()) {
     JsonObject item = doc["item"].as<JsonObject>();
     if (handleInboxHistoryItem(item, forcePlay, assistantOnly)) {
+      inlineActionsAllowed = inboxInlineActionsAllowed(item);
       const String transport=item["source"]["transport"] | "";
       firmwareNotice=transport=="cardputer_ota_release" || transport=="cardputer_firmware_job_mirror";
       found = true;
@@ -167,7 +175,7 @@ bool applyInboxResponse(String& body, bool forcePlay, bool speak, bool quiet, bo
       bool played = playLastInboxMessage();
       logf("[INBOX] playback ok=%d seq=%u", static_cast<int>(played), static_cast<unsigned>(gInboxLastSeq));
     }
-    bool actionOk = executeInlineDeviceActionsFromText(gInboxLastText);
+    const bool actionOk = inlineActionsAllowed && executeInlineDeviceActionsFromText(gInboxLastText);
     if (actionOk) {
       logf("[INBOX] inline actions executed seq=%u", static_cast<unsigned>(gInboxLastSeq));
     }
