@@ -54,7 +54,7 @@ Use the same helper with `--task-id ORIGINAL_TASK_ID` for a continuation. Do not
 grant an agent new file/exec rights just to run this helper. In plugin mode the
 native tool needs no shell permission.
 
-On firmware 0.2.177 and newer, Home **Ctrl+U** checks the current manifest and
+On firmware 0.2.178 and newer, Home **Ctrl+U** checks the current manifest and
 installs an eligible newer candidate in one operation, including a candidate
 not yet cached when the key was pressed. No newer candidate returns to Home;
 a failed check reports an error. Routine background checks never install on
