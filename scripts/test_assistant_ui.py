@@ -24,7 +24,7 @@ struct String:std::string {
  bool isEmpty() const {return empty();}
  void trim(){auto a=find_first_not_of(" \t\n\r"); if(a==npos){clear();return;} *this=substr(a,find_last_not_of(" \t\n\r")-a+1);}
 };
-enum class UiMode {Home,Clock,Face,Hero,ChatFull,ChatFace,Nes};
+enum class UiMode {Home,Clock,Face,Hero,ChatFull,ChatFace,Nes,Files};
 UiMode gUiMode=UiMode::Home;
 String gInputBuffer,gActiveTextTurn,gStatusText,lastUser;
 std::deque<String> gPendingTextTurns;
@@ -41,6 +41,9 @@ bool gVoiceNoticeVisible=false;
 bool gRealtimePlaybackActive=false,gPlaybackActive=false,gRealtimeAwaiting=false;
 String gRealtimeUiError;
 struct Keyboard_Class {struct KeysState {bool ctrl=false,tab=false;};};
+Keyboard_Class::KeysState gKeyboardState;
+int fileEscapes=0;
+bool handleFileManagerKey(char key,const Keyboard_Class::KeysState&){assert(key==27);++fileEscapes;return true;}
 int launcherMoves=0;
 void moveLauncherSubSelection(int){++launcherMoves;}
 uint8_t gChatCommandSelection=0;
@@ -168,6 +171,11 @@ int main(){
  gUiMode=UiMode::Face;gLauncherVisible=true;gG0VoicePending=true;
  handleGlobalEscape();assert(gUiMode==UiMode::Home&&!gLauncherVisible&&!gPlaybackActive&&!gG0VoicePending);
  assert(gInboxHttpBusy); // input never destroys another task's transport.
+ // Files owns Escape so a pending delete can cancel before leaving the app.
+ gUiMode=UiMode::Files;gLauncherVisible=false;handleGlobalEscape();
+ assert(fileEscapes==1&&gUiMode==UiMode::Files);
+ gLauncherVisible=true;handleGlobalEscape();
+ assert(fileEscapes==1&&gUiMode==UiMode::Home&&!gLauncherVisible);
 
 }
 '''
