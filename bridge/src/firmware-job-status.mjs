@@ -38,6 +38,9 @@ export function firmwareJobDeliveryUncertain(job, now = Date.now()) {
 export function publicFirmwareJob(job, now = Date.now()) {
   if (!job) return { state: "idle" };
   const stale = job.state === "building" && now - Date.parse(job.updated_at) > 15 * 60 * 1000;
-  return { state: stale ? "stalled" : job.state, request_id: job.request_id,
-    started_at: job.started_at, updated_at: job.updated_at };
+  const state = job.agent_managed && job.work_kind !== 'firmware' && job.state === 'failed' ? 'error' : job.state;
+  return { state: stale ? "stalled" : state, request_id: job.request_id,
+    started_at: job.started_at, updated_at: job.updated_at,
+    ...(job.agent_managed ? { agent_managed: true, task_id: job.task_id,
+      work_kind: job.work_kind, question: job.question || null } : {}) };
 }

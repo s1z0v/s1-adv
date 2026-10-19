@@ -1,6 +1,10 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
 import { startFirmwareJob, updateFirmwareJob, publicFirmwareJob, firmwareJobDeliveryUncertain } from "./firmware-job-status.mjs";
-import { createReadStream, createWriteStream, readFileSync } from "node:fs";
+import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
+import { AGENT_STATES, WORK_KINDS, hasAgentStatusAccess, publishedAfterTask } from './agent-status.mjs';
+import { PrivateStorageBudget } from "./storage-budget.mjs";
+import { loadFocusAudioBundle } from "./focus-audio.mjs";
+import { createReadStream, createWriteStream, readFileSync, existsSync } from "node:fs";
 import { appendFile, chmod, copyFile, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
@@ -26,6 +30,7 @@ import {
 } from "./security-policy.mjs";
 import {
   ensureDir,
+  writeJsonAtomic,
   extractMetadataBlock,
   isTelegramVoiceTranscript,
   json,
@@ -156,6 +161,7 @@ async function loadConfig() {
   }
   const baseDir = path.dirname(configPath);
   config.stateDir = resolvePath(baseDir, config.stateDir);
+  config.media.inboundDir = resolvePath(baseDir, config.media.inboundDir || path.join(config.stateDir,"inbound"));
   config.media.canonicalDir = resolvePath(baseDir, config.media.canonicalDir);
   config.media.playbackDir = resolvePath(baseDir, config.media.playbackDir);
   config.media.tmpDir = resolvePath(baseDir, config.media.tmpDir);
@@ -307,8 +313,6 @@ const DEVICE_ACTION_CATALOG = [
 ];
 
 const CARDPUTER_FIRMWARE_CONTEXT_VERSION = "2026-05-03.1";
-const CARDPUTER_FIRMWARE_WORK_RE =
-  /\b(firmware|ota|release|build|flash|version|bump)\b|\b(?:add|build|publish|release)\b.{0,48}\b(?:calculator|calc)\b|прошивк|верс(?:ия|ию|ии)|сборк|собер|собери|опубликуй|публикац|релиз|добав(?:ь|ить).{0,48}калькулятор|добавь функцию|добавить функцию/iu;
 const CARDPUTER_PRIMARY_TOPIC_TITLE = "Cardputer";
 const CARDPUTER_SINGLE_TOPIC_MODE = true;
 const CARDPUTER_FIRMWARE_TOPIC_TITLE = "Cardputer Firmware";
@@ -332,10 +336,10 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
     firmware_repo: CARDPUTER_FIRMWARE_REPO,
     bridge_repo: path.join(CARDPUTER_FIRMWARE_REPO,"bridge"),
     build_command: CARDPUTER_FIRMWARE_BUILD_BIN,
-    server_firmware_repo: "/root/.openclaw/workspace/repos/cardputer-firmware",
-    server_build_wrapper: "/root/.openclaw/workspace/bin/cardputer_adv_pio.sh",
-    server_publish_wrapper: "/root/.openclaw/workspace/bin/cardputer_publish_firmware.sh",
-    publish_route: "build, commit, publish OTA through your configured bridge firmware manifest"
+    server_firmware_repo: CARDPUTER_FIRMWARE_REPO,
+    server_build_wrapper: CARDPUTER_FIRMWARE_BUILD_BIN,
+    server_publish_wrapper: CARDPUTER_FIRMWARE_PUBLISH_BIN,
+    publish_route: "review, commit source, build, push source, publish OTA, verify manifest and image"
   },
   implemented_features: [
     "Pomodoro/focus timer: start, pause, resume, reset, set focus duration, breaks, cycles, autostart, metronome, BPM",
@@ -356,10 +360,10 @@ const CARDPUTER_FIRMWARE_CAPABILITIES = {
   behavior_rules: [
     "If the user asks to run an implemented feature, execute it with supported device_actions when possible.",
     "If the user asks to run a feature that is absent, say it is not in the current firmware and ask whether to develop and publish it.",
-    "If the user confirms developing an absent feature, treat it as firmware work: create a concise implementation task for the firmware repo, build with the wrapper, commit, publish an OTA candidate, and report the version.",
+    "If the user confirms developing an absent feature, treat it as firmware work: inspect and edit the configured checkout, commit reviewed source, build that commit, push it, publish an OTA candidate, verify it, and report the version.",
     "Do not claim a firmware feature exists unless it appears in implemented_features or the current manifest/release notes.",
     "For firmware analysis/build/release requests, use the dedicated Cardputer Firmware topic/session with repo path, branch/runbook, build command, OTA publish route, and verification expectations.",
-    "Use exactly one firmware build at a time. On the live server, prefer /root/.openclaw/workspace/bin/cardputer_adv_pio.sh because it provides the correct environment and lock.",
+    "Use exactly one firmware build at a time with the configured job_session_contract.build_wrapper, which provides private provisioning and the release lock.",
     "Never run parallel PlatformIO builds against the same CardputerADV .pio/build directory; use the wrapper/lock or an isolated build dir."
   ]
 };
@@ -718,13 +722,6 @@ function trimDeviceEventMessage(message, maxTextChars) {
   return cloned;
 }
 
-function wantsFirmwareWork(text) {
-  const value = String(text || "");
-  return CARDPUTER_FIRMWARE_WORK_RE.test(value) ||
-    (/убери|убрать|добавь|добавить|замени|поменяй|измени|сделай|сделать|увелич|уменьш|remove|add|replace|change|make|larger|smaller/iu.test(value) &&
-     /главн.{0,10}экран|индикатор|интерфейс|шторк|батарей|штрих|home screen|indicator|interface|notification sheet|battery|stripes/iu.test(value));
-}
-
 function requestedFirmwareVersion(text) {
   const match = String(text || "").match(/\b(\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?)\b/u);
   return match?.[1] || "";
@@ -1022,7 +1019,7 @@ async function streamRequestToFile(req, filePath, maxBytes) {
     if (!writer.destroyed) {
       writer.destroy();
     }
-    await once(writer, "close").catch(() => {});
+    if (!writer.closed) await once(writer, "close").catch(() => {});
     await rm(filePath, { force: true }).catch(() => {});
     throw error;
   }
@@ -1085,6 +1082,9 @@ async function readMultipartUpload(req, config, { toFilePath = null } = {}) {
           writer.on("finish", resolveWriter);
           writer.on("error", rejectWriter);
         });
+        // The body may still be arriving when the filesystem fails.
+        // Keep rejection handled until the parser's close handler joins it.
+        writerDone.catch(() => {});
       }
       stream.on("limit", () => {
         limited = true;
@@ -1597,6 +1597,7 @@ async function runRealtimeS1Tool({ runtime, device, topic, sessionId, call, inpu
     clientMsgId,
     text: String(inputTranscript || request).trim(),
     upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
       device,
       topicKey: topic.topic_key,
       text: (
@@ -3320,12 +3321,15 @@ async function transcode({ inputPath, outputPath, args }) {
 
 async function walkFiles(rootDir) {
   const files = [];
-  async function visit(currentDir) {
+  let visited=0;
+  async function visit(currentDir,depth=0) {
+    if(depth>12)throw new Error("asset_tree_depth_limit");
     const entries = await readdir(currentDir, { withFileTypes: true });
     for (const entry of entries) {
+      if(++visited>10000)throw new Error("asset_tree_entry_limit");
       const currentPath = path.join(currentDir, entry.name);
       if (entry.isDirectory()) {
-        await visit(currentPath);
+        await visit(currentPath,depth+1);
         continue;
       }
       if (entry.isFile()) {
@@ -3345,10 +3349,12 @@ async function walkFiles(rootDir) {
 }
 
 async function writeBufferAtomic(filePath, buffer) {
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  const tmpPath = `${filePath}.${process.pid}.${makeId("tmp")}.tmp`;
   await ensureDir(path.dirname(filePath));
-  await writeFile(tmpPath, buffer);
-  await rename(tmpPath, filePath);
+  try {
+    await writeFile(tmpPath, buffer,{mode:0o600,flag:"wx"});
+    await rename(tmpPath, filePath);
+  } finally { await rm(tmpPath,{force:true}); }
 }
 
 async function maybeTranscribeVoice(config, filePath) {
@@ -3537,6 +3543,7 @@ class BridgeRuntime {
     this.pendingMirrors = new Map();
     this.suppressedMirrors = new Map();
     this.deviceFirmwareReports = new Map();
+    this.focusAudioBundle = [];
     this.lastSessionTopicSyncMs = 0;
     this.startedAtMs = Date.now();
     this.turnOutbox = new DurableTurnOutbox({
@@ -3549,12 +3556,17 @@ class BridgeRuntime {
         return topic?.session_key === entry.session_key && device && !device.revoked_at &&
           device.topics?.includes(entry.topic_key);
       },
-      changed: entry => this.updateOutboxReceipt(entry)
+      changed: entry => this.updateOutboxReceipt(entry),
+      terminal: entry => this.recordOutboxFailure(entry)
     });
 	  }
 
   async start() {
+    const legacyState = await readJsonFile(path.join(this.config.stateDir, "state.json"), null);
+    if (Object.keys(legacyState?.devices || {}).length > 1)
+      throw new Error("Legacy multi-device data cannot be reused by this single-device bridge. Migrate to separate private state, media, assets and firmware directories.");
     await ensureDir(this.config.stateDir);
+    await ensureDir(this.config.media.inboundDir);
     await ensureDir(this.config.media.canonicalDir);
     await ensureDir(this.config.media.playbackDir);
     await ensureDir(this.config.media.tmpDir);
@@ -3562,6 +3574,13 @@ class BridgeRuntime {
     await ensureDir(this.config.assets.logsDir);
     await ensureDir(this.assetsAudioRootDir());
     await ensureDir(this.firmwareRootDir());
+    if (this.config.assets.bundledFocusAudio !== false) {
+      try { this.focusAudioBundle = await loadFocusAudioBundle(); }
+      catch (error) {
+        // Optional cues must not prevent text/voice delivery from starting.
+        console.warn(`[assets] Focus audio unavailable: ${error.message}`);
+      }
+    }
     await this.store.load();
     this.upstream.on("event", (frame) => void this.handleUpstreamEvent(frame));
     this.upstream.on("reconnected", () => {
@@ -3613,11 +3632,20 @@ class BridgeRuntime {
       }
     }
     console.info(`[topics] creating upstream session key=${topic.session_key}`);
-    await this.upstream.rpc("sessions.create", {
+    const params = {
       key: topic.session_key,
       agentId: agentIdForSession(topic.session_key),
       label: topic.display_title || topic.title || `Topic ${topic.thread_id || ""}`.trim()
-    });
+    };
+    try {
+      await this.upstream.rpc("sessions.create", params);
+    } catch (error) {
+      if (!String(error.message || error).toLowerCase().includes("label already in use")) throw error;
+      // Labels are cosmetic and can be unique per agent on older Gateways.
+      // Keep the exact requested session; never adopt another session by label.
+      const { label, ...unlabeled } = params;
+      await this.upstream.rpc("sessions.create", unlabeled);
+    }
   }
 
   assetsAudioRootDir() {
@@ -3646,7 +3674,14 @@ class BridgeRuntime {
 	    return `${base}/api/cardputer/firmware/file/${filename}`;
 	  }
 
+  firmwareWorkflowPaths() {
+    return firmwareWorkflowPaths(this.config, { repoDir: CARDPUTER_FIRMWARE_REPO,
+      build: CARDPUTER_FIRMWARE_BUILD_BIN, publish: CARDPUTER_FIRMWARE_PUBLISH_BIN,
+      smoke: CARDPUTER_FIRMWARE_SMOKE_BIN });
+  }
+
   buildFirmwarePromptContext() {
+    const workflow = this.firmwareWorkflowPaths();
     const manifest = readJsonFileSyncSafe(this.firmwareManifestPath(), null);
     return {
       context_version: CARDPUTER_FIRMWARE_CONTEXT_VERSION,
@@ -3661,7 +3696,12 @@ class BridgeRuntime {
             notes: String(manifest.notes || "")
           }
         : null,
-      capabilities: CARDPUTER_FIRMWARE_CAPABILITIES,
+      capabilities: { ...CARDPUTER_FIRMWARE_CAPABILITIES, hardware: {
+        ...CARDPUTER_FIRMWARE_CAPABILITIES.hardware,
+        firmware_repo: workflow.repoDir, bridge_repo: path.join(workflow.repoDir, "bridge"),
+        build_command: workflow.build, server_firmware_repo: workflow.repoDir,
+        server_build_wrapper: workflow.build, server_publish_wrapper: workflow.publish
+      } },
       supported_device_actions: {
         catalog_version: DEVICE_ACTION_CATALOG_VERSION,
         types: DEVICE_ACTION_CATALOG.map((action) => action.type)
@@ -3876,11 +3916,13 @@ class BridgeRuntime {
       icon: "🛠️",
       contour_id: sourceTopic?.contour_id || "root/main",
       mirror_topic_key: sourceTopic?.topic_key || null,
+      owner_device_id: device.device_id,
       hidden: true,
       created_at: iso,
       updated_at: iso,
       last_activity_at: iso
     });
+    this.store.ensureDeviceTopic(device.device_id, topic.topic_key);
     await this.ensureUpstreamSessionForTopic(topic, { forceCreate: true });
     this.registerRuntimeTopic(topic);
     await this.store.save();
@@ -3892,6 +3934,7 @@ class BridgeRuntime {
   }
 
   buildFirmwareJobUpstreamText({ device, sourceTopic, jobTopic, text, inputMode = "text", clientMsgId = "" }) {
+    const workflow = this.firmwareWorkflowPaths();
     const language = languageNameForText(text);
     const immediateInstall = wantsImmediateFirmwareInstall(text);
     const firmware = this.buildFirmwarePromptContext();
@@ -3926,11 +3969,13 @@ class BridgeRuntime {
         purpose: "Disposable short-lived firmware implementation session. Do not rely on older Cardputer Firmware topic history.",
         architecture:
           "Cardputer -> bridge firmware-route -> fresh OpenClaw job session -> firmware repo patch/build/commit/publish -> bridge OTA manifest -> device inbox event -> spoken reply -> ota.check/ota.apply.",
-        repo: CARDPUTER_FIRMWARE_REPO,
-        app_dir: CARDPUTER_FIRMWARE_APP_DIR,
-        build_wrapper: CARDPUTER_FIRMWARE_BUILD_BIN,
-        publish_wrapper: CARDPUTER_FIRMWARE_PUBLISH_BIN,
-        smoke_wrapper: CARDPUTER_FIRMWARE_SMOKE_BIN,
+        repo: workflow.repoDir,
+        branch: workflow.branch,
+        push_remote: workflow.pushRemote,
+        app_dir: path.join(workflow.repoDir, "bots/CardputerADV"),
+        build_wrapper: workflow.build,
+        publish_wrapper: workflow.publish,
+        smoke_wrapper: workflow.smoke,
         safety_gate: {
           mode: "fail_closed",
           app_slot_limit_bytes: 3145728,
@@ -3958,16 +4003,16 @@ class BridgeRuntime {
       "Implement the requested firmware change in the repo. Background-color requests are only smoke tests; the same route must handle real features such as calculator, alarm, stopwatch, Tamagotchi, or utility screens.",
       "Keep the implementation scoped and production-grade. Follow existing firmware UI/code patterns and avoid unrelated refactors.",
       "Before editing, inspect the relevant files. Use the server repo path from job_session_contract.repo.",
-      "Fetch origin main and fast-forward a clean checkout before editing. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
+      "Fetch job_session_contract.push_remote and job_session_contract.branch, then fast-forward that exact clean checkout before editing. Stop if the checkout is on another branch; do not switch or reset it. Preserve dirty work and stop on conflicts. Never restore or merge legacy OmniBot firmware branches into the independent S1-ADV history.",
       "Bump APP_VERSION in both platformio.ini and src/main_parts/001_main.cpp.inc.",
       "SAFETY GATE: treat firmware publishing as fail-closed. If any required safety check is missing, ambiguous, or failed, stop and report the blocker; do not publish, do not append ota.apply, and do not claim success.",
       "Before build/publish, review git diff for unrelated changes, destructive storage operations, hardcoded secrets, disabled TLS/auth, bootloader/partition/OTA-slot changes, rollback/boot-guard changes, watchdog-disabling loops, boot-blocking network loops, or unbounded memory allocations.",
       "Do not modify partition tables, bootloader, OTA slot layout, rollback/boot guard, credential handling, TLS verification, or storage migration/wipe behavior unless the user explicitly requested that exact area and you can explain the safety impact.",
       "Verify the produced firmware.bin is below the app slot limit from job_session_contract.safety_gate.app_slot_limit_bytes with reasonable headroom. If the image is too large or close enough to threaten OTA reliability, stop and report it instead of publishing.",
+      "After review, commit source locally BEFORE building, so the binary embeds the exact source SHA. Build that clean commit, then push it only after the build passes. Never publish an unpushed or changed candidate.",
       "Build exactly once at a time with job_session_contract.build_wrapper. Do not run parallel PlatformIO builds against the same .pio directory.",
-      "After source checks pass, commit and push the firmware change on the current owned branch, then build the release from that exact pushed HEAD. The release binary BUILD_GIT_SHA and manifest build_git_sha must both identify that exact 40-character commit. Rebuild after any source commit; never relabel a binary built from an older HEAD.",
       "Publish the OTA candidate with job_session_contract.publish_wrapper and verify it with job_session_contract.smoke_wrapper or an equivalent manifest/file sha smoke.",
-      "When publishing succeeds, send one concise final assistant message in this job topic including the actual published firmware version. It must be suitable for spoken playback on the device; the bridge correlates that version with the real new manifest.",
+      "When publishing succeeds, send one concise final assistant message in this job topic. It must be suitable for spoken playback on the device.",
       immediateInstall
         ? "Because immediate_install_requested is true, the final message must say that the firmware is ready and installation is starting now, then append exactly this machine marker: [[cardputer_actions:[{\"type\":\"settings.set_ota_min_battery\",\"value\":25},{\"type\":\"ota.check\"},{\"type\":\"ota.apply\"}]]]"
         : "Because immediate_install_requested is false, the final message must say that the firmware is ready to install, then append exactly this machine marker: [[cardputer_actions:[{\"type\":\"ota.check\"}]]]",
@@ -4023,6 +4068,7 @@ class BridgeRuntime {
     const files = await walkFiles(rootDir);
     const assetFiles = [];
     for (const filePath of files) {
+      if(assetFiles.length>=this.config.assets.maxManifestFiles)break;
       if (!filePath.endsWith(".wav")) {
         continue;
       }
@@ -4031,6 +4077,8 @@ class BridgeRuntime {
       if (!segments || segments.length < 2) {
         continue;
       }
+      if (!this.canReadAsset(device, segments, filePath)) continue;
+      if ((await stat(filePath)).size > this.config.assets.maxFileBytes) continue;
       const wavBytes = await readFile(filePath);
       const relativeUrlPath = segments.join("/");
       const filename = segments.at(-1);
@@ -4038,12 +4086,21 @@ class BridgeRuntime {
         path: `${this.config.assets.audioPrefix}/${relativeUrlPath}`,
         category: segments[0],
         title: titleFromFilename(filename),
-        language: inferAssetLanguage(filename),
+        language: ["ru", "en"].includes(segments[0]) ? segments[0] : inferAssetLanguage(filename),
         url: this.assetFileUrl(req, relativeUrlPath),
         sha256: sha256(wavBytes),
         size: wavBytes.length,
         duration_sec: readWavDurationSeconds(wavBytes)
       });
+    }
+    for (const bundled of this.focusAudioBundle || []) {
+      if (assetFiles.length >= this.config.assets.maxManifestFiles) break;
+      if (bundled.size > this.config.assets.maxFileBytes ||
+          existsSync(path.join(rootDir, bundled.relativeUrlPath)) ||
+          !this.canReadAsset(device, bundled.relativeUrlPath.split("/"), bundled.filePath)) continue;
+      const { filePath, relativeUrlPath, ...entry } = bundled;
+      assetFiles.push({ ...entry, path: `${this.config.assets.audioPrefix}/${relativeUrlPath}`,
+        url: this.assetFileUrl(req, relativeUrlPath) });
     }
     assetFiles.sort((left, right) => left.path.localeCompare(right.path));
     const limitedFiles = assetFiles.slice(0, this.config.assets.maxManifestFiles);
@@ -4063,13 +4120,18 @@ class BridgeRuntime {
 
   resolveAssetDownload(device, relativeUrlPath) {
     const segments = sanitizeAssetSegments(String(relativeUrlPath || "").split("/"));
-    if (!segments || segments.length < 2) {
+    if (!segments || segments.length < 2 || !segments.at(-1).endsWith(".wav")) {
       return null;
     }
-    const filePath = path.join(this.assetsAudioRootDir(), ...segments);
+    let filePath = path.join(this.assetsAudioRootDir(), ...segments);
     const relativeToRoot = path.relative(this.assetsAudioRootDir(), filePath);
     if (relativeToRoot.startsWith("..") || path.isAbsolute(relativeToRoot)) {
       return null;
+    }
+    if (!this.canReadAsset(device, segments, filePath)) return null;
+    if (!existsSync(filePath)) {
+      const bundled = this.focusAudioBundle?.find(file => file.relativeUrlPath === segments.join("/"));
+      if (bundled) filePath = bundled.filePath;
     }
     return {
       filePath,
@@ -4077,6 +4139,13 @@ class BridgeRuntime {
       category: segments[0],
       filename: segments.at(-1)
     };
+  }
+
+  canReadAsset(device, segments, filePath) {
+    if (segments[0] !== this.config.assets.replyCategory) return true;
+    const owner = readJsonFileSyncSafe(`${filePath}.owner.json`, null);
+    return !!owner?.session_key && !!device?.topics?.includes(owner.topic_key) &&
+      this.store.getTopic(owner.topic_key)?.session_key === owner.session_key;
   }
 
   resolveFirmwareDownload(device, filename) {
@@ -4214,9 +4283,9 @@ class BridgeRuntime {
     };
   }
 
-  async saveReplyAudioAsset(req, replyText, traceId) {
+  async saveReplyAudioAsset(req, replyText, traceId, topic) {
     const cleaned = String(replyText || "").trim();
-    if (!cleaned) {
+    if (!cleaned || !topic?.session_key || this.store.getTopic(topic.topic_key)?.session_key !== topic.session_key) {
       return null;
     }
     const startedAt = Date.now();
@@ -4256,11 +4325,12 @@ class BridgeRuntime {
     if (!wavBytes?.length) {
       return null;
     }
-    const baseSlug = safeSlug(cleaned, "reply", 32);
-    const filename = `${baseSlug}-${String(traceId || makeId("tr")).replace(/^tr_/u, "").slice(0, 6)}.wav`;
+    const baseSlug = safeSlug(cleaned, "reply", 31);
+    const filename = `${baseSlug}-${makeId("audio").slice(-12)}.wav`;
     const relativeUrlPath = `${this.config.assets.replyCategory}/${filename}`;
     const filePath = path.join(this.assetsAudioRootDir(), this.config.assets.replyCategory, filename);
     await writeBufferAtomic(filePath, wavBytes);
+    await writeJsonAtomic(`${filePath}.owner.json`, { topic_key:topic.topic_key, session_key:topic.session_key });
     const durationSec = readWavDurationSeconds(wavBytes);
     console.info(
       `[tts] reply_audio trace=${traceId || "-"} provider=${provider} model=${this.config.omnibotShim.ttsModel} ` +
@@ -4472,7 +4542,9 @@ class BridgeRuntime {
     text,
     clientMsgId,
     source = "cardputer_fast_lane",
-    queueDeviceEvent = true
+    queueDeviceEvent = true,
+    upstreamRunId = null,
+    terminalError = false
   }) {
     const topic = this.store.getTopic(topicKey);
     if (!topic) {
@@ -4489,7 +4561,9 @@ class BridgeRuntime {
         display_name: "OpenClaw"
       },
       source: {
-        transport: source
+        transport: source,
+        ...(upstreamRunId ? { upstream_run_id: upstreamRunId } : {}),
+        ...(terminalError ? { terminal_error: true } : {})
       },
       content: {
         kind: "text",
@@ -4577,6 +4651,83 @@ class BridgeRuntime {
     return message;
   }
 
+  firmwareJobStatusForDevice(device) {
+    const primaryKey = this.primaryCardputerTopicForDevice(device)?.topic_key;
+    const primary = primaryKey && this.store.getTopic(primaryKey);
+    if (primary?.agent_task?.device_id === device.device_id)
+      return publicFirmwareJob(primary.agent_task);
+    const job = Object.values(this.store.state.topics)
+      .map(topic => topic.firmware_job)
+      .filter(job => job?.device_id === device.device_id)
+      .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))[0];
+    return publicFirmwareJob(job);
+  }
+
+  setAgentTaskStatus(payload) {
+    const next = (this.agentStatusTail || Promise.resolve()).then(() => this.applyAgentTaskStatus(payload));
+    this.agentStatusTail = next.catch(() => {});
+    return next;
+  }
+
+  async applyAgentTaskStatus(payload) {
+    const reject = (message, statusCode = 409) => { throw Object.assign(new Error(message), { statusCode }); };
+    if (!payload || !AGENT_STATES.includes(payload.state) || !WORK_KINDS.includes(payload.work_kind) ||
+        typeof payload.request_id !== 'string' || !payload.request_id || payload.request_id.length > 160 ||
+        typeof payload.session_key !== 'string' || payload.session_key.length > 512 ||
+        (payload.question !== undefined && (typeof payload.question !== 'string' || payload.question.length > 512)))
+      reject('Invalid agent status.', 400);
+    const topic = Object.values(this.store.state.topics).find(item => item.session_key === payload.session_key && !item.hidden);
+    const device = topic && this.config.devices.find(item => item.topics.includes(topic.topic_key));
+    if (!device || this.primaryCardputerTopicForDevice(device)?.topic_key !== topic.topic_key ||
+        this.store.getDevice(device.device_id)?.revoked_at) reject('No authorized Cardputer conversation.');
+    const receipt = this.store.getIdempotent(topic.topic_key, payload.request_id);
+    const entry = receipt && this.turnOutbox.entries().find(item => item.run_id === receipt.upstream_run_id);
+    if (!entry || entry.device_id !== device.device_id || entry.session_key !== payload.session_key ||
+        !['dispatching', 'inflight', 'uncertain'].includes(entry.phase)) reject('No active owned turn.');
+    const previous = topic.agent_task;
+    if (payload.task_id && (!previous || previous.task_id !== payload.task_id)) reject('Task identity changed.');
+    if (previous && !['completed', 'cancelled', 'ready', 'failed'].includes(previous.state) &&
+        payload.task_id !== previous.task_id && payload.request_id !== previous.task_id)
+      reject('Continue the existing active task explicitly; do not overwrite it.');
+    if (payload.state === 'building' && payload.work_kind !== 'firmware') reject('Only firmware work can be building.', 400);
+    if (payload.state === 'awaiting_input' && !payload.question?.trim()) reject('A visible question is required.', 400);
+    if (payload.state === 'cancelled' && previous?.state !== 'awaiting_input')
+      reject('Only an unanswered clarification can be closed; this tool cannot stop running work.');
+    if (payload.state === 'building') {
+      const capability = await firmwareCapability(this.config, {
+        CARDPUTER_FIRMWARE_REPO, CARDPUTER_FIRMWARE_BUILD_BIN, CARDPUTER_FIRMWARE_PUBLISH_BIN, CARDPUTER_FIRMWARE_SMOKE_BIN
+      });
+      if (!capability.ready) reject(capability.reason);
+    }
+    const manifest = readJsonFileSyncSafe(this.firmwareManifestPath(), null);
+    const sameTask = previous && (payload.task_id === previous.task_id || payload.request_id === previous.task_id);
+    const stamp = nowIso();
+    const task = sameTask ? { ...previous } : {
+      device_id: device.device_id, task_id: payload.request_id, started_at: stamp,
+      baseline_sha256: manifest?.sha256 || null, agent_managed: true
+    };
+    if (sameTask && task.work_kind !== payload.work_kind) reject('Task kind cannot change during a continuation.');
+    if (payload.state === 'completed' && payload.work_kind === 'firmware' && !publishedAfterTask(manifest, task))
+      reject('A verified new OTA manifest is required before firmware completion.');
+    Object.assign(task, { request_id: payload.request_id, work_kind: payload.work_kind,
+      state: payload.state === 'completed' && payload.work_kind === 'firmware' ? 'ready' : payload.state,
+      question: payload.state === 'awaiting_input' ? payload.question.trim() : null, updated_at: stamp });
+    topic.agent_task = task;
+    await this.store.save();
+    if (task.state === 'awaiting_input') {
+      const existingQuestion = this.store.getHistory(topic.topic_key, 0, 100000).items.some(message =>
+        message.source?.transport === 'cardputer_agent_question' &&
+        message.client_msg_id === `${payload.request_id}:reply` && message.content?.text === task.question);
+      if (!existingQuestion) await this.appendAssistantReply({ topicKey: topic.topic_key,
+        text: task.question, clientMsgId: payload.request_id,
+        source: 'cardputer_agent_question', upstreamRunId: entry.run_id });
+    }
+    this.broadcast(topic.topic_key, { type: 'task_status', firmware_job: publicFirmwareJob(task) });
+    return { ok: true, task: publicFirmwareJob(task),
+      ...(task.state === 'awaiting_input' ? { question_delivered: true,
+        instruction: 'The exact question is already delivered to the user. Finish this turn by repeating that exact question with no additional text; identical delivery is deduplicated. Wait for the owner reply before doing work.' } : {}) };
+  }
+
   recordDeviceFirmware(device, params) {
     const version=String(params.get('firmware_version')||'');
     const git=String(params.get('firmware_git')||'');
@@ -4588,139 +4739,10 @@ class BridgeRuntime {
       console.info(`[device] firmware device=${device.device_id} version=${version} git=${git}`);
   }
 
-  firmwareClarificationTopic(topic, text) {
-    if(!/^(?:yes|yep|yeah|ok|okay|sure|go ahead|please do|no|да|ага|верно|именно|делай|нет)(?:\s|[.!?,]|$)/iu.test(String(text||'').trim())) return null;
-    const last=this.store.getHistory(topic.topic_key,0,12).items
-      .filter(m=>m.sender?.kind==='assistant' && m.content?.text).at(-1);
-    if(last?.source?.transport!=='cardputer_firmware_job_mirror' || !/[?？]/u.test(last.content.text)) return null;
-    return Object.values(this.store.state.topics||{})
-      .filter(t=>t.mirror_topic_key===topic.topic_key && t.topic_key.startsWith('local:cardputer-firmware-job:') &&
-        Date.now()-Date.parse(t.updated_at||t.created_at||0)<30*60*1000)
-      .sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at)))
-      .find(t=>this.store.getHistory(t.topic_key,0,5).items.some(m=>
-        m.sender?.kind==='assistant' && m.content?.text===last.content.text)) || null;
-  }
-
-  firmwareJobStatusForDevice(device) {
-    const job = Object.values(this.store.state.topics)
-      .map(topic => topic.firmware_job)
-      .filter(job => job?.device_id === device.device_id)
-      .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))[0];
-    return publicFirmwareJob(job);
-  }
-
-  async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
-    const continuation=this.firmwareClarificationTopic(topic,transcript);
-    if (wantsFirmwareWork(transcript) || continuation) {
-      const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
-      const routeTopic = continuation || await this.createFirmwareJobTopicForDevice(device, transcript);
-      this.store.getTopic(routeTopic.topic_key).firmware_job = startFirmwareJob(
-        device.device_id, clientMsgId, Date.now(), readJsonFileSyncSafe(this.firmwareManifestPath(), null));
-      await this.store.save();
-      console.info(
-        `[firmware-route] upstream device=${device?.device_id || "-"} ` +
-        `job_topic=${routeTopic?.topic_key || "-"} dashboard=${dashboardTopic?.topic_key || "-"} ` +
-        `from=${topic?.topic_key || "-"} mode=${inputMode}`
-      );
-      const ack = await this.sendText({
-        device,
-        topicKey: routeTopic.topic_key,
-        clientMsgId,
-        text: transcript,
-        upstreamText: continuation
-          ? `Authenticated Cardputer owner follow-up in this existing server firmware job. Continue the earlier request and preserve its installation choice. Do not create a competing job or require any desktop chat or binding.\n\nOwner reply:\n${transcript}`
-          : this.buildFirmwareJobUpstreamText({
-          device,
-          sourceTopic: topic,
-          jobTopic: routeTopic,
-          text: transcript,
-          inputMode,
-          clientMsgId
-        }),
-        waitForUpstream: false
-      });
-      const replyText = languageNameForText(transcript) === "Russian"
-        ? (
-          `Задача принята. OpenClaw подготовит прошивку и пришлёт результат на устройство.`
-        )
-        : (
-          `Request accepted. OpenClaw will prepare the firmware and send the result to your device.`
-        );
-      const replyMessage = await this.appendAssistantReply({
-        topicKey: dashboardTopic.topic_key,
-        text: replyText,
-        clientMsgId,
-        source: "cardputer_firmware_job_ack"
-      });
-      return {
-        ack,
-        response: { ...await this.buildTurnResponse({
-          req,
-          topic: dashboardTopic,
-          transcript,
-          replyText,
-          replyMessage,
-          includeAudio: false
-        }), status: "accepted", pending: true, after_seq: replyMessage.seq,
-        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key,
-        firmware_job: this.firmwareJobStatusForDevice(device) }
-      };
-    }
-    // Ordinary voice keeps the existing conversation and tools, without a
-    // second direct-model answer. Firmware work above has exactly one owner.
-    if (inputMode === "voice") return null;
-    if (!this.fastLaneEnabled(inputMode)) {
-      return null;
-    }
-    const ack = await this.sendText({
-      device,
-      topicKey: topic.topic_key,
-      clientMsgId,
-      text: transcript,
-      upstreamText: this.buildDeviceTurnUpstreamText({
-        device,
-        topicKey: topic.topic_key,
-        text: transcript,
-        inputMode
-      }),
-      waitForUpstream: false
-    });
-    try {
-      const fastReply = await this.generateFastLaneReply({
-        device,
-        topic,
-        transcript,
-        inputMode
-      });
-      const replyMessage = await this.appendAssistantReply({
-        topicKey: topic.topic_key,
-        text: fastReply.text,
-        clientMsgId,
-        source: "cardputer_fast_lane"
-      });
-      return {
-        ack,
-        response: await this.buildTurnResponse({
-          req,
-          topic,
-          transcript,
-          replyText: fastReply.text,
-          replyMessage,
-          includeAudio: wantsReplyAudio
-        })
-      };
-    } catch (error) {
-      console.warn(
-        `[fast-lane] failed device=${device?.device_id || "-"} topic=${topic?.topic_key || "-"} ` +
-        `mode=${inputMode} err=${String(error.message || error)}`
-      );
-      return {
-        ack,
-        response: null,
-        fallback: this.config.fastLane?.fallbackToOpenClaw === true,
-        error
-      };
-    }
+  async tryFastLaneTurn() {
+    // Every ordinary text/voice turn belongs to the configured persistent
+    // OpenClaw session. Intent and work status are the agent's decisions.
+    return null;
   }
 
   async runFirmwareWorkJob({ device, topic, transcript, clientMsgId }) {
@@ -4795,12 +4817,18 @@ class BridgeRuntime {
   }
 
   async buildPendingTurnResponse({ req, device, topic, transcript, ack }) {
+    if (ack.upstream_terminal?.status === "error") {
+      const failure = "The request failed on the server. Check Inbox for details before retrying.";
+      return { ...await this.buildTurnResponse({ req, topic, transcript, replyText: failure, includeAudio: false }),
+        ok: false, status: "failed", pending: false, client_msg_id: ack.client_msg_id,
+        upstream_run_id: ack.upstream_run_id, upstream_terminal: ack.upstream_terminal,
+        delivery_state: "terminal", status_text: failure, inbox_hint: true };
+    }
     const confirmed = ack.upstream_accepted === true;
     const queued = ack.delivery_state === "queued";
-    const receipt = queued ? (languageNameForText(transcript) === "Russian" ? "Запрос в очереди. Ответ появится в Inbox." : "Request queued. The reply will arrive in Inbox.")
-      : languageNameForText(transcript) === "Russian"
-      ? (confirmed ? "Запрос принят. Ответ появится в Inbox." : "Запрос сохранён. Подтверждение доставки ожидается; проверьте Inbox перед повтором.")
-      : (confirmed ? "Request accepted. The reply will arrive in Inbox." : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
+    const receipt = queued ? "Request queued. The reply will arrive in Inbox."
+      : (confirmed ? "Request accepted. The reply will arrive in Inbox."
+        : "Request stored. Delivery confirmation is pending; check Inbox before retrying.");
     return {
       ...await this.buildTurnResponse({ req, device, topic, transcript, replyText: receipt, includeAudio: false }),
       status: "pending",
@@ -4829,6 +4857,7 @@ class BridgeRuntime {
       trace_id: traceId,
       turn_id: turnId || traceId,
       topic_key: topic?.topic_key || null,
+      firmware_job: this.firmwareJobStatusForDevice(this.config.devices[0]),
       transcript: String(transcript || "").trim(),
       short_text: this.shortReplyText(fullText),
       full_text: fullText,
@@ -4836,6 +4865,9 @@ class BridgeRuntime {
       reply_seq: replyMessage?.seq || 0,
       markdown_text: markdownText && markdownText !== fullText ? markdownText : undefined
     };
+    if (replyMessage?.source?.terminal_error) {
+      response.ok = false; response.status = "failed"; response.pending = false;
+    }
     if (actions.length > 0) {
       response.device_actions = actions;
       console.log(
@@ -4845,7 +4877,7 @@ class BridgeRuntime {
     }
     if (includeAudio) {
       try {
-        response.audio = await this.saveReplyAudioAsset(req, fullText, traceId);
+        response.audio = await this.saveReplyAudioAsset(req, fullText, traceId, topic);
         response.audio_status = response.audio ? "ready" : "unavailable";
       } catch (error) {
         console.warn(`[tts] reply_audio_skipped trace=${traceId || "-"} err=${String(error.message || error).slice(0, 240)}`);
@@ -4866,13 +4898,20 @@ class BridgeRuntime {
   async appendDeviceLogs(device, payload) {
     const deviceId = safeSlug(device?.device_id || "unknown-device", "unknown-device", 64);
     const logPath = path.join(this.config.assets.logsDir, `${deviceId}.jsonl`);
-    await ensureDir(path.dirname(logPath));
-    await appendFile(logPath, `${JSON.stringify({
+    const line=`${JSON.stringify({
       ...payload,
       device_id: deviceId,
       received_at: nowIso()
-    })}\n`, "utf8");
-    return logPath;
+    })}\n`;
+    const write=(this.deviceLogWrites||Promise.resolve()).then(async()=>{
+      await ensureDir(path.dirname(logPath));
+      let size=0;try{size=(await stat(logPath)).size;}catch(error){if(error.code!=="ENOENT")throw error;}
+      if(size+Buffer.byteLength(line)>8*1024*1024)await rename(logPath,`${logPath}.previous`);
+      await appendFile(logPath,line,{encoding:"utf8",mode:0o600});
+      await chmod(logPath,0o600);
+      return logPath;
+    });
+    this.deviceLogWrites=write.catch(()=>{});return write;
   }
 
   scheduleBootstrap() {
@@ -5093,6 +5132,15 @@ class BridgeRuntime {
       }
     }
     const appended = this.store.appendMessage(topic.topic_key, normalized);
+    const job = topic.firmware_job;
+    const receipt = job && this.store.getIdempotent(topic.topic_key, job.request_id);
+    if (job && receipt && assistantReplyMatchesTurn(appended, {
+      runId: receipt.upstream_run_id, clientMsgId: job.request_id
+    })) {
+      topic.firmware_job = updateFirmwareJob(job, { message: raw,
+        text: String(appended.content?.text || ""),
+        manifest: readJsonFileSyncSafe(this.firmwareManifestPath(), null) });
+    }
     let media = null;
     if (appended.content.kind === "voice") {
       try {
@@ -5103,13 +5151,6 @@ class BridgeRuntime {
           `err=${String(error?.message || error).slice(0, 240)}`
         );
       }
-    }
-    if (appended.sender?.kind === "assistant" && topic.firmware_job) {
-      topic.firmware_job = updateFirmwareJob(topic.firmware_job, {
-        message: raw, text: String(appended.content?.text || ""),
-        manifest: readJsonFileSyncSafe(this.firmwareManifestPath(), null)
-      });
-      console.info(`[firmware-job] request=${topic.firmware_job.request_id} state=${topic.firmware_job.state}`);
     }
     this.queueDeviceMessageEvent(topic.topic_key, appended);
     await this.store.save();
@@ -5387,7 +5428,7 @@ class BridgeRuntime {
     return overview;
   }
 
-  buildDeviceTurnUpstreamText({ device, topicKey, text, inputMode = "text" }) {
+  buildDeviceTurnUpstreamText({ device, topicKey, text, clientMsgId = "", inputMode = "text" }) {
     if (!this.config.deviceTurnContext?.enabled) {
       return text;
     }
@@ -5411,6 +5452,8 @@ class BridgeRuntime {
       : {};
     const context = {
       client: "cardputer_adv",
+      request_id: clientMsgId,
+      active_task: topic?.agent_task || null,
       user_id: device?.device_id || "cardputer",
       input_mode: inputMode,
       fast_profile: voiceTurn ? "cardputer_voice_fast" : "cardputer_text_fast",
@@ -5450,6 +5493,7 @@ class BridgeRuntime {
         ? `For voice turns, give the actual answer in 1-3 spoken sentences when possible. Keep the full session context and all tools. For firmware/features, perform the requested work with normal rigor, then report the result. Do not merely promise to send a request. Never reply NO_REPLY.`
         : "If a full answer would be long, keep the text short and front-load the key point.",
       firmware_capabilities: buildFirmwareCapabilityPolicyText(),
+      agent_status: "You own intent and task status in this one persistent OpenClaw session. Text and G0 voice replies share this context. Do not route or classify by keywords. For a normal question, answer normally without starting firmware work or changing an unrelated active task. For missing requirements, call cardputer_status(request_id, state=awaiting_input, work_kind, question) and ask that exact question visibly; do not begin implementation. The next user text or voice reply is normal session context: decide whether it answers the question, changes the request or is unrelated. For a continuation, pass active_task.task_id explicitly. Before actually starting authorized firmware changes call cardputer_status with state=building and work_kind=firmware; use working for other tasks. After verified publication call completed; failed for a real failure. If the owner declines an unanswered clarification, close that same task with cancelled; this does not stop a running operation. Never claim a status changed if the tool failed. A receipt only confirms delivery, not work acceptance. Do not mark a weather question or an installed-version question as firmware development. Never infer installation permission from a keyword; use the owner's actual instruction and context. Keep questions and results in this conversation, without creating another session.",
       device_actions: buildDeviceActionPolicyText()
     };
     return buildDeviceTurnEnvelope({ context, policy, text, inputMode, compact: voiceTurn });
@@ -5517,6 +5561,11 @@ class BridgeRuntime {
         assistantReplyMatchesTurn(item, { runId, clientMsgId }) &&
         isMeaningfulAssistantReplyText(item.content?.text));
       if (reply) return reply;
+      if (persistedReceipt?.upstream_terminal?.status === "error") {
+        const entry = this.turnOutbox?.entries().find(item => item.topic_key === topicKey && item.client_msg_id === clientMsgId);
+        const failure = entry && await this.recordOutboxFailure(entry);
+        if (failure) return failure;
+      }
       await sleep(intervalMs);
     }
     return null;
@@ -5586,15 +5635,40 @@ class BridgeRuntime {
   }
 
   updateOutboxReceipt(entry) {
-    const ack = this.store.getIdempotent(entry.topic_key, entry.client_msg_id);
+    const ack = this.store.getIdempotent(entry.topic_key, entry.client_msg_id) || entry.receipt;
     if (!ack) return;
     ack.upstream_run_id = entry.run_id;
     ack.upstream_accepted = entry.upstream_accepted === true;
     ack.delivery_state = entry.phase;
     if (entry.terminal) ack.upstream_terminal = entry.terminal;
+    entry.receipt = { ...ack };
     this.store.setIdempotent(entry.topic_key, entry.client_msg_id, ack);
     const message = this.store.getHistory(entry.topic_key, 0, 100000).items.find(item => item.id === ack.message_id);
     if (message) message.source.upstream_run_id = entry.run_id;
+    const topic = this.store.getTopic(entry.topic_key);
+    if (topic?.firmware_job?.request_id === entry.client_msg_id &&
+        ["uncertain", "held"].includes(entry.phase))
+      topic.firmware_job = firmwareJobDeliveryUncertain(topic.firmware_job);
+  }
+
+  async recordOutboxFailure(entry) {
+    if (entry.terminal?.status !== "error" || entry.terminal.operator_audit) return null;
+    const topic = this.store.getTopic(entry.topic_key);
+    const device = this.store.state.devices[entry.device_id];
+    if (topic?.session_key !== entry.session_key || !device || device.revoked_at || !device.topics?.includes(entry.topic_key)) return null;
+    const history = this.store.getHistory(entry.topic_key, 0, 100000).items;
+    const existing = history.find(message => assistantReplyMatchesTurn(message, { runId: entry.run_id,
+      clientMsgId: entry.client_msg_id }) && isMeaningfulAssistantReplyText(message.content?.text));
+    if (existing || entry.failure_message_id) return existing || null;
+    if (topic.firmware_job?.request_id === entry.client_msg_id) {
+      topic.firmware_job = { ...topic.firmware_job, state: "failed", updated_at: nowIso() };
+    }
+    const failure = await this.appendAssistantReply({ topicKey: entry.topic_key,
+      text: "The request failed on the server. No completed answer was received. Check this request before submitting it again.",
+      clientMsgId: entry.client_msg_id, source: "cardputer_turn_failed", upstreamRunId: entry.run_id, terminalError: true });
+    entry.failure_message_id = failure.id;
+    await this.store.save();
+    return failure;
   }
 
   async dispatchOutboxTurn(entry) {
@@ -5620,10 +5694,24 @@ class BridgeRuntime {
       return existing;
     }
     const expectedRunId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
+    const retained = this.turnOutbox.entries().find(entry => entry.id === expectedRunId);
+    if (retained) {
+      if (retained.device_id !== device.device_id || retained.session_key !== topic.session_key || retained.topic_key !== topicKey)
+        throw new Error("Persisted turn owner changed; reconciliation is required before retrying.");
+      this.updateOutboxReceipt(retained);
+      const receipt = this.store.getIdempotent(topicKey, clientMsgId);
+      if (!receipt) throw new Error("Persisted turn receipt requires reconciliation; the request will not be resent.");
+      await this.store.save();
+      return receipt;
+    }
     const params = { key: topic.session_key, message: upstreamText || text, idempotencyKey: expectedRunId };
     const thinking = voiceThinking(text, inputMode);
     if (thinking) params.thinking = thinking;
     this.turnOutbox.assertCapacity(topic.session_key, params);
+    if (topic.topic_key.startsWith("local:cardputer-firmware-job:")) {
+      topic.firmware_job = startFirmwareJob(device.device_id, clientMsgId, Date.now(),
+        readJsonFileSyncSafe(this.firmwareManifestPath(), null));
+    }
     const message = this.store.appendMessage(topicKey, {
       id: makeId("msg"),
       created_at: nowIso(),
@@ -5658,7 +5746,7 @@ class BridgeRuntime {
     const ticket = await this.turnOutbox.enqueue({
       id: expectedRunId, run_id: expectedRunId, topic_key: topicKey,
       session_key: topic.session_key, device_id: device.device_id,
-      client_msg_id: clientMsgId, params
+      client_msg_id: clientMsgId, params, receipt: { ...ack }
     });
     this.broadcast(topicKey, {
       type: "new_message", topic_key: topicKey, session_key: topic.session_key, message
@@ -5682,15 +5770,6 @@ class BridgeRuntime {
       });
     };
     const failDelivery = (error) => {
-      if (topic.firmware_job) {
-        topic.firmware_job = firmwareJobDeliveryUncertain(topic.firmware_job);
-        void this.store.save();
-        if (topic.mirror_topic_key) void this.appendAssistantReply({
-          topicKey: topic.mirror_topic_key,
-          text: "The agent delivery receipt is uncertain. Check chat before retrying to avoid a duplicate build.",
-          clientMsgId, source: "cardputer_firmware_job_error"
-        }).catch(err => console.warn(`[firmware-job] notification: ${String(err.message).slice(0, 160)}`));
-      }
       this.broadcast(topicKey, {
         type: "delivery_status",
         topic_key: topicKey,
@@ -5701,13 +5780,10 @@ class BridgeRuntime {
         updated_at: nowIso()
       });
     };
-    const mirrorOptional = () => mirrorToTelegram().catch(error => {
-      console.warn(`[telegram] optional mirror failed topic=${topicKey} err=${String(error.message || error).slice(0, 160)}`);
-    });
     if (waitForUpstream) {
       try {
         if (ticket.dispatched) await ticket.dispatched;
-        void mirrorOptional();
+        void mirrorToTelegram().catch((error) => failDelivery(error));
       } catch (error) {
         failDelivery(error);
         throw error;
@@ -5716,7 +5792,7 @@ class BridgeRuntime {
       void (async () => {
         try {
           if (ticket.dispatched) await ticket.dispatched;
-          await mirrorOptional();
+          await mirrorToTelegram();
         } catch (error) {
           failDelivery(error);
         }
@@ -5828,7 +5904,7 @@ class BridgeRuntime {
 
     void (async () => {
       try {
-        const transcription = await maybeTranscribeVoice(this.config, uploadPath).catch(() => "");
+        const transcription = await maybeTranscribeVoice(this.config, playbackPath).catch(() => "");
         const runId = `cardputer:${device.device_id}:${topicKey}:${clientMsgId}`;
         const ticket = await this.turnOutbox.enqueue({
           id: runId, run_id: runId, topic_key: topicKey, session_key: topic.session_key,
@@ -5879,8 +5955,10 @@ async function main() {
     maxActiveGlobal: config.security.maxActiveRequestsGlobal,
     startLimitPerDevice: config.security.requestStartLimitPerDevice
   } });
+  const storageBudget = new PrivateStorageBudget(config);
   await runtime.start();
-  runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures });
+  if (config.mininervaCompat?.enabled === true)
+    runtime.compatBridge = createMininervaCompatServer({ runtime, config, recordAuthFailure, clearAuthFailures, requestAdmission, storageBudget });
 
   const server = createServer((req, res) => {
     let releaseRequest = () => {};
@@ -5898,6 +5976,15 @@ async function main() {
       }
 
       if (url.pathname.startsWith("/internal/")) {
+        if (url.pathname === '/internal/cardputer/agent-status') {
+          if (req.method !== 'POST' || !hasAgentStatusAccess(req, config)) {
+            json(res, 404, { error: 'not_found' }); return;
+          }
+          const payload = await readJsonBody(req, Math.min(config.security.maxJsonBytes, 4096));
+          try { json(res, 200, await runtime.setAgentTaskStatus(payload)); }
+          catch (error) { requestError(res, Number(error.statusCode) || 400, String(error.message || error)); }
+          return;
+        }
         if (!hasInternalOtaAccess(req, config) ||
             req.method !== "POST" ||
             url.pathname !== "/internal/cardputer/ota-install") {
@@ -5949,6 +6036,7 @@ async function main() {
         ? {
             ok: true,
             upstream_connected: runtime.upstream.connected,
+            ...runtime.turnOutbox.diagnostics(),
             device_firmware: runtime.deviceFirmwareReports.get(device.device_id) || null,
             ...buildConnectPayload(config, req)
           }
@@ -5972,14 +6060,23 @@ async function main() {
       return;
     }
 
-    if (device && req.method === "POST" &&
-        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname))) {
+    const persistentRequest = req.method === "POST" &&
+        (isOmnibotShimPath(url.pathname) || /\/(messages|voice|create|logs)$/.test(url.pathname));
+    if (device && (persistentRequest || (req.method==="GET"&&url.pathname==="/api/cardputer/assets/manifest"))) {
       const lease = requestAdmission.acquire(device.device_id);
       if (!lease.ok) {
         json(res, 429, { error: "device_request_limit", retryable: true, retry_after_ms: lease.retryAfterMs });
         return;
       }
       releaseRequest = lease.release;
+      if (persistentRequest) {
+        const storage = await storageBudget.acquire();
+        if (!storage.ok) {
+          json(res, 507, { error:"bridge_storage_limit", detail:"Private storage is full or unavailable. Archive old bridge data or increase the reviewed storage budget before retrying." });
+          return;
+        }
+        releaseRequest = () => { lease.release(); storage.release(); };
+      }
     }
 
     if (req.method === "GET" && url.pathname === "/api/cardputer/device-actions") {
@@ -6045,6 +6142,7 @@ async function main() {
           clientMsgId,
           text: message,
           upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
             device,
             topicKey: topic.topic_key,
             text: message,
@@ -6062,7 +6160,8 @@ async function main() {
         );
         if (!reply) {
           console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          json(res, 202, await runtime.buildPendingTurnResponse({ req, device, topic, transcript: message, ack }));
+          const receipt = await runtime.buildPendingTurnResponse({ req, device, topic, transcript: message, ack });
+          json(res, receipt.pending ? 202 : 200, receipt);
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6151,6 +6250,7 @@ async function main() {
           text: transcript,
           inputMode: "voice",
           upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
             device,
             topicKey: topic.topic_key,
             text: transcript,
@@ -6168,7 +6268,8 @@ async function main() {
         );
         if (!reply) {
           console.info(`[turn] assistant pending topic=${topic.topic_key} client=${clientMsgId} wait=${config.omnibotShim.turnWaitMs}`);
-          json(res, 202, await runtime.buildPendingTurnResponse({ req, device, topic, transcript: transcript, ack }));
+          const receipt = await runtime.buildPendingTurnResponse({ req, device, topic, transcript: transcript, ack });
+          json(res, receipt.pending ? 202 : 200, receipt);
           return;
         }
         json(res, 200, await runtime.buildTurnResponse({
@@ -6212,16 +6313,17 @@ async function main() {
         throw error;
       }
       if (!uploadedBytes) {
+        await rm(rawUploadPath,{force:true});
         requestError(res, 400, "audio body cannot be empty");
         return;
       }
       if (uploadedBytes > config.maxUploadBytes) {
+        await rm(rawUploadPath,{force:true});
         requestError(res, 413, "upload_too_large");
         return;
       }
       console.info(`[voice-raw] uploaded device=${device.device_id} turn=${turnId || "-"} bytes=${uploadedBytes} sample=${sampleRate} type=${contentType || "-"} reply_audio=${wantsReplyAudio ? "1" : "0"}`);
-      const audioBytesRaw = await readFile(rawUploadPath);
-      await rm(rawUploadPath, { force: true });
+      const audioBytesRaw = await readFile(rawUploadPath).finally(()=>rm(rawUploadPath,{force:true}));
       let audioBytes =
         contentType === "application/octet-stream" || contentType === "audio/pcm" || contentType === "audio/l16"
           ? Buffer.concat([createWavHeader(audioBytesRaw.length, sampleRate), audioBytesRaw])
@@ -6285,6 +6387,7 @@ async function main() {
           text: transcript,
           inputMode: "voice",
           upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
             device,
             topicKey: topic.topic_key,
             text: transcript,
@@ -6780,6 +6883,7 @@ async function main() {
         return;
       }
       const uploadPath = path.join(config.media.tmpDir, `${makeId("upload")}.wav`);
+      try {
       const upload = await readMultipartUpload(req, config, { toFilePath: uploadPath })
         .catch((error) => ({ error }));
       if (upload?.error) {
@@ -6814,6 +6918,9 @@ async function main() {
         bytes: upload.bytes
       });
       json(res, 200, ack);
+      } finally {
+        await rm(uploadPath, { force:true });
+      }
       return;
     }
 
@@ -6880,6 +6987,7 @@ async function main() {
       ws.close();
     }, Number(config.security.wsAuthTimeoutMs) || 5000);
     ws.on("message", (raw) => {
+      if (connected) { ws.close(1008,"connect already completed"); return; }
       let payload;
       try {
         payload = JSON.parse(raw.toString("utf8"));
@@ -7191,7 +7299,7 @@ async function main() {
       return;
     }
     if (url.pathname !== "/api/cardputer/v1/stream") {
-      socket.destroy();
+      socket.end("HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n");
       return;
     }
     wss.handleUpgrade(req, socket, head, (ws) => {

@@ -149,7 +149,14 @@ export class StateStore {
             (topicKey) => defaults.topics[topicKey] || this.state.topics[topicKey]
           )
         : [];
-      const topics = [...new Set([...configuredTopics, ...retainedTopics])];
+      // A device-created firmware job remains admitted after restart only
+      // while that exact owner still has access to its source conversation.
+      const ownedFirmwareTopics = (existing.topics || []).filter(topicKey => {
+        const topic = this.state.topics[topicKey];
+        return topicKey.startsWith('local:cardputer-firmware-job:') && topic?.hidden === true &&
+          topic.owner_device_id === deviceId && configuredTopics.includes(topic.mirror_topic_key);
+      });
+      const topics = [...new Set([...configuredTopics, ...retainedTopics, ...ownedFirmwareTopics])];
       const defaultTopicKey = [
         defaultDevice.default_topic_key,
         existing.default_topic_key,
@@ -174,6 +181,7 @@ export class StateStore {
     for (const [topicKey, defaultTopic] of Object.entries(defaults.topics)) {
       const existing = this.state.topics[topicKey] || {};
       if (existing.session_key && existing.session_key !== defaultTopic.session_key) {
+        delete existing.agent_task;
         // A config remap revokes the old session and its cached conversation.
         this.state.messages[topicKey] = [];
         for (const [key, media] of Object.entries(this.state.media)) {
@@ -222,6 +230,10 @@ export class StateStore {
   }
 
   compact() {
+    const outstanding = Array.isArray(this.state.turn_outbox?.entries)
+      ? this.state.turn_outbox.entries.filter(entry => entry.phase !== 'terminal') : [];
+    const pinnedReceipts = new Set(outstanding.map(entry => `${entry.topic_key}::${entry.client_msg_id}`));
+    const pinnedMessages = new Set(outstanding.map(entry => entry.receipt?.message_id).filter(Boolean));
     const maxMessagesPerTopic = Math.max(50, Number(this.config.state?.maxMessagesPerTopic) || 250);
     for (const [topicKey, messages] of Object.entries(this.state.messages || {})) {
       if (!Array.isArray(messages)) {
@@ -229,7 +241,8 @@ export class StateStore {
         continue;
       }
       if (messages.length > maxMessagesPerTopic) {
-        this.state.messages[topicKey] = messages.slice(-maxMessagesPerTopic);
+        const recent = new Set(messages.slice(-maxMessagesPerTopic));
+        this.state.messages[topicKey] = messages.filter(message => recent.has(message) || pinnedMessages.has(message.id));
       }
     }
 
@@ -263,7 +276,10 @@ export class StateStore {
         const rightTime = parseTimeMs(right[1]?.accepted_at);
         return rightTime - leftTime;
       });
-      this.state.idempotency = Object.fromEntries(idempotencyEntries.slice(0, maxIdempotencyEntries));
+      const pinned = idempotencyEntries.filter(([key]) => pinnedReceipts.has(key));
+      const recent = idempotencyEntries.filter(([key]) => !pinnedReceipts.has(key))
+        .slice(0, Math.max(0, maxIdempotencyEntries - pinned.length));
+      this.state.idempotency = Object.fromEntries([...pinned, ...recent]);
     }
 
     const maxDeviceEvents = Math.max(20, Number(this.config.state?.maxDeviceEventsPerDevice) || 100);

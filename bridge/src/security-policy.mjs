@@ -135,6 +135,8 @@ export function hasInternalOtaAccess(req, config) {
 }
 
 export function validateDeviceTokens(config) {
+  if (!Array.isArray(config.devices) || config.devices.length !== 1)
+    throw new Error("This bridge supports exactly one device identity. Use separate private bridge instances for different devices; audio and OTA storage are not multi-tenant.");
   const seen = new Set();
   for (const device of config.devices || []) {
     const token = device.device_token;

@@ -45,6 +45,15 @@ are retained.
   [Game source, assets, notices and rebuild instructions](third_party/honkeypong/S1-ADV.md)
   are included. BoxyBold/FamiTone retain the upstream public-domain notices.
 
+## Focus audio
+
+The three bundled English Focus cues and three optional Russian cues were
+supplied by Sergey Sizov for public redistribution under the project's MIT
+license. Only English WAVs are included in the plugin. The optional Russian
+originals are linked from
+[the audio downloads guide](https://github.com/srg0/s1-adv/blob/main/extras/focus-audio/README.md).
+They are separate from microphone recordings and generated private spoken replies.
+
 ## Cover image
 
 The S1-ADV cover was composed with the built-in image generation tool, using

@@ -2,50 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
-import { startFirmwareJob, publicFirmwareJob } from './firmware-job-status.mjs';
 import { requestedReplyLanguage } from './reply-language.mjs';
 import { RealtimePacingBudget } from './realtime-pacing-budget.mjs';
 
-test('actual firmware routing owns voice UI changes once without a desktop chat dependency',async()=>{
+test('every text and voice turn stays in the persistent agent session without keyword routing',async()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
- const re=source.slice(source.indexOf('const CARDPUTER_FIRMWARE_WORK_RE ='),source.indexOf('const CARDPUTER_PRIMARY_TOPIC_TITLE'));
- const wants=source.slice(source.indexOf('function wantsFirmwareWork('),source.indexOf('function requestedFirmwareVersion('));
- const classifier=new Function(`${re}\n${wants}\nreturn wantsFirmwareWork;`)();
- assert(classifier('С главного экрана убери индикатор AMPM'));
- assert(classifier('Develop and publish new firmware'));
- assert(classifier('А сделай батарейку более крупными штрихами и верни ошибку новую.'));
- assert(classifier('Make the battery bars larger'));
- assert(!classifier('What is the battery percentage?'));
- assert(!classifier('Какая погода сегодня?'));
+ assert.doesNotMatch(source,/wantsFirmwareWork|CARDPUTER_FIRMWARE_WORK_RE|firmwareClarificationTopic/);
  const method=source.slice(source.indexOf('async tryFastLaneTurn('),source.indexOf('async runFirmwareWorkJob(')).trim();
- const route=new Function('wantsFirmwareWork','languageNameForText','startFirmwareJob','readJsonFileSyncSafe',`return async function ${method.slice(6)}`)(classifier,requestedReplyLanguage,startFirmwareJob,()=>null);
- let jobs=0,sends=0,replies=0;
- const jobStore={};
- const runtime={store:{getTopic:()=>jobStore,save:async()=>{}},firmwareManifestPath:()=>'unused',firmwareJobStatusForDevice:()=>publicFirmwareJob(jobStore.firmware_job),firmwareClarificationTopic:()=>null,primaryCardputerTopicForDevice:()=>({topic_key:'main'}),createFirmwareJobTopicForDevice:async()=>{++jobs;return {topic_key:'job'};},
-  sendText:async v=>{++sends;assert.equal(v.topicKey,'job');assert.equal(v.waitForUpstream,false);return {seq:1};},
-  buildFirmwareJobUpstreamText:()=>'',appendAssistantReply:async v=>{++replies;assert.doesNotMatch(v.text,/[А-Яа-яЁё]/u);return {seq:7};},buildTurnResponse:async()=>({ok:true})};
- const result=await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'убери индикатор с главного экрана',inputMode:'voice'});
- assert.equal(result.response.ok,true);assert.deepEqual([jobs,sends,replies],[1,1,1]);
- assert.equal(result.response.pending,true);assert.equal(result.response.status,'accepted');
- assert.equal(result.response.after_seq,7);assert.equal(result.response.reply_seq,7);
- assert.equal(await route.call(runtime,{transcript:'hello',inputMode:'voice'}),null);
- assert.deepEqual([jobs,sends,replies],[1,1,1]);
- runtime.firmwareClarificationTopic=()=>({topic_key:'job'});
- await route.call(runtime,{device:{device_id:'test'},topic:{topic_key:'main'},transcript:'yes',inputMode:'text'});
- assert.deepEqual([jobs,sends,replies],[1,2,2]);
-});
-
-test('a confirmation resumes the firmware job that asked, without a new owner',()=>{
- const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
- const code=source.slice(source.indexOf('  firmwareClarificationTopic('),source.indexOf('  firmwareJobStatusForDevice(')).trim();
- const resolve=new Function(`return function ${code}`)();
- const question={sender:{kind:'assistant'},content:{text:'Publish the new build?'},source:{transport:'cardputer_firmware_job_mirror'}};
- const job={topic_key:'local:cardputer-firmware-job:one',mirror_topic_key:'main',updated_at:new Date().toISOString()};
- const runtime={store:{state:{topics:{job}},getHistory:()=>({items:[question]})}};
- assert.equal(resolve.call(runtime,{topic_key:'main'},'yes'),job);
- assert.equal(resolve.call(runtime,{topic_key:'main'},'да, верно'),job);
- assert.equal(resolve.call(runtime,{topic_key:'main'},'What is the weather?'),null);
- question.source.transport='upstream';assert.equal(resolve.call(runtime,{topic_key:'main'},'yes'),null);
+ const route=new Function(`return async function ${method.slice(6)}`)();
+ for(const inputMode of ['text','voice']) for(const transcript of ['Какая погода сегодня?','What firmware version is installed?','Add a TV remote','Samsung UE55','yes','нет','Build firmware'])
+   assert.equal(await route({transcript,inputMode}),null);
 });
 
 test('actual STT form keeps multilingual input independent of English replies',async()=>{
@@ -72,7 +38,7 @@ test('Cardputer execution context never needs a desktop chat or Mac checkout',()
 
 test('authenticated runtime firmware reports distinguish a device boot from a published image',()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
- const code=source.slice(source.indexOf('  recordDeviceFirmware('),source.indexOf('  firmwareClarificationTopic(')).trim();
+ const code=source.slice(source.indexOf('  recordDeviceFirmware('),source.indexOf('  async tryFastLaneTurn(')).trim();
  const record=new Function(`return function ${code}`)();
  const runtime={deviceFirmwareReports:new Map()},device={device_id:'test'};
  record.call(runtime,device,new URLSearchParams({firmware_version:'0.2.159-dev',firmware_git:'a'.repeat(40)}));
@@ -122,6 +88,5 @@ test('actual Realtime callback and pacer finish the device turn while history st
  assert.equal(stored[0].text,'ready');
 });
 
-// Keep the request-correlation regressions in the existing CI boundary suite.
-import './turn-correlation.test.mjs';
+// Keep durable queue regressions in the existing CI boundary suite.
 import './turn-outbox.test.mjs';

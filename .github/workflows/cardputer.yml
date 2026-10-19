@@ -23,9 +23,14 @@ jobs:
       - run: npm ci
       - run: npm audit --audit-level=high
       - run: npm run test:security
+      - run: npm run gate:security
+      - run: npm run test:install
+      - run: npm run check:package
       - run: npm run test:boundaries
+      - run: node --test src/turn-outbox.test.mjs
       - run: npm run test:upstream
       - run: npm run smoke
+      - run: npm run smoke:mininerva
       - run: npm run smoke:realtime-contract
   firmware:
     runs-on: ubuntu-latest
@@ -55,6 +60,10 @@ jobs:
       - run: python scripts/test_voice_usb_logging.py
       - run: python scripts/test_voice_transport.py
       - run: python scripts/test_voice_flow.py
+      - run: python scripts/test_chat_voice_hint.py
+      - run: python scripts/test_background_http.py
+      - run: python scripts/test_ota_capacity.py
+      - run: python scripts/test_canvas_reservation.py
       - run: python scripts/test_voice_receipt.py
       - run: python scripts/test_inbox_receipts.py
       - run: python scripts/test_voice_storage.py

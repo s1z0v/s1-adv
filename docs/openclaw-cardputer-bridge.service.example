@@ -17,6 +17,19 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+PrivateDevices=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+TasksMax=64
+MemoryHigh=256M
+MemoryMax=384M
+CPUQuota=100%
 ReadWritePaths=/var/lib/cardputer
 
 [Install]
