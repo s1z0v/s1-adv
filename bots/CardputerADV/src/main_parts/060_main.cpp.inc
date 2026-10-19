@@ -73,6 +73,16 @@ void renderChatVoiceHint(bool awaitingInput, uint16_t bg, uint16_t muted, uint16
   gCanvas.print(awaitingInput ? "Hold G0: reply  Tab: menu" : "Hold G0: voice  Tab: menu");
 }
 
+void drawChatComposerPrompt(int16_t composerY, int16_t composerH, uint16_t fill, uint16_t ink) {
+  auto& d = gCanvas;
+  d.fillRoundRect(10, composerY + 3, 18, composerH - 6, 5, fill);
+  const int16_t cx = 19;
+  const int16_t cy = composerY + composerH / 2;
+  // A symmetric chevron avoids the CJK font's asymmetric glyph bearings.
+  d.drawLine(cx - 2, cy - 3, cx + 2, cy, ink);
+  d.drawLine(cx + 2, cy, cx - 2, cy + 3, ink);
+}
+
 void renderChatUi() {
   auto& d = gCanvas;
   const uint16_t bg = rgb565_local(3, 7, 13);
@@ -157,10 +167,8 @@ void renderChatUi() {
   d.setFont(&fonts::efontCN_12);
   d.fillRoundRect(6, composerY, 228, composerH, 7, rgb565_local(2, 17, 29));
   d.drawRoundRect(6, composerY, 228, composerH, 7, gInputBuffer.isEmpty() ? rgb565_local(28, 51, 65) : accent);
-  d.fillRoundRect(10, composerY + 4, 18, composerH - 8, 5, rgb565_local(4, 32, 45));
-  d.setTextColor(gInputBuffer.isEmpty() ? muted : amber, rgb565_local(4, 32, 45));
-  d.setCursor(15, composerY + 5);
-  d.print(">");
+  drawChatComposerPrompt(composerY, composerH, rgb565_local(4, 32, 45),
+                         gInputBuffer.isEmpty() ? muted : amber);
   d.setTextColor(gInputBuffer.isEmpty() ? muted : TFT_WHITE, rgb565_local(2, 17, 29));
   String inputLine = gInputBuffer.isEmpty() ? "type to chat" : tailUtf8ToFit(gInputBuffer, 174);
   d.setCursor(34, composerY + 4);

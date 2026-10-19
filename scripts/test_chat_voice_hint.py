@@ -8,7 +8,7 @@ import tempfile
 root = Path(__file__).resolve().parents[1]
 source = (root / 'bots/CardputerADV/src/main_parts/060_main.cpp.inc').read_text()
 start = source.index('void renderChatVoiceHint(')
-end = source.index('\nvoid renderChatUi()', start)
+end = source.index('\nvoid drawChatComposerPrompt(', start)
 code = r'''
 #include <cassert>
 #include <cstdint>
