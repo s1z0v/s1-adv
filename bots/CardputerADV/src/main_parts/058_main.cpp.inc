@@ -142,7 +142,7 @@ void drawAssistantPulseButton(int16_t x, int16_t y, int16_t w, int16_t h,
   else d.setFont(&fonts::Font2);
   d.setTextColor(accent, fill);
   int tw = d.textWidth(label);
-  d.setCursor(x + (w - tw) / 2, py + 6);
+  d.setCursor(x + (w - tw) / 2, py + (h - d.fontHeight()) / 2);
   d.print(label);
 }
 

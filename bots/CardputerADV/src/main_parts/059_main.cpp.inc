@@ -1,6 +1,5 @@
   constexpr uint16_t bg = rgb565_local(2, 7, 10);
   constexpr uint16_t white = rgb565_local(244, 251, 255);
-  constexpr uint16_t clockBlue = rgb565_local(102, 204, 255);
   constexpr uint16_t cyan = rgb565_local(47, 227, 255);
   constexpr uint16_t violet = rgb565_local(157, 102, 255);
   constexpr uint16_t red = rgb565_local(255, 63, 85);
@@ -24,7 +23,7 @@
     c2 = rgb565_local(255, 111, 128);
     c3 = rgb565_local(88, 32, 42);
     fg = rgb565_local(255, 241, 239);
-    label = "RECORDING";
+    label = "REC";
   } else if (state == AssistantPulseState::Thinking) {
     c1 = amber;
     c2 = cyan;
@@ -173,7 +172,7 @@
   // the heading instead of drawing MIC/WAIT as overlapping seven-segment text.
   if (realtime) d.setFont(&fonts::Font4);
   else d.setFont(&fonts::Font7);
-  d.setTextColor(state == AssistantPulseState::Ready ? clockBlue : fg, clockPanel);
+  d.setTextColor(fg, clockPanel);
 	  int tw = d.textWidth(hhmm);
 	  d.setCursor(171 - tw / 2, realtime ? 35 : state == AssistantPulseState::Recording ? 18 : 20);
 	  d.print(hhmm);
