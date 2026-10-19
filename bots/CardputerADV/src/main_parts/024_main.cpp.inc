@@ -286,7 +286,12 @@ void setUiMode(UiMode mode) {
       (gRealtimeActive || gRealtimeConnected || gRealtimeRecording || gRealtimeAwaiting)) {
     closeRealtimeSession("mode change");
   }
+  if (mode != UiMode::Files) {
+    gFileDelete.cancel();
+    if (gUiMode == UiMode::Files) std::vector<SdFileEntry>().swap(gFileEntries);
+  }
   gUiMode = mode;
+  if (modeChanged && mode == UiMode::Files) refreshFileManager();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.
     gPendingOtaCheckAction = true;

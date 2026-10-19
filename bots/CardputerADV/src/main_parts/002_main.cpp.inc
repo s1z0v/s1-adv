@@ -181,6 +181,7 @@ enum class UiMode : uint8_t {
   Logs,
   BrainFlow,
   Nes,
+  Files,
 };
 
 enum class FocusState : uint8_t {

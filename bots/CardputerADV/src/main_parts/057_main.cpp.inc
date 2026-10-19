@@ -1130,3 +1130,48 @@ void renderLogsUi() {
   renderLauncherOverlay();
   renderDebugOverlay();
 }
+
+void renderFileManagerUi() {
+  auto& d = gCanvas;
+  const uint16_t bg = rgb565_local(3, 7, 13), panel = rgb565_local(6, 18, 27);
+  const uint16_t cyan = rgb565_local(47, 227, 255), muted = rgb565_local(150, 165, 178);
+  const uint16_t amber = rgb565_local(255, 150, 80);
+  d.fillScreen(bg);
+  d.fillRoundRect(6, 5, 228, 124, 10, panel);
+  d.setFont(&fonts::Font2);
+  d.setTextColor(cyan, panel); d.setCursor(14, 9); d.print("SD FILES");
+  d.setFont(&fonts::Font0);
+  if (gFileDelete.pending()) {
+    d.setTextColor(amber, panel); d.setCursor(14, 34); d.print("Delete this file permanently?");
+    d.setTextColor(TFT_WHITE, panel); d.setCursor(14, 51);
+    d.print(marqueeText(filenameFromPath(String(gFileDelete.path.c_str())), 208, 160));
+    d.setTextColor(muted, panel); d.setCursor(14, 68);
+    d.print(marqueeText(String(gFileDelete.path.c_str()), 208, 160));
+    d.setCursor(14, 84);
+    d.print(String(static_cast<unsigned long>(gFileDelete.size)) + " bytes");
+    d.setCursor(14, 101); d.print("No undo. Folders cannot be deleted.");
+    drawTinyFooter(panel, amber, "Y delete   any other key cancels", 14, 118, 210);
+  } else {
+    d.setTextColor(muted, panel); d.setCursor(14, 29);
+    d.print(fitCurrentFontToWidth(gFilesDir, 208));
+    const int count = static_cast<int>(gFileEntries.size());
+    const int start = max<int>(0, min<int>(gSelectedFile - 2, count - 6));
+    if (!gSdReady || count == 0) {
+      d.setCursor(14, 53); d.print(fitCurrentFontToWidth(gFilesStatus, 208));
+    }
+    for (int i = start; i < min<int>(count, start + 6); ++i) {
+      const auto& entry = gFileEntries[i];
+      const int y = 42 + (i - start) * 12;
+      const uint16_t row = i == gSelectedFile ? rgb565_local(17, 49, 62) : panel;
+      d.fillRoundRect(11, y - 1, 218, 11, 3, row);
+      d.setTextColor(entry.directory ? cyan : TFT_WHITE, row); d.setCursor(15, y);
+      d.print(fitCurrentFontToWidth((entry.directory ? "/" : " ") + entry.name, 154));
+      String size = entry.directory ? "DIR" : String(static_cast<unsigned long>((entry.size + 1023) / 1024)) + "k";
+      d.setTextColor(muted, row); d.setCursor(222 - d.textWidth(size), y); d.print(size);
+    }
+    d.setTextColor(muted, panel); d.setCursor(104, 13);
+    d.print(fitCurrentFontToWidth(gFilesStatus, 118));
+    drawTinyFooter(panel, muted, "Up/Dn pick Ent open D del R Esc up", 12, 118, 216);
+  }
+  renderLauncherOverlay(); renderDebugOverlay();
+}

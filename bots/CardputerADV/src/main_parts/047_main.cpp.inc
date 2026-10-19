@@ -2061,6 +2061,9 @@ bool handleKeyRushKey(char key, const Keyboard_Class::KeysState& keys) {
 }
 
 bool handleGlobalEscape() {
+  if (gUiMode == UiMode::Files && !gLauncherVisible) {
+    return handleFileManagerKey(27, gKeyboardState);
+  }
   gG0VoicePending = false;
   gPendingOtaCheckAction = gPendingOtaApplyAction = false;
   if (gInboxHttpBusy) gInboxCancelRequested = true;

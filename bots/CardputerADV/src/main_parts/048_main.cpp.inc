@@ -14,6 +14,9 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
   if (gUiMode==UiMode::BrainFlow &&
       (keys.tab || (keys.ctrl && (lowerKey=='l'||lowerKey=='r'||lowerKey=='v')))) pauseBrainFlow();
   setKeyDiag(String("key=") + String(static_cast<int>(key)));
+  if (gUiMode == UiMode::Files && !gLauncherVisible && gFileDelete.pending()) {
+    handleFileManagerKey(key, keys); return;
+  }
   if (key == '`' || key == '~' || key == 27 || hasHidKey(keys, kHidKeyEscape)) {
     if (routeBrainFlowEscape()) {
       return;
@@ -134,6 +137,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleLauncherKey(key, keys);
     return;
   }
+  if (gUiMode == UiMode::Files && handleFileManagerKey(key, keys)) return;
   if (gUiMode == UiMode::KeyRush && handleKeyRushKey(key, keys)) {
     return;
   }

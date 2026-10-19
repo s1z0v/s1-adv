@@ -223,6 +223,8 @@ bool mapActionUiMode(String mode, UiMode& out) {
     out = UiMode::Voice;
   } else if (mode == "library") {
     out = UiMode::Library;
+  } else if (mode == "files" || mode == "file_manager") {
+    out = UiMode::Files;
   } else if (mode == "folders") {
     out = UiMode::AudioFolders;
   } else if (mode == "notes" || mode == "note" || mode == "notepad") {

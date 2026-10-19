@@ -148,9 +148,9 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
     {"AI Agent", "AI", "Assistant and chat", rgb565_local(47, 227, 255), 6,
      {{"Realtime", UiMode::Home, true}, {"Pulse", UiMode::Home}, {"AI Chat", UiMode::ChatFull},
       {"Chat Eyes", UiMode::ChatFace}, {"Big Eyes", UiMode::Face}, {"AI Pet", UiMode::Hero}}},
-    {"Media", "WAV", "Listen and capture", rgb565_local(88, 240, 141), 5,
+    {"Media", "WAV", "Listen and capture", rgb565_local(88, 240, 141), 6,
      {{"Library", UiMode::Library}, {"Folders", UiMode::AudioFolders}, {"Voice Notes", UiMode::Voice},
-      {"Notes", UiMode::Notes}, {"Assets", UiMode::Assets}}},
+      {"Notes", UiMode::Notes}, {"Assets", UiMode::Assets}, {"Files", UiMode::Files}}},
     {"Focus", "25", "Time and attention", rgb565_local(255,136,64), 4,
      {{"Pomodoro", UiMode::Focus}, {"Alarm", UiMode::Alarm},
       {"Stopwatch", UiMode::Stopwatch}, {"Calendar", UiMode::Calendar}}},
@@ -335,3 +335,10 @@ uint8_t gIrReceivePinIndex = 0;
 time_t gAlarmSnoozeEpoch = 0;
 int16_t gAlarmLastTriggerYear = -1;
 int16_t gAlarmLastTriggerYday = -1;
+
+struct SdFileEntry { String name; String path; uint64_t size; bool directory; };
+std::vector<SdFileEntry> gFileEntries;
+String gFilesDir = "/", gFilesStatus = "R to refresh";
+int gSelectedFile = 0;
+bool gFilesTruncated = false;
+sd_file_manager::DeletePrompt gFileDelete;

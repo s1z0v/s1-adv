@@ -45,6 +45,7 @@
 #include "network_recovery.h"
 #include "reply_connection.h"
 #include "capture_upload.h"
+#include "sd_file_manager.h"
 #ifndef DEFAULT_FOCUS_LAMP_ENABLED
 #define DEFAULT_FOCUS_LAMP_ENABLED 0
 #endif
@@ -76,7 +77,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.190-dev"
+#define APP_VERSION "0.2.191-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
