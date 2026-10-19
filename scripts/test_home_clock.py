@@ -14,9 +14,14 @@ assert match.end() < source.index('d.print(hhmm);')
 assert 'constexpr uint16_t white = rgb565_local(244, 251, 255);' in source
 assert 'uint16_t fg = white;' in source
 assert 'TFT_YELLOW' not in match.group()
+red = re.search(r'constexpr uint16_t red = rgb565_local\(255, 63, 85\);', source)
+assert red, 'Use the existing red palette for idle clock digits'
 code = r'''
 #include <cassert>
 #include <cstdint>
+constexpr uint16_t rgb565_local(int r,int g,int b) {
+ return ((r&0xf8)<<8)|((g&0xfc)<<3)|(b>>3);
+}
 enum class AssistantPulseState {Ready, Recording, Thinking, Playback, Realtime};
 struct Canvas {
  uint16_t foreground=0,background=0;
@@ -44,4 +49,4 @@ with tempfile.TemporaryDirectory(prefix='s1-home-clock-') as directory:
     subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++17', '-Wall', '-Wextra',
                     '-Werror', str(path / 'test.cpp'), '-o', str(path / 'test')], check=True)
     subprocess.run([str(path / 'test')], check=True)
-print('PASS Home clock: original white idle digits; recording/thinking/playback/realtime colors and background preserved')
+print('PASS Home clock: white idle digits; recording/thinking/playback/realtime colors and background preserved')
