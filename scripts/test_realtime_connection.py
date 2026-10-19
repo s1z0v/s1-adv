@@ -194,6 +194,7 @@ for banned in ['setUiMode','setStatus','logf(','vTaskDelete','gCanvas','gRealtim
     assert banned not in worker,banned
 assert 'setCACert(kTlsRootCaPem)' in worker and 'setInsecure' not in worker
 start=(parts/'042_main.cpp.inc').read_text().split('void startRealtimeSession(bool startAfterReady)')[1].split('void startRealtimeRecording()')[0]
+assert start.index('handleScreensaverWake();') < start.index('setUiMode(UiMode::Face);'), 'Explicit Realtime start must wake and reset idle time before network queuing'
 assert 'cancelVoicePreconnect();' in start
 assert all(flag in start.split('gPendingRealtimeStart = true;')[0] for flag in ['gVoiceDialBusy','gVoiceReplySpeechBusy'])
 assert start.index('render();') < start.index('beginRealtimeDial()')

@@ -489,6 +489,7 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 void startRealtimeSession(bool startAfterReady) {
+  handleScreensaverWake();
   setUiMode(UiMode::Face);
   gRealtimeScreenVisible = true;
   gRealtimeUiError = "";
