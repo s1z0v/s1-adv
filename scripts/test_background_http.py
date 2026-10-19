@@ -50,10 +50,13 @@ uint32_t gBridgeLastSuccessMs=0;bool gBridgeHttpFailed=false;
 InboxHttpResult* gInboxHttpResult=nullptr;
 std::deque<String>gInboxAckQueue;
 String status,diag;
+enum class UiMode{Home,Ota};UiMode mode=UiMode::Home;
+void setUiMode(UiMode value){mode=value;}
 void logf(const char*,...){}void appendRuntimeLog(String,String,bool){}
 void setStatus(String s,int){status=s;}void setHttpDiag(String s){diag=s;}
 bool autoInboxPollAllowed(){return allowed;}
-bool homeFirmwareUpdateAvailable(){return true;}
+bool candidate=true;
+bool homeFirmwareUpdateAvailable(){return candidate;}
 bool applyRemoteOtaManifestBody(String){return true;}
 void applyInboxResponse(String,bool,bool,bool,bool){}
 void prepareNetworkMemory(const char*,bool){}void clearEmojiCache(){}
@@ -129,6 +132,22 @@ int main(){
  gInboxAckQueue.push_back("event-one");responseCode=500;
  assert(startInboxNetworkRequest(std::move(p)));complete();assert(gInboxAckQueue.size()==1);
  assert(gCanvasSpriteActive&&loanCount==0);
+ // Execute actual manifest completion: Ctrl+U installs a newly discovered
+ // candidate; no candidate or a failed check returns Home without applying.
+ gInboxAckQueue.clear();responseCode=200;
+ for(bool fresh:{false,true}){
+  candidate=fresh;mode=UiMode::Ota;gPendingOtaApplyAction=false;
+  auto manifest=std::make_unique<InboxHttpPayload>();manifest->url="https://bridge.invalid/manifest";
+  manifest->otaManifest=true;manifest->applyAfter=true;
+  assert(startInboxNetworkRequest(std::move(manifest)));complete();
+  assert(gPendingOtaApplyAction==fresh);
+  if(!fresh)assert(mode==UiMode::Home&&status=="Firmware is current");
+ }
+ gPendingOtaApplyAction=false;mode=UiMode::Ota;responseCode=503;
+ auto failed=std::make_unique<InboxHttpPayload>();failed->url="https://bridge.invalid/manifest";
+ failed->otaManifest=true;failed->applyAfter=true;
+ assert(startInboxNetworkRequest(std::move(failed)));complete();
+ assert(!gPendingOtaApplyAction&&mode==UiMode::Home&&status=="Update check failed");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-background-http-') as directory:
