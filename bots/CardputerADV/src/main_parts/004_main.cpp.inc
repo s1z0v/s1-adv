@@ -281,6 +281,7 @@ uint32_t gBlinkEndMs = 0;
 uint32_t gNextBlinkMs = 0;
 uint32_t gLastImuSampleMs = 0;
 uint32_t gLastWifiReconnectMs = 0;
+network_recovery::Policy gNetworkRecovery;
 uint32_t gLastWsReconnectMs = 0;
 uint32_t gLastCtrlTapMs = 0;
 uint32_t gLastClockRenderMs = 0;

@@ -200,6 +200,13 @@ bool stopRecordingAndSend() {
     return false;
   }
 
+  // Capture has stopped and the WAV is finalized. Establish TLS while its
+  // metadata is registered, without spending the live microphone budget.
+  gWifiReady = WiFi.status() == WL_CONNECTED;
+  if (gWifiReady) {
+    beginVoicePreconnect();
+    gVoicePreconnectEarly = true;
+  }
   if (gRecordingToFile) {
     registerDownloadedVoiceNote(pcmUploadPath, makeVoiceNoteTitle(false, dataSize, kMicSampleRate), "Outbound voice note", false);
   }

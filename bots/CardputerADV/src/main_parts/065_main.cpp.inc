@@ -225,6 +225,9 @@ void renderVoiceNotice() {
 
 struct VoiceSpeechPayload {
   String url, token, body, path;
+  String host, requestPath;
+  uint16_t port = 443;
+  std::unique_ptr<WiFiClient> connection;
   fs::FS* fs = nullptr;
   fs::FS* fallbackFs = nullptr;
   size_t maxBytes = 4 * 1024 * 1024;
@@ -238,6 +241,7 @@ struct VoiceSpeechResult {
   size_t bytes = 0;
   int code = 0;
   bool ok = false;
+  bool keptSocket = false, retriedSocket = false;
 };
 portMUX_TYPE gVoiceSpeechMux = portMUX_INITIALIZER_UNLOCKED;
 VoiceSpeechResult* gVoiceSpeechResult = nullptr;
@@ -249,25 +253,48 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
   if (!result) return nullptr;
   result->path = payload->path; result->fs = payload->fs; result->generation = payload->generation;
   result->startedMs = millis();
-  HTTPClient http;
-  std::unique_ptr<WiFiClientSecure> secure;
+  // The HTTP object must die before its externally owned client, including
+  // cancellation between begin() and POST().
+  std::unique_ptr<WiFiClient> connection = std::move(payload->connection);
+  const bool keptSocket = connection != nullptr;
+  result->keptSocket = keptSocket;
   std::unique_ptr<uint8_t[]> buffer(new (std::nothrow) uint8_t[4096]);
-  http.setConnectTimeout(4000); http.setTimeout(20000); http.setReuse(false);
-  bool opened = false;
-  if (buffer && payload->fs && WiFi.status() == WL_CONNECTED) {
-    if (payload->url.startsWith("https://")) {
-      secure.reset(new WiFiClientSecure());
-      secure->setCACert(kTlsRootCaPem); secure->setHandshakeTimeout(12);
-      opened = http.begin(*secure, payload->url);
-    } else opened = http.begin(payload->url);
-  }
-  const char* headers[] = {"X-Audio-Sample-Rate"};
-  http.collectHeaders(headers, 1);
-  if (opened && payload->generation == gVoiceReplySpeechGeneration) {
+  for (unsigned attempt = 0; attempt < (keptSocket ? 2U : 1U); ++attempt) {
+    // The preceding iteration's HTTP destructor may still call stop() even
+    // after end() on a closed socket. Dispose it only after that scope ends.
+    if (attempt != 0) connection.reset();
+    HTTPClient http;
+    http.setConnectTimeout(4000); http.setTimeout(20000); http.setReuse(false);
+    bool opened = false;
+    if (buffer && payload->fs && WiFi.status() == WL_CONNECTED) {
+      if (!connection) {
+        if (payload->url.startsWith("https://")) {
+          auto* secure = new (std::nothrow) WiFiClientSecure();
+          if (secure) { secure->setCACert(kTlsRootCaPem); secure->setHandshakeTimeout(12); }
+          connection.reset(secure);
+        } else connection.reset(new (std::nothrow) WiFiClient());
+      }
+      // begin(client, url) treats its initially empty _host as an origin
+      // switch and stops an already connected client. The explicit-origin
+      // overload preserves the same-origin socket handed off by voice POST.
+      if (connection) opened = http.begin(*connection, payload->host, payload->port,
+                                          payload->requestPath, payload->url.startsWith("https://"));
+    }
+    const char* headers[] = {"X-Audio-Sample-Rate"};
+    http.collectHeaders(headers, 1);
+    if (!opened || payload->generation != gVoiceReplySpeechGeneration) break;
     http.addHeader("Content-Type", "application/json");
     if (!payload->token.isEmpty()) http.addHeader("Authorization", "Bearer " + payload->token);
     result->code = http.POST(payload->body);
     result->headersMs = millis();
+    if (result->code < 0 && keptSocket && attempt == 0 &&
+        payload->generation == gVoiceReplySpeechGeneration) {
+      // Only stateless speech synthesis may retry a stale keep-alive socket.
+      // The user's original voice/agent request is never sent a second time.
+      http.end();
+      result->retriedSocket = true;
+      continue;
+    }
     if (result->code == 200 && payload->generation == gVoiceReplySpeechGeneration) {
       const uint32_t rate = http.header("X-Audio-Sample-Rate").toInt();
       if (rate >= 8000 && rate <= 48000) result->sampleRate = rate;
@@ -301,6 +328,7 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
       }
     }
     http.end();
+    break;
   }
   if (!result->ok && result->fs) fsRemove(*result->fs, result->path);
   result->finishedMs = millis();
@@ -309,6 +337,7 @@ VoiceSpeechResult* performVoiceReplySpeech(void* arg) {
 
 void voiceReplySpeechTask(void* arg) {
   VoiceSpeechResult* result = performVoiceReplySpeech(arg);
+  logf("[VOICE_TTS] worker_stack_free=%u", static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   portENTER_CRITICAL(&gVoiceSpeechMux);
   gVoiceSpeechResult = result; gVoiceSpeechAllocationFailed = result == nullptr;
   portEXIT_CRITICAL(&gVoiceSpeechMux);
@@ -335,6 +364,9 @@ fs::FS* voiceReplyStorage(size_t& maxBytes) {
 }
 
 void serviceVoiceReplySpeech() {
+  gVoiceReplyConnection.expire(millis());
+  if (gQueuedVoiceReplySpeech.isEmpty() && !gSubmitting && !gThinking)
+    gVoiceReplyConnection.clear();
   VoiceSpeechResult* completed = nullptr;
   portENTER_CRITICAL(&gVoiceSpeechMux);
   completed = gVoiceSpeechResult; gVoiceSpeechResult = nullptr;
@@ -342,6 +374,7 @@ void serviceVoiceReplySpeech() {
   if (completed) {
     std::unique_ptr<VoiceSpeechResult> result(completed);
     gVoiceReplySpeechBusy = false;
+    if (result->code > 0) gNetworkRecovery.success();
     if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }
     initSpeaker();
     const bool current = result->generation == gVoiceReplySpeechGeneration;
@@ -351,8 +384,9 @@ void serviceVoiceReplySpeech() {
          static_cast<unsigned>(result->startedMs), static_cast<unsigned>(result->headersMs),
          static_cast<unsigned>(result->finishedMs), static_cast<unsigned>(millis()), started);
     if (!started && result->fs) fsRemove(*result->fs, result->path);
-    logf("[VOICE_TTS] code=%d bytes=%u playback=%d current=%d storage=%s", result->code,
-         static_cast<unsigned>(result->bytes), started, current,result->fs==&LittleFS?"flash":"sd");
+    logf("[VOICE_TTS] code=%d bytes=%u playback=%d current=%d storage=%s kept_socket=%d retry=%d", result->code,
+         static_cast<unsigned>(result->bytes), started, current,result->fs==&LittleFS?"flash":"sd",
+         result->keptSocket, result->retriedSocket);
     if (!started && current) setStatus("Reply text ready; voice unavailable", 2500);
   }
   if (gVoiceSpeechAllocationFailed) {
@@ -372,6 +406,8 @@ void serviceVoiceReplySpeech() {
   if(payload->fs==&LittleFS && gSdReady) payload->fallbackFs=&SD;
   if (!payload->fs || !gWifiReady) { gQueuedVoiceReplySpeech = ""; return; }
   payload->url = hubBaseUrl() + kDeviceTtsPath; payload->token = gDeviceToken;
+  payload->host = gHubHost; payload->port = gHubPort; payload->requestPath = kDeviceTtsPath;
+  payload->connection = gVoiceReplyConnection.take(gHubHost.c_str(), gHubPort, millis());
   payload->generation = ++gVoiceReplySpeechGeneration;
   payload->path = "/voice/__reply_" + String(payload->generation) + ".pcm";
   while (gQueuedVoiceReplySpeech.length() > 1800) removeLastUtf8Char(gQueuedVoiceReplySpeech);
@@ -387,7 +423,12 @@ void serviceVoiceReplySpeech() {
   const size_t storageLimit=payload->maxBytes;
   VoiceSpeechPayload* raw = payload.release();
   logf("[VOICE][LAT] speech_dispatch t=%u", static_cast<unsigned>(millis()));
-  if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 12288, raw, 1, nullptr) != pdPASS) {
+  // A retained TLS client can leave only 12 KB contiguous. The HTTP worker
+  // uses heap buffers; match the 8 KB stack of the other verified HTTP owner.
+  if (xTaskCreate(voiceReplySpeechTask, "voice-tts", 8192, raw, 1, nullptr) != pdPASS) {
+    logf("[VOICE_TTS] task allocation failed free=%u largest=%u",
+         static_cast<unsigned>(ESP.getFreeHeap()),
+         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
     delete raw; gVoiceReplySpeechBusy = false;
     if (gVoiceSpeechCanvasReleased) { restoreUiCanvasAfterNetwork(); gVoiceSpeechCanvasReleased = false; }
     initSpeaker(); setStatus("Reply text ready; voice memory low", 2500);
@@ -423,12 +464,15 @@ VoiceDialResult* performVoicePreconnect(void* arg) {
 }
 void voicePreconnectTask(void* arg) {
   VoiceDialResult* result = performVoicePreconnect(arg);
+  logf("[VOICE] TLS worker_stack_free=%u", static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   portENTER_CRITICAL(&gVoiceDialMux);
   gVoiceDialResult = result; gVoiceDialAllocationFailed = result == nullptr;
   portEXIT_CRITICAL(&gVoiceDialMux);
   vTaskDelete(nullptr);
 }
 void cancelVoicePreconnect() {
+  gVoicePreconnectEarly = false;
+  gVoiceReplyConnection.clear();
   ++gVoiceDialGeneration;
   gVoiceReadySocket.reset();
 }
@@ -462,7 +506,7 @@ void beginVoicePreconnect() {
     gVoiceDialCanvasReleased=releaseUiCanvasForNetwork("voice preconnect TLS");
   gVoiceDialBusy = true;
   VoiceDialPayload* raw = payload.release();
-  if (xTaskCreate(voicePreconnectTask, "voice-connect", 12288, raw, 1, nullptr) != pdPASS) {
+  if (xTaskCreate(voicePreconnectTask, "voice-connect", 8192, raw, 1, nullptr) != pdPASS) {
     delete raw; gVoiceDialBusy = false;
     if(gVoiceDialCanvasReleased){restoreUiCanvasAfterNetwork();gVoiceDialCanvasReleased=false;}
   }

@@ -91,6 +91,7 @@ RealtimeDialResult* performRealtimeDial(void* arg) {
 
 void realtimeDialTask(void* arg) {
   RealtimeDialResult* result=performRealtimeDial(arg);
+  logf("[RT] TLS worker_stack_free=%u", static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   portENTER_CRITICAL(&gRealtimeDialMux);
   gRealtimeDialResult=result;
   gRealtimeDialAllocationFailed=result==nullptr;
@@ -114,7 +115,7 @@ bool beginRealtimeDial() {
   gRealtimeDialCanvasReleased=releaseUiCanvasForNetwork("realtime TLS");
   gRealtimeDialBusy=true;
   RealtimeDialRequest* raw=request.release();
-  if (xTaskCreate(realtimeDialTask,"rt-connect",12288,raw,1,nullptr)!=pdPASS) {
+  if (xTaskCreate(realtimeDialTask,"rt-connect",8192,raw,1,nullptr)!=pdPASS) {
     delete raw;gRealtimeDialBusy=false;
     if(gRealtimeDialCanvasReleased){restoreUiCanvasAfterNetwork();gRealtimeDialCanvasReleased=false;}
     return false;

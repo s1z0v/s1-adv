@@ -233,7 +233,7 @@ bool fetchLatestInboxMessage(bool forcePlay, bool speak, bool quiet, bool assist
 bool autoInboxPollAllowed() {
   return gWifiReady && !gHubHost.isEmpty() && !gOtaApplyInProgress && !gTransferUiActive &&
          appAllowsBackgroundNetwork() &&
-         !gBootBackgroundActive && !gG0VoicePending && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy && !gVoiceDialBusy &&
+         !gBootBackgroundActive && !gG0VoicePending && !gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gVoiceReplySpeechBusy && gQueuedVoiceReplySpeech.isEmpty() && !gVoiceDialBusy &&
          !gRealtimeDialBusy && !gPendingRealtimeStart && !gRealtimeActive && !gRealtimeConnected && !gRealtimeRecording && !gRealtimeAwaiting &&
          !gRealtimeSmokeActive && !gRealtimeSmokeAudioStreaming && gTextTurnTaskHandle == nullptr &&
          gCompletedTextTurn == nullptr && gActiveTextTurn.isEmpty() && gPendingTextTurns.empty();
@@ -312,10 +312,14 @@ void serviceInboxNetworkCompletion() {
   const bool cancelled = gInboxCancelRequested;
   gInboxCancelRequested = false;
   if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
+  if (result->code > 0) gNetworkRecovery.success(); // Any HTTP response proves transport progress.
   if (result->code >= 200 && result->code < 300) {
     gBridgeLastSuccessMs = millis();
     gBridgeHttpFailed = false;
-  } else if (!cancelled) gBridgeHttpFailed = true;
+  } else if (!cancelled) {
+    gBridgeHttpFailed = true;
+    if (result->code <= 0) gNetworkRecovery.failure(millis());
+  }
   if (cancelled) {
     if(result->logsUpload) setStatus("Logs interrupted; U retry",1800);
     logf("[INBOX] poll yielded to input"); return;

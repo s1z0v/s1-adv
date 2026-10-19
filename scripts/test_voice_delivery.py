@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile the real playback transition and display formatter against host drivers."""
 from pathlib import Path
-import os,subprocess,tempfile
+import os,re,subprocess,tempfile
 root=Path(__file__).resolve().parents[1];parts=root/'bots/CardputerADV/src/main_parts'
 def function(file, signature):
  s=(parts/file).read_text();a=s.index(signature);b=s.index('{',a);n=1;i=b+1
@@ -99,7 +99,7 @@ with tempfile.TemporaryDirectory(prefix='s1-voice-') as d:
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
 voice=function('035_main.cpp.inc','bool postRawVoiceTurn(')
-assert 'client->connect' not in voice
+assert not re.search(r'client->connect\s*\(', voice)
 assert voice.index('!prepared || !prepared->connected()')<voice.index('client->setNoDelay(true)')<voice.index('writeClientAllStaged')
 assert 'X-Voice-Wait-Ms: 1000' in voice and 'upload complete bytes=%u ms=%u' in voice
 assert 'Transcribing / AI Agent' in voice

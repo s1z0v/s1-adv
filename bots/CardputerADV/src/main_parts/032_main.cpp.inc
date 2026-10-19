@@ -190,6 +190,8 @@ bool startMic() {
   micCfg.sample_rate = kMicSampleRate;
   micCfg.magnification = 64;
   micCfg.noise_filter_level = 64;
+  micCfg.dma_buf_len = 128;
+  micCfg.dma_buf_count = 8;
   micCfg.task_priority = 1;
   M5Cardputer.Mic.config(micCfg);
   return M5Cardputer.Mic.begin();
@@ -201,8 +203,10 @@ void startRealtimeMic() {
   micCfg.sample_rate = kRealtimeInputSampleRate;
   micCfg.magnification = 64;
   micCfg.noise_filter_level = 64;
-  micCfg.dma_buf_len = kRealtimeInputChunkSamples;
-  micCfg.dma_buf_count = kRealtimeChunkBufferCount;
+  // DMA transfer granularity is independent from our 30 ms network frames.
+  // Keep the capture task/driver footprint at the ordinary mic baseline.
+  micCfg.dma_buf_len = 128;
+  micCfg.dma_buf_count = 8;
   micCfg.task_priority = 3;
   M5Cardputer.Mic.config(micCfg);
   M5Cardputer.Mic.begin();

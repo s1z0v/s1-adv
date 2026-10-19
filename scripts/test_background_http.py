@@ -34,6 +34,8 @@ struct String:std::string {
 #define portENTER_CRITICAL(x) ((void)0)
 #define portEXIT_CRITICAL(x) ((void)0)
 '''
+code = '#include "' + str(root / 'bots/CardputerADV/src/network_recovery.h') + '"\n' + code
+code += 'network_recovery::Policy gNetworkRecovery;\n'
 state = (parts / '005_main.cpp.inc').read_text()
 for name in ['InboxHttpPayload', 'InboxHttpResult']:
     start = state.index('struct ' + name)

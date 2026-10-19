@@ -39,6 +39,7 @@ void startRecording() {
     releaseTtsBuffer();
   }
   dismissVoiceNotice();
+  cancelVoicePreconnect(); // A new capture never retains an old reply/dial socket.
   struct PreparationScope {
     PreparationScope() { gVoiceCapturePreparing = true; }
     ~PreparationScope() { gVoiceCapturePreparing = false; }

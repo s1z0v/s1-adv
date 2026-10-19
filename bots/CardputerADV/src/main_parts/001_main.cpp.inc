@@ -42,6 +42,8 @@
 #include "smartlamp_gl2_protocol.h"
 #include "focus_lamp_link.h"
 #include "ui_frame_policy.h"
+#include "network_recovery.h"
+#include "reply_connection.h"
 #ifndef DEFAULT_FOCUS_LAMP_ENABLED
 #define DEFAULT_FOCUS_LAMP_ENABLED 0
 #endif
@@ -72,7 +74,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.183-dev"
+#define APP_VERSION "0.2.185-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"

@@ -253,6 +253,7 @@ void handleRealtimeJson(const JsonDocument& doc) {
     return;
   }
   if (type == "realtime.ready") {
+    gNetworkRecovery.success();
     gRealtimeConnected = true;
     const char* audioTransport = doc["audio_transport"] | "json";
     gRealtimeBinaryAudio = strcmp(audioTransport, "binary-v1") == 0;

@@ -30,6 +30,7 @@ bool gRealtimeActive=false,gRealtimeConnected=false,gRealtimeRecording=false,gRe
 bool gRealtimeSmokeActive=false,gRealtimeSmokeAudioStreaming=false;
 void* gTextTurnTaskHandle=nullptr;void* gCompletedTextTurn=nullptr;
 String gActiveTextTurn,gInputBuffer,gDeviceToken="private-in-memory",gHubHost="bridge.invalid";
+String gQueuedVoiceReplySpeech;
 std::deque<String> gPendingTextTurns,gInboxAckQueue;
 uint32_t now=30000,gOtaLastAutoCheckMs=0,gLastUserActivityMs=0,gLastUserInputMs=0,gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
 constexpr uint32_t kOtaAutoCheckIntervalMs=20000,kOtaScreenCheckIntervalMs=5000,kInboxAutoPollIntervalMs=15000;
@@ -114,6 +115,9 @@ int main(){
  now+=20000;assert(startBackgroundManifestCheck(true,true));
  assert(dispatched.back().applyAfter&&dispatched.back().announce);
  assert(!startBackgroundManifestCheck(false,false));finish();
+ // A queued spoken reply gets the network owner before another background GET.
+ gQueuedVoiceReplySpeech="Four";assert(!autoInboxPollAllowed());
+ gQueuedVoiceReplySpeech="";assert(autoInboxPollAllowed());
  // Only active games and timing-sensitive peripherals suppress background work.
  for(auto m:{UiMode::Settings,UiMode::FocusSettings,UiMode::ScreenSettings}){gUiMode=m;assert(autoInboxPollAllowed());}
  gUiMode=UiMode::Tetris;gTetrisStarted=true;assert(!autoInboxPollAllowed());

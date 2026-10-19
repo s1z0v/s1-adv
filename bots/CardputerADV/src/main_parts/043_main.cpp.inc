@@ -135,7 +135,7 @@ bool writeVoiceSmokePcm(fs::FS& fs, const String& path, size_t sampleCount) {
 String gLastVoiceCaptureCheck = "not run";
 // USB-only hardware diagnostic. Exercise the real mic, SD writer and REC
 // renderer, then discard only this test capture. Never submit an agent turn.
-bool runVoiceCaptureCheck(uint32_t seconds) {
+bool runVoiceCaptureCheck(uint32_t seconds, bool submit = false) {
   if (gRecording || gSubmitting || gThinking || gPlaybackActive || gVoiceDialBusy ||
       gInboxHttpBusy || gVoiceReplySpeechBusy || gRealtimeActive || M5.BtnA.isPressed()) {
     logf("[CAPTURE_CHECK] busy"); return false;
@@ -166,6 +166,12 @@ bool runVoiceCaptureCheck(uint32_t seconds) {
   const uint32_t audioMs = gActiveRecordBytes * 1000ULL / (kMicSampleRate * 2U);
   const bool ok = gRecording && !gRecordFileWriteFailed && keptCanvas &&
       audioMs + 250U >= seconds * 1000U && frames >= seconds * 5U && maxGapMs < 128U;
+  if (submit && ok) {
+    logf("[PTT_TEST] captured audio_ms=%u; submitting through normal release path", audioMs);
+    const bool sent = stopRecordingAndSend();
+    logf("[PTT_TEST] sent=%d; original recording retained", static_cast<int>(sent));
+    return sent;
+  }
   if (gRecording) cancelRecordingDiscard();
   dismissVoiceNotice();
   setFaceMode(FaceMode::Idle); setStatus("Capture check done", 1500);
@@ -896,8 +902,14 @@ bool handleHostSerialCommand(String line) {
       logf("[HOST] net.reconnect busy");
     } else {
       const bool scheduled = WiFi.reconnect();
+      if (scheduled) gLastWifiReconnectMs = millis();
       logf("[HOST] net.reconnect scheduled=%d", static_cast<int>(scheduled));
     }
+    return true;
+  }
+  if (cmd == "net.recovery.test") {
+    gNetworkRecovery.streamLost(millis());
+    logf("[HOST] net.recovery.test queued; normal idle/grace/cooldown guards apply");
     return true;
   }
   if (cmd == "battery.status" || cmd == "/battery.status" || cmd == "battery" || cmd == "/battery" ||
@@ -973,6 +985,10 @@ bool handleHostSerialCommand(String line) {
     const uint32_t seconds = cmd == "voice.capture.check" ? 5U :
         clampValue<uint32_t>(cmd.substring(20).toInt(), 1U, 20U);
     runVoiceCaptureCheck(seconds);
+    return true;
+  }
+  if (cmd == "voice.ptt.test") {
+    runVoiceCaptureCheck(6, true);
     return true;
   }
   if (cmd == "voice.capture.status") {
@@ -1126,7 +1142,24 @@ void maintainConnectivity() {
     return;
   }
 
-  bool wifiNow = WiFi.status() == WL_CONNECTED;
+  bool wifiNow = WiFi.status() == WL_CONNECTED && WiFi.localIP() != IPAddress(0, 0, 0, 0);
+  const bool idleForRecovery = !gBootBackgroundActive && !gG0VoicePending && !gRecording &&
+      !gSubmitting && !gThinking && !gPlaybackActive && !gRealtimeActive &&
+      !gPendingRealtimeStart && !gRealtimeDialBusy && !gInboxHttpBusy &&
+      !gVoiceDialBusy && !gVoiceReplySpeechBusy && !gOtaApplyInProgress &&
+      !gTransferUiActive && gTextTurnTaskHandle == nullptr && gPendingTextTurns.empty();
+  if (gNetworkRecovery.takeReconnect(millis(), idleForRecovery, wifiNow)) {
+    // A radio can remain associated while all TCP sends time out. Do not
+    // treat WL_CONNECTED as proof that this transport still makes progress.
+    const bool scheduled = WiFi.reconnect();
+    gLastWifiReconnectMs = millis();
+    if (scheduled) {
+      gWifiReady = false;
+      setStatus("Reconnecting Wi-Fi", 1200);
+    }
+    logf("[WIFI] stalled transport recovery scheduled=%d", static_cast<int>(scheduled));
+    return;
+  }
 
   if (!wifiNow) {
     if (gWifiReady) {

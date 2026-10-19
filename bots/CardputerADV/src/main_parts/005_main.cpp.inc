@@ -82,6 +82,8 @@ void serviceVoiceReplySpeech();
 void initSpeaker();
 bool gVoiceDialBusy = false;
 bool gVoiceDialCanvasReleased = false;
+bool gVoicePreconnectEarly = false;
+reply_connection::OneShot<WiFiClient> gVoiceReplyConnection;
 bool gInboxCanvasReleased = false;
 bool gVoiceSpeechCanvasReleased = false;
 void beginVoicePreconnect();

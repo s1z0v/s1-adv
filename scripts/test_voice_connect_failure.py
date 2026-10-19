@@ -27,6 +27,8 @@ def extract_post(text):
 
 
 CPP_FIXTURES = r'''
+#include "reply_connection.h"
+#include "network_recovery.h"
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -56,6 +58,7 @@ struct Fixture {
  uint32_t now=0,workerDelay=4000,uiPumps=0;
  bool wifi=true,tls=true,ownsPerf=true,fs=true,file=true;
  bool writeHeaders=true,writeBody=true,parseHeaders=true,readBody=true;
+ int statusCode=200,contentLength=-2;
  unsigned perfBegin=0,perfEnd=0,starts=0,takes=0,dials=0;
  unsigned headerWrites=0,fileWrites=0,ramWrites=0,parses=0,bodyReads=0;
  unsigned opens=0,closes=0,removes=0,restores=0;
@@ -77,6 +80,10 @@ class WiFiClient {
   void stop(){++stats->stops;online=false;}
 };
 class WiFiClientSecure:public WiFiClient {};
+reply_connection::OneShot<WiFiClient> gVoiceReplyConnection;
+network_recovery::Policy gNetworkRecovery;
+extern bool gVoicePreconnectEarly;
+void cancelVoicePreconnect(){gVoicePreconnectEarly=false;gVoiceReplyConnection.clear();}
 class File {
  public:
   bool valid=false;
@@ -91,7 +98,7 @@ namespace fs {class FS {
   bool remove(const String&){++fixture.removes;fixture.recording.clear();return true;}
 };}
 fs::FS filesystem;
-bool gVoiceDialBusy=false,gVoiceReplySpeechBusy=false,gVoiceNoticeVisible=true,gCanvasSpriteActive=true;
+bool gVoiceDialBusy=false,gVoiceReplySpeechBusy=false,gVoiceNoticeVisible=true,gCanvasSpriteActive=true,gVoicePreconnectEarly=false;
 String gHubHost="bridge.invalid",gDeviceId="test-device",gDeviceToken="fixture-token";
 uint16_t gHubPort=443;
 constexpr unsigned kMicSampleRate=16000,kTtsDefaultSampleRate=24000,kTurnHttpTimeoutMs=65000;
@@ -140,12 +147,13 @@ enum class VoiceRequestPhase {Idle,Processing};
 VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::Idle;
 bool parseHttpStatusAndHeaders(WiFiClient&,int& status,int& length,uint32_t&,uint32_t){
  ++fixture.parses;if(!fixture.parseHeaders)return false;
- status=200;length=fixture.response.size();return true;
+ status=fixture.statusCode;length=fixture.contentLength==-2?int(fixture.response.size()):fixture.contentLength;return true;
 }
 bool readHttpResponseBody(WiFiClient&,int,String& response,uint32_t){
  ++fixture.bodyReads;response=fixture.response;return fixture.readBody;
 }
 void reset(Worker worker=Worker::Failed){
+ gVoiceReplyConnection.clear();gVoicePreconnectEarly=false;
  fixture=Fixture{};fixture.worker=worker;gVoiceDialBusy=gVoiceReplySpeechBusy=false;
  gVoiceNoticeVisible=gCanvasSpriteActive=true;gVoiceRequestPhase=VoiceRequestPhase::Idle;
  gHubHost="bridge.invalid";gHubPort=443;
@@ -156,7 +164,7 @@ bool invoke(bool file=true,bool wav=true){
  int status=789;String response="stale";
  const bool result=postRawVoiceTurn(file?nullptr:fixture.recording.data(),file?String("/voice/retained.wav"):String(),
                                   32000,"fixture-turn",status,response,file&&wav);
- if(result){assert(status==200);assert(response.value==fixture.response);}
+ if(result){assert(status==fixture.statusCode);assert(response.value==fixture.response);}
  else {assert(status==-1);assert(response.isEmpty());}
  assert(fixture.perfBegin==1 && fixture.perfEnd==(fixture.ownsPerf?1U:0U));
  assert(fixture.removes==0 && fixture.recording.size()==32044);
@@ -198,6 +206,11 @@ void successTests(){
    assert(invoke(file));assert(fixture.now==4000 && fixture.dials==0);
    assert(fixture.headerWrites==1 && fixture.parses==1 && fixture.bodyReads==1);
    assert(fixture.fileWrites==(file?1U:0U) && fixture.ramWrites==(file?0U:1U));
+   assert(fixture.prepared.stops==0 && fixture.prepared.destructs==0);
+   assert(fixture.headers.find("Connection: keep-alive\r\n")!=std::string::npos);
+   auto kept=gVoiceReplyConnection.take(gHubHost.c_str(),gHubPort,fixture.now);
+   assert(kept && kept->connected() && gVoiceReplyConnection.empty());
+   kept->stop();kept.reset();
    assert(fixture.prepared.stops==1 && fixture.prepared.destructs==1);
    assert(fixture.prepared.noDelay==1 && fixture.recording==original);
    const size_t bytes=file?32044:32000;
@@ -211,7 +224,7 @@ void successTests(){
    assert(gVoiceRequestPhase==VoiceRequestPhase::Processing);
   }
  }
- std::puts("PASS actual POST uploads identical WAV/RAM bytes once, parses reply, stops prepared socket once");
+ std::puts("PASS actual POST uploads identical WAV/RAM bytes once, parses reply and transfers the socket once to same-origin TTS");
 }
 void cleanupTests(){
  for(unsigned fault=0;fault<5;++fault){
@@ -234,7 +247,23 @@ void cleanupTests(){
  reset();fixture.ownsPerf=false;assert(!invoke());noSideEffects();
  std::puts("PASS HTTP/SD failure cleanup retains recording and restores owned Wi-Fi performance on every tested return");
 }
-int main(){failureTests();successTests();cleanupTests();}
+void earlyAndReuseGuards(){
+ for(auto worker:{Worker::Ready,Worker::Failed,Worker::Busy,Worker::Disconnected}){
+  reset(worker);gVoicePreconnectEarly=true;fixture.workerDelay=0;
+  assert(invoke()==(worker==Worker::Ready));
+  assert(fixture.starts==0 && fixture.takes==1 && fixture.dials==0 && !gVoicePreconnectEarly);
+ }
+ for(int fault=0;fault<3;++fault){
+  reset(Worker::Ready);
+  if(fault==0)fixture.readBody=false;
+  if(fault==1)fixture.contentLength=-1;
+  if(fault==2)fixture.statusCode=503;
+  assert(invoke());assert(gVoiceReplyConnection.empty());
+  assert(fixture.prepared.stops==1 && fixture.prepared.destructs==1);
+ }
+ std::puts("PASS early worker is consumed without a second dial, and incomplete/unknown-length/error responses never retain a socket");
+}
+int main(){failureTests();successTests();cleanupTests();earlyAndReuseGuards();}
 '''
 
 CPP_NEGATIVE = r'''
@@ -258,7 +287,7 @@ def run_case(source, tests):
         binary = Path(directory) / 'test'
         cpp.write_text(code)
         subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
-                        str(cpp), '-o', str(binary)], check=True)
+                        '-I', str(ROOT / 'bots/CardputerADV/src'), str(cpp), '-o', str(binary)], check=True)
         subprocess.run([str(binary)], check=True)
 
 

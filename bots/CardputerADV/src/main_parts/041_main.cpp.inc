@@ -328,6 +328,10 @@ bool enterRealtimeExclusiveMode() {
 
 void leaveRealtimeExclusiveMode(const String& reason) {
   resetRealtimePlaybackState(true);
+  // The speaker task/DMA was allocated between persistent TLS buffers during
+  // the reply. Release that idle allocation before the next HTTPS handshake.
+  // Audio entry points begin it again when there is actual sound to play.
+  M5Cardputer.Speaker.end();
   gPlaybackActive = false;
   gRealtimeExclusiveMode = false;
   if (gRealtimeWifiSleepSaved) {
@@ -395,6 +399,9 @@ void closeRealtimeSession(const String& reason) {
 }
 
 void failRealtimeSession(const String& reason) {
+  if (reason == "Audio send failed") gNetworkRecovery.streamLost(millis());
+  else if (reason == "TLS connect failed -1" || reason == "TLS connect failed 0")
+    gNetworkRecovery.failure(millis());
   // A transport failure must remain visible after teardown and status expiry.
   gRealtimeUiError = reason.substring(0, 160);
   appendRuntimeLog("RT", "failed: " + gRealtimeUiError, true);

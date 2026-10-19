@@ -54,6 +54,12 @@ bool readHttpResponseBody(WiFiClient& client, int contentLength, String& respons
 
 bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t dataSize,
                       const String& turnId, int& statusCode, String& response, bool wavFile = false) {
+  const bool earlyDial = gVoicePreconnectEarly;
+  gVoicePreconnectEarly = false;
+  struct EarlyDialGuard {
+    bool active;
+    ~EarlyDialGuard() { if (active) cancelVoicePreconnect(); }
+  } earlyGuard{earlyDial};
   logf("[VOICE][LAT] request_start t=%u turn=%s", static_cast<unsigned>(millis()), turnId.c_str());
   struct WifiPerformanceGuard {
     bool owned;
@@ -78,7 +84,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   render();
 
   clearEmojiCache();
-  beginVoicePreconnect(); // Fresh connection, immediately followed by HTTP headers/body.
+  if (!earlyDial) beginVoicePreconnect();
   std::unique_ptr<WiFiClient> prepared = takeVoicePreconnect();
   if (gVoiceDialBusy) { setHttpDiag("voice_post: connection still preparing"); return false; }
   if (!prepared || !prepared->connected()) {
@@ -89,6 +95,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     return false;
   }
   WiFiClient* client = prepared.get();
+  earlyGuard.active = false; // The local unique owner now guarantees cleanup.
 
   logf("[VOICE] raw post preconnect free=%u largest=%u host=%s port=%u",
        static_cast<unsigned>(ESP.getFreeHeap()),
@@ -115,7 +122,7 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   headers += hostHeader;
   headers += "\r\nUser-Agent: S1-ADV/";
   headers += kAppVersion;
-  headers += "\r\nConnection: close\r\nContent-Type: ";
+  headers += "\r\nConnection: keep-alive\r\nContent-Type: ";
   headers += wavFile ? "audio/wav" : "application/octet-stream";
   headers += "\r\nContent-Length: ";
   headers += String(static_cast<unsigned>(uploadBytes));
@@ -180,10 +187,14 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     return false;
   }
   logf("[VOICE][LAT] response_headers t=%u code=%d", static_cast<unsigned>(millis()), statusCode);
-  if (!readHttpResponseBody(*client, contentLength, response, 15000)) {
+  if (statusCode > 0) gNetworkRecovery.success();
+  const bool completeBody = readHttpResponseBody(*client, contentLength, response, 15000);
+  if (!completeBody) {
     logf("[VOICE] raw post response body short status=%d body=%s", statusCode, response.c_str());
   }
-  client->stop();
+  if (completeBody && contentLength >= 0 && statusCode == 200 && client->connected())
+    gVoiceReplyConnection.retain(std::move(prepared), gHubHost.c_str(), gHubPort, millis());
+  else client->stop();
   logf("[VOICE][LAT] response_complete t=%u", static_cast<unsigned>(millis()));
   setHttpDiag("voice_post: http " + String(statusCode));
   logf("[VOICE] raw post status=%d body=%u", statusCode, static_cast<unsigned>(response.length()));
