@@ -25,16 +25,16 @@ API declaration is not proof that every newer or older Gateway works.
 ## Install from ClawHub
 
 The community preview is **ESP32 S1-ADV**, distributed as
-[openclaw-s1-adv 0.3.4](https://clawhub.ai/plugins/openclaw-s1-adv).
+[openclaw-s1-adv 0.3.6](https://clawhub.ai/plugins/openclaw-s1-adv).
 On a current OpenClaw installation:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.4
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.6
 ```
 
 The package includes local process execution and optional firmware
 source/build/publish/OTA capabilities. Inspect
-the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.4)
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.6)
 and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
@@ -50,10 +50,10 @@ the plugin/skills enabled, set its `autoStart: false` and use the
 This does not require moving other agents or credentials.
 
 ```bash
-git clone --branch bridge-v0.3.5 https://github.com/srg0/s1-adv.git
+git clone --branch bridge-v0.3.6 https://github.com/srg0/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.5.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.6.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a

@@ -1,6 +1,6 @@
 {
   "name": "openclaw-s1-adv",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "private": false,
   "type": "module",
   "scripts": {
@@ -17,7 +17,8 @@
     "test:upstream": "node --test src/upstream-client.test.mjs",
     "test:install": "node --test src/install.test.mjs src/plugin-service.test.mjs src/firmware-automation.test.mjs",
     "setup": "node scripts/setup.mjs",
-    "check:package": "node scripts/check-package.mjs"
+    "check:package": "node scripts/check-package.mjs",
+    "test:models": "node --test src/model-roles.test.mjs src/semantic-front.test.mjs src/native-front.test.mjs"
   },
   "dependencies": {
     "busboy": "^1.6.0",

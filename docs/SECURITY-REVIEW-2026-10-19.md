@@ -91,3 +91,36 @@ No live denial-of-service, exhaustive exploit search or new physical-device
 acceptance is claimed. Private rollback/config/state evidence is retained outside
 the public package; no personal credentials, recordings or provisioned images
 are published.
+
+## Plugin 0.3.6 additions, 2026-10-19
+
+The optional semantic first responder uses the native host's isolated completion
+API with zero tools. It receives only a bounded recent-context summary and the
+current request. Its system policy is separate from untrusted user content.
+The native method requires the existing paired bridge identity and operator
+write scope, fixes the configured agent/model, bounds requests and concurrency,
+and accepts no caller-selected provider, authentication profile or tools.
+Its replies explicitly cannot execute inline device actions. Uncertainty and
+every action, including Pomodoro, continue through the primary agent's durable
+session queue. A deadline or failure creates a receipt and one primary turn;
+it does not replay an uncertain fast completion.
+
+`cardputer_status` is declared for native discovery. Discovery without a live
+session exposes its schema, not execution authority. Execution requires the
+configured Cardputer session, a current owned turn and a purpose-specific HMAC
+at a fixed loopback endpoint. The endpoint rejects forwarded/proxied access.
+An ordinary question does not set BUILDING; completed firmware still requires a
+new source-linked OTA manifest.
+
+The explicit model-role installer previews its changes, checks the intended
+host's advertised models, validates the candidate and retains private backups.
+Apply requires the intended bridge to be stopped and its current accepted work,
+including unresolved owned legacy receipts, to be complete or audited. It keeps
+the agent roster, tools, channels and provider credentials. It changes only this
+plugin's exact completion allowlist and the model preferences shown in preview;
+no Gateway admin scope or credential copy is added. The primary build agent
+retains its existing trusted-host privileges and is not sandboxed by these rules.
+
+The native installation, five real provider/queue checks and all 141 bridge
+regressions passed. These findings establish tested boundaries, not a guarantee
+that the host, provider, firmware or every dependency is vulnerability-free.

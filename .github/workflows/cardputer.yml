@@ -24,6 +24,7 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run test:security
       - run: npm run gate:security
+      - run: npm run test:models
       - run: npm run test:install
       - run: npm run check:package
       - run: npm run test:boundaries
@@ -49,6 +50,7 @@ jobs:
       - run: g++ -std=c++17 -Wall -Wextra -pedantic bots/CardputerADV/tests/release_delivery_test.cpp -o /tmp/release-delivery-test && /tmp/release-delivery-test
       - run: node bots/CardputerADV/tests/render_eye_skins.mjs /tmp/cardputer-eye-skins
       - run: python scripts/test_assistant_ui.py
+      - run: python scripts/test_unified_home.py
       - run: python scripts/test_home_update.py
       - run: python scripts/test_auto_ota.py
       - run: python scripts/test_ui_surface.py

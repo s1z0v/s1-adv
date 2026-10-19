@@ -4,14 +4,15 @@ import { readFileSync } from 'node:fs';
 import { voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
 import { requestedReplyLanguage } from './reply-language.mjs';
 import { RealtimePacingBudget } from './realtime-pacing-budget.mjs';
+import { BridgeRuntime } from './server.mjs';
 
 test('every text and voice turn stays in the persistent agent session without keyword routing',async()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
  assert.doesNotMatch(source,/wantsFirmwareWork|CARDPUTER_FIRMWARE_WORK_RE|firmwareClarificationTopic/);
- const method=source.slice(source.indexOf('async tryFastLaneTurn('),source.indexOf('async runFirmwareWorkJob(')).trim();
- const route=new Function(`return async function ${method.slice(6)}`)();
+ const runtime={config:{},store:{state:{}},front:{key:()=>''}};
+ const route=BridgeRuntime.prototype.tryFastLaneTurn.bind(runtime);
  for(const inputMode of ['text','voice']) for(const transcript of ['Какая погода сегодня?','What firmware version is installed?','Add a TV remote','Samsung UE55','yes','нет','Build firmware'])
-   assert.equal(await route({transcript,inputMode}),null);
+   assert.equal(await route({transcript,inputMode,device:{device_id:'test'},topic:{topic_key:'main',session_key:'agent:main:cardputer'}}),null);
 });
 
 test('actual STT form keeps multilingual input independent of English replies',async()=>{
@@ -38,8 +39,7 @@ test('Cardputer execution context never needs a desktop chat or Mac checkout',()
 
 test('authenticated runtime firmware reports distinguish a device boot from a published image',()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
- const code=source.slice(source.indexOf('  recordDeviceFirmware('),source.indexOf('  async tryFastLaneTurn(')).trim();
- const record=new Function(`return function ${code}`)();
+ const record=BridgeRuntime.prototype.recordDeviceFirmware;
  const runtime={deviceFirmwareReports:new Map()},device={device_id:'test'};
  record.call(runtime,device,new URLSearchParams({firmware_version:'0.2.159-dev',firmware_git:'a'.repeat(40)}));
  assert.equal(runtime.deviceFirmwareReports.get('test').version,'0.2.159-dev');

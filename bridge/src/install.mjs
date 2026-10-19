@@ -132,6 +132,15 @@ export async function doctor(configPath, { probe = true } = {}) {
     const gateway = JSON5.parse(await readFile(config.installation?.gatewayConfigPath || defaultGatewayConfig(), "utf8"));
     const agent = config.installation?.agentId || config.topics?.[0]?.session_key?.split(":")[1];
     add("agent-config", !!configuredAgentExists(gateway,agent), "Configured session must name an existing agent; model response is checked separately.");
+    if(config.modelRouting?.enabled) {
+      const policy=gateway.plugins?.entries?.['s1-adv']?.llm;
+      add('fast-completion-restricted',config.modelRouting.fast?.execution==='isolated-agent-runtime' &&
+        policy?.allowModelOverride===true && policy?.allowAuthProfileOverride===false &&
+        policy?.allowedCompletionModels?.length===1 && policy.allowedCompletionModels[0]===config.modelRouting.fast.model,
+        'Fast role uses native isolated zero-tool completion with the exact model allowlist. No added agent or Gateway admin scope.');
+      add('model-roles',!!config.modelRouting.fast?.model && !!config.modelRouting.smart?.model,
+        'Fast/smart model choices are explicit; real responses and latency require a separate practical check.');
+    }
   } catch { add("agent-config", false, "Cannot verify selected agent against the local gateway configuration."); }
   for (const binary of ["ffmpeg", ...(config.omnibotShim?.ttsFallbackProvider === "espeak" ? ["espeak-ng"] : [])]) {
     const found = spawnSync(binary, [binary === "ffmpeg" ? "-version" : "--version"], { encoding: "utf8", timeout: 5000 });
@@ -183,7 +192,9 @@ export async function enablePlugin(configPath, { apply = false, gatewayConfigPat
   const operations = [];
   if (Array.isArray(host.plugins?.allow) && !host.plugins.allow.includes("s1-adv"))
     operations.push(["config", "set", "plugins.allow", JSON.stringify([...host.plugins.allow,"s1-adv"]), "--strict-json"]);
-  operations.push(["config", "set", "plugins.entries.s1-adv", JSON.stringify({ enabled:true, config:{configPath:path.resolve(configPath),autoStart:true} }), "--strict-json"]);
+  const prior=host.plugins?.entries?.['s1-adv'] || {};
+  operations.push(["config", "set", "plugins.entries.s1-adv", JSON.stringify({ ...prior, enabled:true,
+    config:{...prior.config,configPath:path.resolve(configPath),autoStart:true} }), "--strict-json"]);
   if (!apply) return { dryRun:true, gatewayConfigPath, openclawCommand, operations, note:"Only this plugin entry and its allowlist membership are changed. Gateway restart remains an explicit operator step." };
   const backup = path.join(path.dirname(configPath), `gateway-config-before-enable-${Date.now()}.json5`);
   await writeFile(backup, await readFile(gatewayConfigPath), { mode:0o600, flag:"wx" });

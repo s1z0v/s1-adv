@@ -21,15 +21,20 @@ export function hasAgentStatusAccess(req, config) {
 }
 
 export function createAgentStatusTool(context, pluginConfig, { fetchImpl = fetch } = {}) {
-  if (!context?.sessionKey || context.sandboxed || !path.isAbsolute(pluginConfig.configPath || '')) return null;
+  if (!context || context.sandboxed || !path.isAbsolute(pluginConfig.configPath || '')) return null;
   let config;
   try {
     const file = statSync(pluginConfig.configPath);
     if (process.platform !== 'win32' && (file.mode & 0o077)) return null;
     config = JSON.parse(readFileSync(pluginConfig.configPath, 'utf8'));
   } catch { return null; }
-  if (!(config.topics || []).some(topic => topic.session_key === context.sessionKey &&
-      (config.devices || []).some(device => (device.topics || []).includes(topic.topic_key)))) return null;
+  const sessions=(config.topics || []).filter(topic => (config.devices || [])
+    .some(device => (device.topics || []).includes(topic.topic_key))).map(topic=>topic.session_key);
+  // Native catalog/discovery queries supply agentId without a live session.
+  // Advertise metadata for that agent, while keeping execution session-bound.
+  if (context.sessionKey ? !sessions.includes(context.sessionKey) :
+      !context.agentId || !sessions.some(session=>session.split(':')[1]===context.agentId)) return null;
+  const sessionKey=context.sessionKey;
   const host = config.server?.host;
   const port = Number(config.server?.port);
   if (!['127.0.0.1', '::1', 'localhost'].includes(host) || !Number.isInteger(port) || port < 1 || port > 65535) return null;
@@ -48,10 +53,11 @@ export function createAgentStatusTool(context, pluginConfig, { fetchImpl = fetch
         question: { type: 'string', maxLength: 512, description: 'For awaiting_input, the question also included in the visible assistant reply.' }
       } },
     async execute(_toolCallId, params) {
+      if(!sessionKey) throw new Error('Cardputer status requires a live configured session. Catalog metadata cannot execute.');
       const response = await fetchImpl(`http://${host === '::1' ? '[::1]' : host}:${port}/internal/cardputer/agent-status`, {
         method: 'POST', redirect: 'error', signal: AbortSignal.timeout(5000),
         headers: { 'content-type': 'application/json', 'x-s1-agent-status': credential },
-        body: JSON.stringify({ ...params, session_key: context.sessionKey })
+        body: JSON.stringify({ ...params, session_key: sessionKey })
       });
       if (!response.ok) throw new Error(`Cardputer status rejected (HTTP ${response.status}). Do not claim the status changed.`);
       const result = await response.json();

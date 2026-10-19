@@ -1,5 +1,39 @@
 # Public source validation
 
+## Semantic first response and contextual status, plugin 0.3.6, 2026-10-19
+
+All 141 bridge tests passed, including ownership, durable dispatch, restart,
+overlapping fast/main context, unavailable completion, model-role installation
+and status boundaries. Package inspection includes the native manifest tool
+discovery contract. All 30 firmware host checks passed. The ESP32-S3/8 MB
+portable build for 0.2.179-dev passed: 2,007,813 bytes of application flash and
+121,712 bytes of static RAM. This build result does not establish physical UI
+or microphone acceptance.
+
+OpenClaw 2026.8.1 / Node 22.23.1 installed the reviewed 39-file native archive.
+Every installed extension and isolated HTTP worker file matched the qualified
+artifact. Native `tools.catalog` discovered `cardputer_status`. The original
+primary agent, its tools, channels and credentials were preserved. The host uses
+LUNA / medium for isolated completions and its original Sol / high for primary
+work. A real attempt at xhigh failed on this host and is not an advertised
+working configuration.
+
+Five sequential real Gateway/provider checks passed: arithmetic, a tracked TV
+clarification, a synthetic spoken continuation completing the same task, the
+reported firmware version, and current weather. First responses took about
+4.8–8.9 seconds; the complete contextual replies took about 13–28 seconds.
+The voice check exercised actual STT, not a physical G0 recording. The ordinary
+version/weather questions did not alter the task or set BUILDING. Retrying the
+same completed request ID returned its cached reply without another front or
+primary record. Fast completions had no tools; escalations had their own exact
+native agent terminal receipts. Earlier failed qualification attempts remain
+preserved separately and were not counted as passes.
+
+The owner's existing old-session delivery hold remains preserved. It was not
+deleted, replayed or relabeled as completed; the five checks used the distinct
+current device session. Registry publication and installation on the physical
+device are separate gates from these server checks.
+
 ## Isolated integration and security, plugin 0.3.4, 2026-10-19
 
 Source `1674ca1`, tag `bridge-v0.3.4`, passed 119 host tests, policy/model checks,

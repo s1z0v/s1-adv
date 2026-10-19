@@ -58,7 +58,8 @@ test("enable previews and targets only the intended host profile and plugin memb
   const root=await mkdtemp(path.join(os.tmpdir(),"s1-enable-"));t.after(()=>rm(root,{recursive:true,force:true}));
   const upstream=path.join(root,"upstream.json"),host=path.join(root,"host.json");
   await writeFile(upstream,JSON.stringify({gateway:{auth:{token:"fixture-upstream-token-private"}}}));
-  const original=JSON.stringify({plugins:{allow:["existing"],entries:{existing:{enabled:true}}},channels:{private:{enabled:true}}});
+  const llm={allowModelOverride:true,allowedCompletionModels:["openai/gpt-5.6-luna"]};
+  const original=JSON.stringify({plugins:{allow:["existing"],entries:{existing:{enabled:true},"s1-adv":{llm,config:{allowRoot:false}}}},channels:{private:{enabled:true}}});
   await writeFile(host,original,{mode:0o600});
   const plan=await planInstall({gatewayConfig:upstream,stateDir:path.join(root,"bridge"),agent:"main"});
   await applyInstall(plan);
@@ -67,6 +68,7 @@ test("enable previews and targets only the intended host profile and plugin memb
   const preview=await enablePlugin(plan.configPath,{gatewayConfigPath:host,runCommand});
   assert.equal(preview.dryRun,true);assert.equal(calls.length,0);
   assert.deepEqual(JSON.parse(preview.operations[0][3]),["existing","s1-adv"]);
+  const enabled=JSON.parse(preview.operations[1][3]);assert.deepEqual(enabled.llm,llm);assert.equal(enabled.config.allowRoot,false);
   const result=await enablePlugin(plan.configPath,{apply:true,gatewayConfigPath:host,runCommand});
   assert.equal(calls.length,2);
   for(const call of calls){assert.equal(call.program,"openclaw");assert.equal(call.options.env.OPENCLAW_CONFIG_PATH,host);assert.match(call.args[2],/^plugins\.(allow|entries\.s1-adv)$/);}

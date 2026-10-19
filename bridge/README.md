@@ -64,15 +64,15 @@ install with `--accept-capabilities`; local archives/paths can also require
 Install the published plugin on your intended OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.4
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.6
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.5` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.6` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.5.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.6.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply
@@ -109,6 +109,45 @@ Gateway and stores recordings/history outside the plugin package. Keep the
 Gateway private. Use your own TLS proxy for Cardputer HTTPS/WSS access and approve
 only the exact bridge identity if your Gateway requires pairing. Doctor checks
 HTTP and upstream separately; a real model/device round trip is still required.
+
+## Optional fast first response
+
+Use the native plugin with an OpenClaw host that exposes
+`api.runtime.llm.complete` with `isolated-agent-runtime` support. Preview the
+exact model choices and permissions before applying:
+
+```bash
+openclaw s1-adv models --config "$HOME/.openclaw/s1-adv/config.json" --model-profile codex
+# Review the preview and finish or audit accepted work in this device session.
+# Stop the intended bridge (stop the Gateway if it hosts the bridge).
+# Repeat with --apply, then start the intended Gateway and bridge.
+```
+
+The Codex preference is LUNA / medium for a short first response and your
+selected primary agent model and its existing thinking setting for the full contextual work. You can
+choose `--fast-model`, `--smart-model`, `--fast-thinking`, `--smart-thinking`
+and `--fast-deadline-ms` at setup or later. `--model-profile claude` offers
+Claude defaults; either profile refuses models unavailable on your host.
+No subscription, provider login or credential copying is included.
+
+The fast model receives a small recent-context summary and **zero tools**.
+It answers simple questions or semantically escalates uncertainty, current facts,
+all device actions (including Pomodoro), development and contextual follow-ups.
+It never starts BUILDING or claims to have performed work. The main agent keeps
+its full session and receives intervening fast exchanges. If the fast model
+fails or misses the configured deadline (8 seconds by default), a system receipt appears and the request
+continues once through the durable primary queue. That receipt is not an answer.
+
+`models --apply` writes private backups, this plugin's exact completion-model
+allowlist, and the selected agent's model/thinking preferences shown in preview.
+It refuses to apply while the intended bridge is listening or accepted work in
+this device session is unfinished or held. Preserve that work for completion or
+an explicit delivery audit before changing model roles.
+It does not add agents, alter tools/channels, grant Gateway admin scope, copy
+OAuth files or restart services. The host's isolated completion capability and
+model availability still need a real call. Older hosts and a standalone bridge
+without the native plugin keep the normal primary-agent path when routing is off.
+This improves the first response, not audio-upload duration or hardware input lag.
 
 ## Manual installation
 

@@ -1,6 +1,7 @@
 import { createBridgeService } from "./src/plugin-service.mjs";
 import { setupCli } from "./scripts/setup.mjs";
 import { createAgentStatusTool } from "./src/agent-status.mjs";
+import { registerNativeFront } from './src/native-front.mjs';
 
 async function printCommand(name, options) {
   const args = [name];
@@ -20,6 +21,7 @@ export default {
   id: "s1-adv",
   name: "ESP32 S1-ADV",
   register(api) {
+    registerNativeFront(api);
     api.registerTool?.(context => createAgentStatusTool(context, api.pluginConfig || {}),
       { name: 'cardputer_status' });
     api.registerService(createBridgeService(api.pluginConfig || {}, { logger: api.logger }));
@@ -35,8 +37,23 @@ export default {
         .option("--agent <id>", "Dedicated OpenClaw agent", "cardputer")
         .option("--device-id <id>", "Unique Cardputer ID", "cardputer-adv-01")
         .option("--port <number>", "Loopback bridge port", "31889")
+        .option('--model-profile <profile>', 'Also configure fast/smart roles for a new installation: codex or claude')
+        .option('--fast-model <model>', 'Available Gateway provider/model for the fast role')
+        .option('--smart-model <model>', 'Available Gateway provider/model for the main role')
         .option("--apply", "Write private files after reviewing the plan")
         .action(options => printCommand("init", options));
+      command.command('models')
+        .description('Preview or configure fast/smart roles through the Gateway; no OAuth files are copied')
+        .requiredOption('--config <path>', 'Private bridge config')
+        .option('--gateway-config <path>', 'Intended Gateway configuration')
+        .option('--model-profile <profile>', 'codex or claude defaults')
+        .option('--fast-model <model>', 'Available fast provider/model')
+        .option('--smart-model <model>', 'Available smart provider/model')
+        .option('--fast-thinking <level>', 'Fast role thinking level')
+        .option('--smart-thinking <level>', 'Smart role thinking level')
+        .option('--fast-deadline-ms <number>', 'Deadline before immediate receipt and durable escalation')
+        .option('--apply', 'Save reviewed model roles and the exact native completion allowlist')
+        .action(options => printCommand('models',options));
       command.command("firmware")
         .description("Explicitly provision private firmware build/release wrappers; agent permissions remain yours")
         .requiredOption("--config <path>", "Private bridge config")

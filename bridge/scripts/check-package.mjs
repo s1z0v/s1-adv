@@ -4,9 +4,17 @@ import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { loadFocusAudioBundle, focusAudioPaths } from "../src/focus-audio.mjs";
+import plugin from "../index.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+const manifest = JSON.parse(await readFile(new URL("../openclaw.plugin.json", import.meta.url), "utf8"));
+assert.equal(manifest.version, pkg.version);
+// Native hosts discover tools from the manifest before loading the module.
+plugin.register({pluginConfig:{},registerTool(_factory,options){
+  for(const name of [options.name,...(options.names || [])].filter(Boolean))
+    assert(manifest.contracts?.tools?.includes(name), `Tool missing its native discovery contract: ${name}`);
+},registerService(){},registerCli(){}});
 assert.equal(pkg.private, false);
 for (const hook of ["preinstall", "install", "postinstall", "prepare", "prepublish", "prepublishOnly"])
   assert.equal(pkg.scripts?.[hook], undefined, `Unexpected install/publish hook: ${hook}`);

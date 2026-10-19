@@ -46,6 +46,7 @@ import {
 } from "./utils.mjs";
 import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs, gatewayTurnCorrelation, assistantReplyMatchesTurn } from "./turn-delivery-policy.mjs";
 import { DurableTurnOutbox } from "./turn-outbox.mjs";
+import { SemanticFront, frontPrompt, FRONT_RECEIPT, validateModelRouting } from './semantic-front.mjs';
 import { decodeVoiceUpload } from "./voice-upload-codec.mjs";
 import { RealtimePacingBudget, REALTIME_MAX_AUDIO_LEAD_MS } from "./realtime-pacing-budget.mjs";
 
@@ -3534,6 +3535,7 @@ function sanitizeAssetSegments(segments) {
 
 class BridgeRuntime {
 	  constructor(config) {
+    validateModelRouting(config);
 	    this.config = config;
 	    this.store = new StateStore(config);
 	    this.upstream = new UpstreamGatewayClient(config.upstream);
@@ -3557,8 +3559,16 @@ class BridgeRuntime {
           device.topics?.includes(entry.topic_key);
       },
       changed: entry => this.updateOutboxReceipt(entry),
-      terminal: entry => this.recordOutboxFailure(entry)
+      terminal: async entry => { await this.confirmFrontContext(entry); return this.recordOutboxFailure(entry); }
     });
+    this.front = new SemanticFront({store:this.store,roles:config.modelRouting || {},
+      deadlineMs:config.modelRouting?.deadlineMs || 8000,
+      valid:entry=>this.frontOwnerValid(entry),prepare:input=>this.prepareFront(input),
+      acceptInput:record=>this.acceptFrontInput(record),
+      dispatchFast:params=>this.upstream.rpc('s1-adv.front',params),
+      deliver:record=>this.deliverFrontReply(record),notify:record=>this.notifyFrontReply(record),
+      admitCapacity:(input,prepared)=>this.assertFrontCapacity(input,prepared),
+      admitSmart:record=>this.admitFrontSmart(record)});
 	  }
 
   async start() {
@@ -3588,6 +3598,7 @@ class BridgeRuntime {
       this.turnOutbox.kick();
     });
     await this.turnOutbox.resume();
+    void this.front.resume().catch(error=>console.warn(`[front] recovery held: ${String(error.message || error).slice(0,160)}`));
     // The HTTP service must stay observable while the gateway is unavailable.
     // UpstreamGatewayClient retries with bounded handshakes in the background.
     void this.upstream.start().then(() => {
@@ -4739,10 +4750,122 @@ class BridgeRuntime {
       console.info(`[device] firmware device=${device.device_id} version=${version} git=${git}`);
   }
 
-  async tryFastLaneTurn() {
-    // Every ordinary text/voice turn belongs to the configured persistent
-    // OpenClaw session. Intent and work status are the agent's decisions.
-    return null;
+  frontOwnerValid(entry) {
+    const session=entry.primary_session_key || entry.session_key;
+    const topic=this.store.getTopic(entry.topic_key),device=this.store.state.devices[entry.device_id];
+    const roles=this.config.modelRouting;
+    return !!(roles?.fast && topic?.session_key===session && device && !device.revoked_at &&
+      device.topics?.includes(entry.topic_key) && entry.fast_agent_id===roles.fast.agentId &&
+      (entry.fast_model===roles.fast.model || entry.phase==='answered' || entry.phase==='escalated'&&entry.main_enqueued));
+  }
+
+  frontHistory(topicKey) {
+    const topic=this.store.getTopic(topicKey),after=Number(topic?.front_synced_seq || 0);
+    return Object.values(this.front.records()).filter(record=>record.topic_key===topicKey &&
+      record.device_id===this.config.devices[0]?.device_id && record.session_key===topic?.session_key && record.phase==='answered' && record.reply_seq>after)
+      .sort((a,b)=>a.reply_seq-b.reply_seq)
+      .map(record=>({user:record.text,assistant:record.reply,seq:record.reply_seq}));
+  }
+
+  prepareFront(input) {
+    const topic=this.store.getTopic(input.topic_key),device=this.config.devices.find(d=>d.device_id===input.device_id);
+    const history=this.frontHistory(input.topic_key);
+    const previous=this.store.getHistory(input.topic_key,0,100000).items
+      .filter(m=>['assistant','device','human','user'].includes(m.sender?.kind) && m.content?.text)
+      .slice(-2).map(m=>({role:m.sender.kind==='assistant'?'assistant':'user',text:m.content.text.slice(0,600)}));
+    return {smart_model:this.config.modelRouting.smart.model,smart_thinking:this.config.modelRouting.smart.thinking,
+      force_smart:JSON.stringify(history).length+input.text.length+400>16000,
+      context_through_seq:history.at(-1)?.seq || 0,
+      main_params:{message:this.buildDeviceTurnUpstreamText({device,topicKey:input.topic_key,
+        text:input.text,clientMsgId:input.client_msg_id,inputMode:input.input_mode}),
+        model:this.config.modelRouting.smart.model,thinking:this.config.modelRouting.smart.thinking},
+      fast_prompt:frontPrompt({text:input.text,previous,task:topic?.agent_task,
+        deviceFirmware:this.deviceFirmwareReports.get(input.device_id),languagePolicy:REPLY_LANGUAGE_POLICY})};
+  }
+
+  assertFrontCapacity(input,prepared) {
+    const pending=this.turnOutbox.entries().filter(entry=>entry.phase!=='terminal');
+    const reservations=Object.values(this.front.records()).filter(record=>
+      ['pending','escalated'].includes(record.phase) && !record.main_enqueued &&
+      !this.turnOutbox.entries().some(entry=>entry.client_msg_id===record.client_msg_id && entry.topic_key===record.topic_key));
+    const bytes=Buffer.byteLength(JSON.stringify(prepared.main_params));
+    if(pending.length+reservations.length>=32 ||
+      pending.filter(e=>e.session_key===input.session_key).length+reservations.filter(e=>e.session_key===input.session_key).length>=8 ||
+      bytes>65536 || pending.reduce((n,e)=>n+Number(e.payload_bytes || 0),0)+
+        reservations.reduce((n,e)=>n+Buffer.byteLength(JSON.stringify(e.main_params || {})),0)+bytes>1048576)
+      throw new Error('Turn queue is full; wait before submitting another request.');
+  }
+
+  acceptFrontInput(record) {
+    const message=this.store.appendMessage(record.topic_key,{id:makeId('msg'),created_at:nowIso(),updated_at:nowIso(),
+      client_msg_id:record.client_msg_id,sender:{kind:'device',id:`cardputer:${record.device_id}`,display_name:'Cardputer'},
+      source:{transport:'cardputer_front'},content:{kind:'text',text:record.text}});
+    record.user_message_id=message.id;
+  }
+
+  deliverFrontReply(record) {
+    const final=record.phase==='answered';
+    const message=this.store.appendMessage(record.topic_key,{id:makeId('msg'),created_at:nowIso(),updated_at:nowIso(),
+      client_msg_id:`${record.client_msg_id}${final?'':':front'}:reply`,
+      sender:{kind:'assistant',id:record.agent_reply?'openclaw:fast-responder':'bridge:receipt',display_name:record.agent_reply?'OpenClaw':'Bridge'},
+      source:{transport:final?'cardputer_front_answer':record.agent_reply?'cardputer_front_ack':'cardputer_front_receipt',
+        actions_allowed:false,
+        ...(record.fast_terminal ? {upstream_run_id:record.fast_run_id} : {})},content:{kind:'text',text:record.reply}});
+    record.reply_message_id=message.id;record.reply_seq=message.seq;
+    this.queueDeviceMessageEvent(record.topic_key,message);
+  }
+
+  notifyFrontReply(record) {
+    console.info(`[front] client=${record.client_msg_id} phase=${record.phase} elapsed_ms=${record.fast_elapsed_ms || 0} source=${record.agent_reply?'model':record.fallback_reason || 'receipt'}`);
+    const message=this.store.getHistory(record.topic_key,0,100000).items.find(m=>m.id===record.reply_message_id);
+    if(message) this.broadcast(record.topic_key,{type:'new_message',topic_key:record.topic_key,
+      session_key:record.session_key,message});
+  }
+
+  deliveryDiagnostics() {
+    const main=this.turnOutbox.diagnostics(),front=this.front.diagnostics();
+    return {...main,front_delivery:front,delivery_ready:main.delivery_ready&&front.ready,
+      delivery_hold:main.delivery_hold || (front.ready?null:{code:'front_delivery_held',message:'An accepted fast-front request requires an ownership/recovery audit. No request is resent.'})};
+  }
+
+  async admitFrontSmart(record) {
+    const device=this.config.devices.find(item=>item.device_id===record.device_id);
+    if(!record.main_params?.message && !this.store.getIdempotent(record.topic_key,record.client_msg_id))
+      throw new Error('Escalation payload is unavailable. Preserve the request for operator review.');
+    return this.sendText({device,topicKey:record.topic_key,clientMsgId:record.client_msg_id,text:record.text,
+      upstreamText:record.main_params?.message,
+      contextThroughSeq:record.context_through_seq,waitForUpstream:false,inputMode:record.input_mode});
+  }
+
+  async confirmFrontContext(entry) {
+    if(entry.terminal?.status!=='ok' || !entry.front_context_through_seq) return;
+    const topic=this.store.getTopic(entry.topic_key);
+    if(topic?.session_key!==entry.session_key) return;
+    topic.front_synced_seq=Math.max(Number(topic.front_synced_seq || 0),entry.front_context_through_seq);
+    await this.store.save();
+  }
+
+  async tryFastLaneTurn({req,device,topic,clientMsgId,transcript,inputMode,wantsReplyAudio}) {
+    const input={device_id:device.device_id,topic_key:topic.topic_key,session_key:topic.session_key,
+      client_msg_id:clientMsgId,text:transcript,input_mode:inputMode};
+    const cached=this.store.state.front_turns?.entries?.[this.front.key(input)];
+    if(!this.config.modelRouting?.enabled && !cached) return null;
+    const record=await this.front.run(input);
+    if(record.bypass) {
+      const ack=await this.sendText({device,topicKey:topic.topic_key,clientMsgId,text:transcript,
+        upstreamText:this.buildDeviceTurnUpstreamText({device,topicKey:topic.topic_key,text:transcript,clientMsgId,inputMode}),waitForUpstream:false,inputMode});
+      return {ack,response:await this.buildPendingTurnResponse({req,device,topic,transcript,ack})};
+    }
+    const message=this.store.getHistory(topic.topic_key,0,100000).items.find(m=>m.id===record.reply_message_id) ||
+      {id:record.reply_message_id,seq:record.reply_seq};
+    transcript=record.text;
+    if(record.phase==='answered') return {response:await this.buildTurnResponse({req,topic,transcript,
+      replyText:record.reply,replyMessage:message,includeAudio:wantsReplyAudio,allowDeviceActions:false})};
+    const ack=this.store.getIdempotent(topic.topic_key,clientMsgId);
+    if(!ack) throw new Error('This request was already sent. Open chat to check its result; it will not be resent.');
+    return {ack,response:{...await this.buildPendingTurnResponse({req,device,topic,transcript,ack}),
+      reply:record.reply,full_text:record.reply,short_text:this.shortReplyText(record.reply),
+      reply_seq:record.reply_seq,after_seq:record.reply_seq,front_reply_is_agent:record.agent_reply===true}};
   }
 
   async runFirmwareWorkJob({ device, topic, transcript, clientMsgId }) {
@@ -4844,9 +4967,9 @@ class BridgeRuntime {
     };
   }
 
-  async buildTurnResponse({ req, topic, transcript = "", replyText = "", replyMessage = null, includeAudio = false }) {
-    const extracted = extractDeviceActionsFromText(replyText);
-    const actions = alignFocusActionMinutes(extracted.actions, extracted.visibleText, replyText, transcript);
+  async buildTurnResponse({ req, topic, transcript = "", replyText = "", replyMessage = null, includeAudio = false, allowDeviceActions = true }) {
+    const extracted = allowDeviceActions ? extractDeviceActionsFromText(replyText) : {visibleText:String(replyText),actions:[]};
+    const actions = allowDeviceActions ? alignFocusActionMinutes(extracted.actions, extracted.visibleText, replyText, transcript) : [];
     const markdownText = String(extracted.visibleText || "").trim();
     const fullText = stripMarkdownForDevice(markdownText);
     const traceId = replyMessage?.id || makeId("tr");
@@ -5475,6 +5598,8 @@ class BridgeRuntime {
       firmware: this.buildFirmwarePromptContext(),
       device_firmware: this.deviceFirmwareReports.get(device.device_id) || null
     };
+    const fastHistory=this.frontHistory(topicKey);
+    if(fastHistory.length) context.fast_front_exchanges_since_last_smart_turn=fastHistory;
     const shortReplyWords = Math.max(8, Number(this.config.deviceTurnContext?.shortReplyWords) || 15);
     const voiceReplyMaxSeconds = Math.max(5, Number(this.config.deviceTurnContext?.voiceReplyMaxSeconds) || 25);
     const policy = {
@@ -5494,6 +5619,7 @@ class BridgeRuntime {
         : "If a full answer would be long, keep the text short and front-load the key point.",
       firmware_capabilities: buildFirmwareCapabilityPolicyText(),
       agent_status: "You own intent and task status in this one persistent OpenClaw session. Text and G0 voice replies share this context. Do not route or classify by keywords. For a normal question, answer normally without starting firmware work or changing an unrelated active task. For missing requirements, call cardputer_status(request_id, state=awaiting_input, work_kind, question) and ask that exact question visibly; do not begin implementation. The next user text or voice reply is normal session context: decide whether it answers the question, changes the request or is unrelated. For a continuation, pass active_task.task_id explicitly. Before actually starting authorized firmware changes call cardputer_status with state=building and work_kind=firmware; use working for other tasks. After verified publication call completed; failed for a real failure. If the owner declines an unanswered clarification, close that same task with cancelled; this does not stop a running operation. Never claim a status changed if the tool failed. A receipt only confirms delivery, not work acceptance. Do not mark a weather question or an installed-version question as firmware development. Never infer installation permission from a keyword; use the owner's actual instruction and context. Keep questions and results in this conversation, without creating another session.",
+      firmware_source_safety: "Before modifying firmware, inspect the configured repo/branch and any active build/release lock. Preserve dirty or concurrent work; do not switch, reset or overwrite it. Fetch the exact configured push_remote and branch and fast-forward the clean checkout before editing. Commit reviewed source before building, push that exact clean commit after checks, and publish only through the configured guarded wrappers. Never use an old legacy branch.",
       device_actions: buildDeviceActionPolicyText()
     };
     return buildDeviceTurnEnvelope({ context, policy, text, inputMode, compact: voiceTurn });
@@ -5674,6 +5800,10 @@ class BridgeRuntime {
   async dispatchOutboxTurn(entry) {
     const topic = this.store.getTopic(entry.topic_key);
     console.info(`[turn] dispatch topic=${entry.topic_key} client=${entry.client_msg_id} context=full`);
+    if(entry.agent_dispatch) return this.upstream.rpc('agent',{
+      sessionKey:entry.params.key,agentId:agentIdForSession(entry.session_key),
+      message:entry.params.message,idempotencyKey:entry.params.idempotencyKey,
+      ...(entry.params.thinking ? {thinking:entry.params.thinking} : {}),deliver:false});
     try {
       return await this.upstream.rpc("sessions.send", entry.params);
     } catch (error) {
@@ -5684,7 +5814,8 @@ class BridgeRuntime {
     }
   }
 
-  async sendText({ device, topicKey, clientMsgId, text, upstreamText = null, waitForUpstream = false, inputMode = "text" }) {
+  async sendText({ device, topicKey, clientMsgId, text, upstreamText = null, waitForUpstream = false, inputMode = "text",
+    contextThroughSeq=null }) {
     const topic = this.store.getTopic(topicKey);
     if (!topic) {
       throw new Error("unknown topic");
@@ -5705,14 +5836,30 @@ class BridgeRuntime {
       return receipt;
     }
     const params = { key: topic.session_key, message: upstreamText || text, idempotencyKey: expectedRunId };
-    const thinking = voiceThinking(text, inputMode);
+    const smart=this.config.modelRouting?.enabled ? this.config.modelRouting.smart : null;
+
+    const thinking = smart?.thinking || voiceThinking(text, inputMode);
     if (thinking) params.thinking = thinking;
     this.turnOutbox.assertCapacity(topic.session_key, params);
     if (topic.topic_key.startsWith("local:cardputer-firmware-job:")) {
       topic.firmware_job = startFirmwareJob(device.device_id, clientMsgId, Date.now(),
         readJsonFileSyncSafe(this.firmwareManifestPath(), null));
     }
-    const message = this.store.appendMessage(topicKey, {
+    const front=Object.values(this.front.records()).find(record=>record.device_id===device.device_id &&
+      record.topic_key===topicKey && record.session_key===topic.session_key && record.client_msg_id===clientMsgId);
+    if(front && front.text!==text) throw new Error('Fast-front input changed; refusing to resend.');
+    const reserved=Object.values(this.front.records()).filter(record=>record!==front &&
+      ['pending','escalated'].includes(record.phase) && !record.main_enqueued &&
+      !this.turnOutbox.entries().some(entry=>entry.client_msg_id===record.client_msg_id && entry.topic_key===record.topic_key));
+    const pending=this.turnOutbox.entries().filter(entry=>entry.phase!=='terminal');
+    if(pending.length+reserved.length>=32 ||
+      pending.filter(entry=>entry.session_key===topic.session_key).length+reserved.filter(record=>record.session_key===topic.session_key).length>=8 ||
+      pending.reduce((n,entry)=>n+Number(entry.payload_bytes || 0),0)+
+        reserved.reduce((n,record)=>n+Buffer.byteLength(JSON.stringify(record.main_params || {})),0)+
+        Buffer.byteLength(JSON.stringify(params))>1048576)
+      throw new Error('Turn queue slots are reserved for accepted requests.');
+    const frontMessage=front && this.store.getHistory(topicKey,0,100000).items.find(message=>message.id===front.user_message_id);
+    const message = frontMessage || this.store.appendMessage(topicKey, {
       id: makeId("msg"),
       created_at: nowIso(),
       updated_at: nowIso(),
@@ -5731,6 +5878,7 @@ class BridgeRuntime {
         text
       }
     });
+    message.source.upstream_run_id=expectedRunId;
     const ack = {
       type: "ack",
       topic_key: topicKey,
@@ -5746,7 +5894,9 @@ class BridgeRuntime {
     const ticket = await this.turnOutbox.enqueue({
       id: expectedRunId, run_id: expectedRunId, topic_key: topicKey,
       session_key: topic.session_key, device_id: device.device_id,
-      client_msg_id: clientMsgId, params, receipt: { ...ack }
+      client_msg_id: clientMsgId, params, receipt: { ...ack },
+      agent_dispatch:!!this.config.modelRouting?.enabled,
+      front_context_through_seq:contextThroughSeq ?? this.frontHistory(topicKey).at(-1)?.seq ?? 0
     });
     this.broadcast(topicKey, {
       type: "new_message", topic_key: topicKey, session_key: topic.session_key, message
@@ -6036,7 +6186,7 @@ async function main() {
         ? {
             ok: true,
             upstream_connected: runtime.upstream.connected,
-            ...runtime.turnOutbox.diagnostics(),
+            ...runtime.deliveryDiagnostics(),
             device_firmware: runtime.deviceFirmwareReports.get(device.device_id) || null,
             ...buildConnectPayload(config, req)
           }

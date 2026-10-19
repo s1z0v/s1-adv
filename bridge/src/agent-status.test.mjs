@@ -98,6 +98,11 @@ test('native status tool is scoped to its trusted session and fixed private dest
  const calls=[];const deps={fetchImpl:async(url,options)=>{calls.push({url,options});return{ok:true,json:async()=>({ok:true})};}};
  assert.equal(createAgentStatusTool({sessionKey:'agent:other:session'},{configPath},deps),null);
  assert.equal(createAgentStatusTool({sessionKey:f.session_key,sandboxed:true},{configPath},deps),null);
+ const catalog=createAgentStatusTool({agentId:f.session_key.split(':')[1]},{configPath},deps);
+ assert.equal(catalog.name,'cardputer_status');
+ await assert.rejects(catalog.execute('catalog',{request_id:'one',state:'working',work_kind:'task'}),/live configured session/);
+ assert.equal(calls.length,0);
+ assert.equal(createAgentStatusTool({agentId:'other'},{configPath},deps),null);
  const tool=createAgentStatusTool({sessionKey:f.session_key},{configPath},deps);
  await tool.execute('call',{request_id:'one',state:'awaiting_input',work_kind:'firmware',question:'Which model?',session_key:'forged'});
  assert.equal(JSON.parse(calls[0].options.body).session_key,f.session_key);
