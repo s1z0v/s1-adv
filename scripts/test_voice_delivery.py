@@ -98,8 +98,9 @@ with tempfile.TemporaryDirectory(prefix='s1-voice-') as d:
  p=Path(d);(p/'test.cpp').write_text(code)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra',str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-voice=(parts/'035_main.cpp.inc').read_text()
-assert voice.index('client->connect')<voice.index('client->setNoDelay(true)')<voice.index('writeClientAllStaged')
+voice=function('035_main.cpp.inc','bool postRawVoiceTurn(')
+assert 'client->connect' not in voice
+assert voice.index('!prepared || !prepared->connected()')<voice.index('client->setNoDelay(true)')<voice.index('writeClientAllStaged')
 assert 'X-Voice-Wait-Ms: 1000' in voice and 'upload complete bytes=%u ms=%u' in voice
 assert 'Transcribing / AI Agent' in voice
 settings=(parts/'026_main.cpp.inc').read_text()
