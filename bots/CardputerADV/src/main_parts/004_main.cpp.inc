@@ -160,8 +160,8 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
     {"Games", "PLAY", "Keyboard and brain games", rgb565_local(157, 102, 255), 4,
      {{"KeyRush", UiMode::KeyRush}, {"Tetris", UiMode::Tetris}, {"BrainFlow", UiMode::BrainFlow}, {"NES", UiMode::Nes}}},
     {"Settings", "SET", "All device settings", rgb565_local(203, 216, 226), 3,
-     {{"Device settings", UiMode::Settings}, {"Display settings", UiMode::ScreenSettings},
-      {"Pomodoro settings", UiMode::FocusSettings}}},
+     {{"Device", UiMode::Settings}, {"Display", UiMode::ScreenSettings},
+      {"Pomodoro", UiMode::FocusSettings}}},
     {"System", "SYS", "Firmware and diagnostics", rgb565_local(180, 150, 255), 3,
      {{"Firmware", UiMode::Ota}, {"Logs", UiMode::Logs}, {"C-Matrix", UiMode::CMatrix}}},
 };

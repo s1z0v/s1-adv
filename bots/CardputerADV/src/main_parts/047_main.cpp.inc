@@ -14,12 +14,12 @@ uint8_t currentSettingsItemCount() {
 
 const char* currentSettingsTitle() {
   if (gUiMode == UiMode::FocusSettings) {
-    return "Pomodoro Settings";
+    return "Pomodoro";
   }
   if (gUiMode == UiMode::ScreenSettings) {
-    return "Display Settings";
+    return "Display";
   }
-  return "Device Settings";
+  return "Device";
 }
 
 uint32_t secondsWithDelta(uint32_t value, int32_t deltaSec, uint32_t minValue, uint32_t maxValue) {
