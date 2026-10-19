@@ -1,6 +1,6 @@
 {
   "name": "openclaw-s1-adv",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "private": false,
   "type": "module",
   "scripts": {

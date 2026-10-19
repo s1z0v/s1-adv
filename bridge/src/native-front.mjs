@@ -9,6 +9,9 @@ export function registerNativeFront(api) {
   if(!api.registerGatewayMethod || !api.runtime?.llm?.complete) return false;
   const cache=new Map();let active=0;
   api.registerGatewayMethod('s1-adv.front',async({params,client,respond})=>{
+    let started=0,runId;
+    const log=(event,extra={})=>api.logger?.info?.(JSON.stringify({tag:'s1_adv_front',event,run_id:runId,
+      elapsed_ms:started ? Date.now()-started : 0,...extra}));
     try {
       const configPath=api.pluginConfig?.configPath;
       if(!configPath || !path.isAbsolute(configPath)) throw Error('Fast completion is not configured.');
@@ -29,21 +32,35 @@ export function registerNativeFront(api) {
       if(old && old.hash!==hash) throw Error('Completion identity belongs to a different prompt.');
       if(old) {respond(true,await old.promise);return;}
       if(active>=2 || cache.size>=256) throw Error('Fast completion is busy.');
+      if(!Number.isInteger(roles.deadlineMs) || roles.deadlineMs<250 || roles.deadlineMs>15000)
+        throw Error('Invalid fast deadline.');
+      // Completion startup/cleanup is inside the outer HTTP worker deadline.
+      // Leave time for the native RPC receipt instead of racing equal timers.
+      const reserveMs=Math.min(2000,Math.max(25,Math.ceil(roles.deadlineMs/6)));
+      const timeoutMs=Math.min(10000,roles.deadlineMs-reserveMs);
+      started=Date.now();runId=key;log('start',{timeout_ms:timeoutMs});
       const row={hash,created:Date.now(),done:false};active++;
       row.promise=(async()=>{
         try {
           const result=await api.runtime.llm.complete({agentId:roles.fast.agentId,model:roles.fast.model,
-            reasoning:roles.fast.thinking,maxTokens:180,purpose:'S1-ADV bounded first response',
+            reasoning:roles.fast.thinking,maxTokens:180,purpose:`S1-ADV bounded first response ${key}`,
             systemPrompt:FRONT_POLICY,
             messages:[{role:'user',content:params.prompt}],
-            execution:{mode:'isolated-agent-runtime',timeoutMs:Math.min(10000,roles.deadlineMs)}});
+            execution:{mode:'isolated-agent-runtime',timeoutMs}});
           if(result.agentId!==roles.fast.agentId || `${result.provider}/${result.model}`!==roles.fast.model || result.execution?.mode!=='isolated-agent-runtime' ||
               typeof result.text!=='string' || result.text.length>8192) throw Error('Unexpected completion owner or output.');
+          log('complete');
           return {runId:key,status:'ok',endedAt:Date.now(),text:result.text,model:roles.fast.model,tools_allowed:false};
         } finally {active--;row.done=true;}
       })();cache.set(key,row);
       respond(true,await row.promise);
-    } catch {respond(false,undefined,{code:'UNAVAILABLE',message:'Fast completion unavailable; continue through the primary agent.'});}
+    } catch(error) {
+      // Provider messages may contain prompts or credentials. Only fixed
+      // diagnostic categories and our validated run identity cross this log.
+      if(started) log('error',{error_code:['TIMEOUT','ETIMEDOUT','ABORT_ERR','UNAVAILABLE','RATE_LIMITED'].includes(error?.code) ? error.code : 'COMPLETION_FAILED',
+        error_type:['Error','TypeError','AbortError','TimeoutError'].includes(error?.name) ? error.name : 'Error'});
+      respond(false,undefined,{code:'UNAVAILABLE',message:'Fast completion unavailable; continue through the primary agent.'});
+    }
   },{scope:'operator.write'});
   return true;
 }

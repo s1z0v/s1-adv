@@ -21,6 +21,7 @@ async function fixture(run,agents={entries:{main:{workspace:'/private/existing'}
 
 test('role preview and apply preserve primary/default agent, tools, channels and credentials',()=>fixture(async f=>{
  const plan=await planModelRoles(f.configPath,{fastThinking:'low'},f);
+ assert.equal(plan.routing.deadlineMs,12000);
  assert(plan.summary.available);assert.equal(plan.routing.fast.thinking,'low');assert.equal(plan.routing.smart.thinking,'high');
  assert.deepEqual(JSON.parse(await readFile(f.gatewayPath,'utf8')),f.gateway);
  assert.deepEqual(Object.keys(plan.gateway.agents.entries),['main']);
@@ -34,6 +35,11 @@ test('role preview and apply preserve primary/default agent, tools, channels and
  const second=await planModelRoles(f.configPath,{},f);
  assert.equal(second.routing.fast.thinking,'low');
  assert.deepEqual(second.gateway.agents.entries,plan.gateway.agents.entries);assert.equal(second.routing.fast.agentId,'main');
+}));
+test('fast deadline supports a bounded outer receipt margin and rejects unbounded values',()=>fixture(async f=>{
+ assert.equal((await planModelRoles(f.configPath,{fastDeadlineMs:15000},f)).routing.deadlineMs,15000);
+ await assert.rejects(planModelRoles(f.configPath,{fastDeadlineMs:15001},f),/250\.\.15000/);
+ await assert.rejects(planModelRoles(f.configPath,{fastDeadlineMs:249},f),/250\.\.15000/);
 }));
 
 test('existing main permissions are untouched; unavailable Claude models fail closed',()=>fixture(async f=>{

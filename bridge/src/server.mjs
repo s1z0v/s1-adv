@@ -3564,7 +3564,7 @@ class BridgeRuntime {
       terminal: async entry => { await this.confirmFrontContext(entry); return this.recordOutboxFailure(entry); }
     });
     this.front = new SemanticFront({store:this.store,roles:config.modelRouting || {},
-      deadlineMs:config.modelRouting?.deadlineMs || 8000,
+      deadlineMs:config.modelRouting?.deadlineMs || 12000,
       valid:entry=>this.frontOwnerValid(entry),prepare:input=>this.prepareFront(input),
       acceptInput:record=>this.acceptFrontInput(record),
       dispatchFast:params=>this.upstream.rpc('s1-adv.front',params),

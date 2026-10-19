@@ -135,8 +135,12 @@ It answers simple questions or semantically escalates uncertainty, current facts
 all device actions (including Pomodoro), development and contextual follow-ups.
 It never starts BUILDING or claims to have performed work. The main agent keeps
 its full session and receives intervening fast exchanges. If the fast model
-fails or misses the configured deadline (8 seconds by default), a system receipt appears and the request
+fails or misses the configured deadline (12 seconds by default), a system receipt appears and the request
 continues once through the durable primary queue. That receipt is not an answer.
+The isolated completion has at most 10 seconds inside that budget; the remaining
+time covers cleanup and delivery of its native RPC receipt. Responses return
+as soon as the model finishes. Diagnostic logs contain run IDs and timing only,
+with fixed error categories; prompts and provider error messages are excluded.
 
 `models --apply` writes private backups, this plugin's exact completion-model
 allowlist, and the selected agent's model/thinking preferences shown in preview.

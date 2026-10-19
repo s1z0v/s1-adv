@@ -79,8 +79,8 @@ export async function planModelRoles(configPath, options={}, { catalog, openclaw
   const models=catalog || readModelCatalog(openclawCommand);
   const available=model=>models.some(m=>(m.key || m.id)===model && m.available===true);
   const unavailable=[fastModel,smartModel].filter(model=>!available(model));
-  const deadlineMs=Number(options.fastDeadlineMs || config.modelRouting?.deadlineMs || 8000);
-  if(!Number.isInteger(deadlineMs) || deadlineMs<250 || deadlineMs>10000) throw new Error('Fast deadline must be 250..10000 milliseconds.');
+  const deadlineMs=Number(options.fastDeadlineMs || config.modelRouting?.deadlineMs || 12000);
+  if(!Number.isInteger(deadlineMs) || deadlineMs<250 || deadlineMs>15000) throw new Error('Fast deadline must be 250..15000 milliseconds.');
   const routing={enabled:true,profile,deadlineMs,maxEntries:2048,
     fast:{agentId:smartAgent,execution:'isolated-agent-runtime',model:fastModel,thinking:options.fastThinking || retained?.fast?.thinking || preset.fastThinking},
     smart:{agentId:smartAgent,model:smartModel,thinking:options.smartThinking || retained?.smart?.thinking || primary?.thinkingDefault || gateway.agents?.defaults?.thinkingDefault || preset.smartThinking}};
