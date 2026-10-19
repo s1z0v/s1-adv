@@ -34,6 +34,19 @@ deleted, replayed or relabeled as completed; the five checks used the distinct
 current device session. Registry publication and installation on the physical
 device are separate gates from these server checks.
 
+ClawHub subsequently published 0.3.6 from `66ea7e3`; its 39 downloaded files
+matched the qualified and installed package hashes. The registry's automated
+assessment is **Review**, concerning the disclosed process, credential and
+optional file/network capabilities; see the updated security review. Both
+GitHub CI jobs passed for this source, including the GCC recording-clock bound.
+The final private 0.2.179-dev candidate is 2,008,016 bytes, SHA-256
+`27cdf19ce829370f8a81d7eb446af9f6b0eac5204e6ff50e3768aa36662dceee`.
+Its source-linked manifest and full served file were verified before OTA.
+The physical device reported that exact version and full source commit at
+08:23:19 UTC and reconnected to the Gateway. This establishes installation;
+the revised screen, keyboard and physical microphone flow still need owner
+acceptance. No provisioned binary was uploaded to the public repository.
+
 ## Isolated integration and security, plugin 0.3.4, 2026-10-19
 
 Source `1674ca1`, tag `bridge-v0.3.4`, passed 119 host tests, policy/model checks,

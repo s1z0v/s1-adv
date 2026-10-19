@@ -35,10 +35,14 @@ openclaw plugins install clawhub:openclaw-s1-adv@0.3.6
 The package includes local process execution and optional firmware
 source/build/publish/OTA capabilities. Inspect
 the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.6)
-and [maintainer review](SECURITY-REVIEW-2026-10-18.md), then make an explicit trust
+and [maintainer review](SECURITY-REVIEW-2026-10-19.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
 remains off until separately provisioned. Setup below is still required.
+The 0.3.6 registry assessment is **Review**: it flags local command execution,
+environment/credential access and optional credential-file/network paths. These
+capabilities require the disclosed host trust; the assessment is not a clean
+security certification.
 
 ## Alternative: install from reviewed source
 

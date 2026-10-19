@@ -1,7 +1,8 @@
 # Bridge integration security review, 2026-10-19
 
-Scope: published plugin 0.3.4, source `1674ca16e3b904ff91689bcf249b76d5a072eb8b`,
-its HTTP/WS boundaries and the maintainer's actual OpenClaw deployment. This is
+Original scope: plugin 0.3.4, source `1674ca16e3b904ff91689bcf249b76d5a072eb8b`,
+its HTTP/WS boundaries and the maintainer's actual OpenClaw deployment. The 0.3.6
+addendum below records its new completion/status boundaries and registry outcome. This is
 a bounded maintainer review, not an independent penetration test or a guarantee
 that no vulnerability exists. Compare this with the
 [earlier source review](SECURITY-REVIEW-2026-10-18.md).
@@ -124,3 +125,15 @@ retains its existing trusted-host privileges and is not sandboxed by these rules
 The native installation, five real provider/queue checks and all 141 bridge
 regressions passed. These findings establish tested boundaries, not a guarantee
 that the host, provider, firmware or every dependency is vulnerability-free.
+
+ClawHub published 0.3.6 from source `66ea7e39c258e7b085e32ccffdadcd97c0ae9c93`
+with an automated **Review** assessment. Static findings include process
+execution in the firmware wrappers, dependency checks, model-catalog/config
+commands and speech/service processes; environment/credential access; the
+explicit Gateway-token-file input and optional WIF subject-token read followed
+by their configured network exchanges. The assessment is retained and disclosed,
+not bypassed or relabeled as Clean. Its overview describes a disclosed,
+purpose-aligned self-hosted bridge with mostly opt-in sensitive capabilities.
+The host tests and isolated service do not remove the trusted native plugin's
+OS privileges. Review the [registry report](https://clawhub.ai/srg0/plugins/openclaw-s1-adv/security-audit)
+before installing this exact executable artifact.
