@@ -32,16 +32,19 @@ struct String:std::string {
  template<class T,typename=std::enable_if_t<std::is_integral_v<T>>>
  String(T n):std::string(std::to_string(n)){}
 };
-namespace fonts {int Font0=0,Font2=2,Font4=4;}
+struct Font {};
+struct SmallFont:Font {};
+struct BitmapFont:Font {};
+namespace fonts {SmallFont Font0;BitmapFont Font2,Font4;}
 constexpr uint16_t TFT_WHITE=0xffff;
 constexpr uint16_t rgb565_local(int r,int g,int b){return ((r&0xf8)<<8)|((g&0xfc)<<3)|(b>>3);}
 struct Rect{int x,y,w,h;};
 struct Canvas {
- const int*font=&fonts::Font0;int x=0,y=0;
+ const Font*font=&fonts::Font0;int x=0,y=0;
  std::vector<Rect> text;
  int fontHeight(){return font==&fonts::Font0?8:font==&fonts::Font2?16:26;}
  int textWidth(const String&s){return int(s.size())*(font==&fonts::Font0?6:font==&fonts::Font2?10:25);}
- void setFont(const int*f){font=f;}
+ void setFont(const Font*f){font=f;}
  void setTextColor(uint16_t,uint16_t){}
  void setCursor(int xx,int yy){x=xx;y=yy;}
  void print(const String&s){

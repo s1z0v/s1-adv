@@ -591,7 +591,8 @@ void renderKeyRushUi() {
     topRight = "BEST " + String(gKeyRush.bestScore);
     topColor = gKeyRush.finished ? amber : muted;
   }
-  d.setFont(gKeyRush.running ? &fonts::Font2 : &fonts::Font0);
+  if (gKeyRush.running) d.setFont(&fonts::Font2);
+  else d.setFont(&fonts::Font0);
   topRight = fitCurrentFontToWidth(topRight, 110);
   d.setTextColor(topColor, panel);
   d.setCursor(224 - d.textWidth(topRight), 13);
