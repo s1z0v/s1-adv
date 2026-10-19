@@ -19,5 +19,5 @@ remain. CI runs this test with address and undefined-behavior sanitizers.
 
 Offline checks and successful publication are separate from device acceptance.
 Record the installed version/source and repeated physical Realtime replies
-before marking this release as the stable baseline. The published 0.2.189
-chat-chevron and Thinking geometry changes are preserved.
+before marking this release as the stable baseline. The chat-composer chevron from 0.2.189 is preserved. Pulse rings and Thinking
+geometry return to the owner-preferred 0.2.188 outline design.

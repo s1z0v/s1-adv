@@ -55,7 +55,6 @@ uint8_t gVoiceEqBars[8]={},gVoiceEqPeaks[8]={};
 constexpr const char*kAppVersion="0.2.178-dev";
 namespace fonts{int Font0=0,Font2=2,Font4=4,Font7=7,efontCN_12=12;}
 constexpr uint16_t TFT_WHITE=0xffff;
-constexpr float kPi=3.14159265358979323846f;
 constexpr uint16_t rgb565_local(int r,int g,int b){return ((r&0xf8)<<8)|((g&0xfc)<<3)|(b>>3);}
 template<class T>T clampValue(T n,T low,T high){return max(low,min(n,high));}
 struct Canvas {
@@ -100,7 +99,7 @@ void updateBatterySnapshot(){}bool batteryExternalPowerPresent(){return false;}
 template<class...T>void drawServiceOrb(T...){}
 template<class...T>void drawInfoRow(T...){}
 '''
-for signature in ['AssistantPulseState assistantPulseState()', 'void drawAssistantPulseButton(', 'void drawAssistantThinkingOrbit(', 'void renderAssistantPulseChatHint()',
+for signature in ['AssistantPulseState assistantPulseState()', 'void drawAssistantPulseButton(', 'void renderAssistantPulseChatHint()',
                   'void renderAssistantPulseUi()', 'void renderOtaUi()']:
     code += function(signature) + '\n'
 code += r'''
