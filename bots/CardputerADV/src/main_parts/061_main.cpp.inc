@@ -313,6 +313,10 @@ void serviceRealtimeExclusiveLoop(uint32_t loopStartMs) {
          static_cast<int>(gRealtimeAwaiting),
          static_cast<int>(gRealtimePlaybackActive));
   }
+  // This path returns before loop()'s normal delay. yield() alone cannot run
+  // a lower-priority idle task, which reclaims self-deleted network workers.
+  // Keep that reclamation alive while the mic and TLS share the limited heap.
+  delay(1);
 }
 
 void loop() {

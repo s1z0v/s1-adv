@@ -731,6 +731,17 @@ bool runHostOtaApply(bool refreshManifest) {
 
 void printHostDiag() {
   logf("[DBG_BOOT] uptime_ms=%u reset_reason=%d", static_cast<unsigned>(millis()), static_cast<int>(esp_reset_reason()));
+  wifi_ap_record_t apInfo{};
+  const esp_err_t apStatus = esp_wifi_sta_get_ap_info(&apInfo);
+  wifi_ps_type_t sleepMode = WIFI_PS_NONE;
+  const esp_err_t sleepStatus = esp_wifi_get_ps(&sleepMode);
+  logf("[DBG_NET] ap_status=%d rssi=%d channel=%u ps=%d/%d dma_free=%u dma_largest=%u heap_min=%u tasks=%u",
+       static_cast<int>(apStatus), apStatus == ESP_OK ? static_cast<int>(apInfo.rssi) : 0,
+       apStatus == ESP_OK ? static_cast<unsigned>(apInfo.primary) : 0,
+       static_cast<int>(sleepStatus), static_cast<int>(sleepMode),
+       static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_DMA)),
+       static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_DMA)),
+       static_cast<unsigned>(ESP.getMinFreeHeap()), static_cast<unsigned>(uxTaskGetNumberOfTasks()));
   logf("[DBG_VOICE] rec=%d file=%d bytes=%u fs_failed=%d dial=%d speech=%d notice=%d pending=%d submit=%d think=%d phase=%d progress=%u mode=%d stack_free=%u", gRecording, gRecordingToFile, static_cast<unsigned>(gActiveRecordBytes), gRecordFileWriteFailed, gVoiceDialBusy, gVoiceReplySpeechBusy, gVoiceNoticeVisible, gVoiceReplyPending, gSubmitting, gThinking, static_cast<int>(gVoiceRequestPhase), static_cast<unsigned>(gVoiceRequestProgress), static_cast<int>(gUiMode), static_cast<unsigned>(uxTaskGetStackHighWaterMark(nullptr)));
   updateBatterySnapshot(true);
   logf("[DBG] version=%s git=%s heap_free=%u heap_largest=%u wifi=%d ip=%s hub=%s:%u tls=%d setup=%d ap=%s rt_verify=%s rt_active=%d rt_connected=%d rt_recording=%d rt_awaiting=%d rt_hf=%d rt_restart=%d ota=%s/%s pending=%d applying=%d battery=%ld%% raw=%ld est=%d/%dmV/%ldmA/%s vbus=%dmV drain=%.2f%%h/%dmVh eta=%umin samples=%u loop_max=%u pump_input=%u/%u voice=%s http=%s key=%s",
@@ -877,6 +888,16 @@ bool handleHostSerialCommand(String line) {
   }
   if (cmd == "diag" || cmd == "/diag" || cmd == "dbg" || cmd == "/dbg") {
     printHostDiag();
+    return true;
+  }
+  if (cmd == "net.reconnect") {
+    if (gRecording || gSubmitting || gThinking || gRealtimeActive || gRealtimeDialBusy ||
+        gInboxHttpBusy || gVoiceDialBusy || gVoiceReplySpeechBusy || gOtaApplyInProgress) {
+      logf("[HOST] net.reconnect busy");
+    } else {
+      const bool scheduled = WiFi.reconnect();
+      logf("[HOST] net.reconnect scheduled=%d", static_cast<int>(scheduled));
+    }
     return true;
   }
   if (cmd == "battery.status" || cmd == "/battery.status" || cmd == "battery" || cmd == "/battery" ||
