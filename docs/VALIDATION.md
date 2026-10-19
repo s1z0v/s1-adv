@@ -1,5 +1,36 @@
 # Public source validation
 
+## Unavailable voice connection, firmware 0.2.182, 2026-10-19
+
+Source `f70b5a8d9457cb8c03003309d1acaed289a78a57` passed all 29 Python
+firmware host checks and both CI jobs in run 39245377747. The actual POST
+function rejects failed, unfinished and disconnected worker results without
+a second dial, upload or recording deletion. Success and HTTP/storage errors
+preserve exact RAM/WAV bytes and socket ownership. The negative control over
+the former function reproduces 4,000 + 18,500 ms of connection waits in an
+injected clock; this is separate from real device timing.
+
+An external public-ingress outage had caused the observed connection failures
+while the Bridge worker remained running. Public authenticated HTTPS and the
+Gateway link subsequently recovered independently. Bridge 0.3.7, its model
+roles, credentials and operator configuration were unchanged by this fix.
+
+The complete served private image and local copy were verified: 2,007,936
+bytes, SHA-256
+`deab2459b54cf6a34e71eee056ae3cff99b7da6f40f506fab0a5081e32f03879`.
+The owner initiated OTA from the keyboard. USB boot at 11:40:16 UTC confirms
+0.2.182-dev, the exact source above, app1, state valid and pending=0. A USB
+diagnostic acknowledged the same source and healthy Wi-Fi after boot. No
+second flash interrupted OTA; the provisioned image remains private.
+
+After network recovery, a physical arithmetic G0 request on 0.2.181 reached
+playback 23.762 s after release: 2.418 s finalization/registration, 4.084 s
+connection, 1.204 s upload, 8.354 s response wait and roughly 7.7 s speech
+preparation/dispatch. LUNA itself took 6.637 s within that response wait.
+Healthy voice speed is still unaccepted. This release fixes the connection
+failure hang; physical two-turn Realtime and current-version G0 acceptance
+remain separate from source, CI and installation verification.
+
 ## Realtime partial-frame regression, firmware 0.2.181, 2026-10-19
 
 The actual pinned WebSockets 2.7.3 readCb reproduced a 250 ms stall while
