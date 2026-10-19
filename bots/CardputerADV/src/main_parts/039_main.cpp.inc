@@ -1,4 +1,4 @@
-  String turnId = makeClientTurnId("voice");
+  String turnId = gVoiceCaptureUpload ? gVoiceCaptureUpload->turnId : makeClientTurnId("voice");
   setStatus("Uploading voice...");
   render();
   gLastRenderMs = millis();
@@ -21,6 +21,11 @@
                                    turnId, statusCode, response);
   }
   gBlockingRenderPumpEnabled = prevRenderPump;
+  if (gVoiceCaptureUpload && !gVoiceCaptureUpload->registered && !pcmUploadPath.isEmpty())
+    registerDownloadedVoiceNote(pcmUploadPath, makeVoiceNoteTitle(false, dataSize, kMicSampleRate), "Outbound voice note", false);
+  gVoiceCaptureUpload.reset();
+  gVoiceReadyStreamed = false;
+  gVoiceReadyEarlyReply = false;
   finishVoiceTurn();
   if (gRecordingToFile) {
     // Upload and voice-note history share this finalized WAV. Retain it.

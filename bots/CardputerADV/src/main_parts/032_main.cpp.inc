@@ -237,6 +237,8 @@ void handleRecordingStorageFailure() {
   // Preserve the original file, including every byte accepted by the filesystem.
   // Do not retry an ambiguous card write or silently upload a truncated request.
   if (gActiveRecordFile) {
+    auto captureFileLock = lockVoiceCaptureFile();
+    if (gVoiceCaptureUpload) gVoiceCaptureUpload->activeFile = nullptr;
     gActiveRecordFile.flush();
     const size_t size = gActiveRecordFile.size();
     if (size >= 44) {
@@ -267,10 +269,17 @@ void flushCompletedRecordChunksToFile(size_t completedCount) {
     gRecordInflightChunks.pop_front();
     updateVoiceLevelFromSamples(gRecordChunkBuffers[chunkIndex], kRecordChunkSamples);
     if (gActiveRecordFile) {
+      auto captureFileLock = lockVoiceCaptureFile();
+      if (gVoiceCaptureUpload && gVoiceCaptureUpload->stream.storageFailed.load()) {
+        gRecordFileWriteFailed = true;
+        gRecording = false;
+        return; // A failed read-cursor restore must never overwrite recorded PCM.
+      }
       size_t written = writeRecordedBytes(gActiveRecordFile,
           reinterpret_cast<const uint8_t*>(gRecordChunkBuffers[chunkIndex]), kRecordChunkBytes);
       gActiveRecordBytes += written;
       gActiveRecordCommittedBytes += written;
+      publishVoiceCaptureBytes();
       if (written != kRecordChunkBytes) {
         gRecordFileWriteFailed = true;
         gRecording = false;

@@ -29,6 +29,7 @@ def extract_post(text):
 CPP_FIXTURES = r'''
 #include "reply_connection.h"
 #include "network_recovery.h"
+#include "capture_upload.h"
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -51,6 +52,10 @@ class String {
   String& operator+=(const String& s){value+=s.value;return *this;}
 };
 String operator+(const String& a,const String& b){return String(a.value+b.value);}
+bool operator==(const String& a,const String& b){return a.value==b.value;}
+struct VoiceCaptureUpload {String turnId;capture_upload::State stream;bool registered=false;};
+std::shared_ptr<VoiceCaptureUpload> gVoiceCaptureUpload;
+bool gVoiceReadyStreamed=false,gVoiceReadyEarlyReply=false;
 enum class Worker { Failed, Busy, Disconnected, Ready };
 struct SocketStats {unsigned stops=0,destructs=0,noDelay=0;};
 struct Fixture {
@@ -130,6 +135,8 @@ std::unique_ptr<WiFiClient> takeVoicePreconnect(){
  return nullptr;
 }
 String currentConversationKey(){return "fixture-conversation";}
+String makeVoiceNoteTitle(bool,size_t,uint32_t){return "fixture title";}
+bool registerDownloadedVoiceNote(const String&,const String&,const char*,bool){return true;}
 bool writeClientAll(WiFiClient&,const String& headers,const char*){
  ++fixture.headerWrites;fixture.headers=headers.value;return fixture.writeHeaders;
 }
@@ -153,6 +160,7 @@ bool readHttpResponseBody(WiFiClient&,int,String& response,uint32_t){
  ++fixture.bodyReads;response=fixture.response;return fixture.readBody;
 }
 void reset(Worker worker=Worker::Failed){
+ gVoiceCaptureUpload.reset();gVoiceReadyStreamed=gVoiceReadyEarlyReply=false;
  gVoiceReplyConnection.clear();gVoicePreconnectEarly=false;
  fixture=Fixture{};fixture.worker=worker;gVoiceDialBusy=gVoiceReplySpeechBusy=false;
  gVoiceNoticeVisible=gCanvasSpriteActive=true;gVoiceRequestPhase=VoiceRequestPhase::Idle;
@@ -263,7 +271,31 @@ void earlyAndReuseGuards(){
  }
  std::puts("PASS early worker is consumed without a second dial, and incomplete/unknown-length/error responses never retain a socket");
 }
-int main(){failureTests();successTests();cleanupTests();earlyAndReuseGuards();}
+void streamedRequestGuards(){
+ reset(Worker::Ready);gVoicePreconnectEarly=true;gVoiceReadyStreamed=true;
+ gVoiceCaptureUpload=std::make_shared<VoiceCaptureUpload>();gVoiceCaptureUpload->turnId="fixture-turn";
+ assert(invoke());assert(fixture.starts==0&&fixture.headerWrites==0&&fixture.fileWrites==0&&fixture.ramWrites==0);
+ assert(fixture.opens==0&&fixture.parses==1&&fixture.bodyReads==1&&!gVoiceReadyStreamed);
+ assert(!gVoiceReplyConnection.empty());
+ for(bool committed:{false,true}){
+  reset(Worker::Failed);gVoicePreconnectEarly=true;
+  gVoiceCaptureUpload=std::make_shared<VoiceCaptureUpload>();gVoiceCaptureUpload->turnId="fixture-turn";
+  gVoiceCaptureUpload->stream.commitAttempted.store(committed);
+  assert(!invoke());noSideEffects();assert(fixture.starts==0);
+  assert((fixture.diag.find("delivery unconfirmed")!=std::string::npos)==committed);
+ }
+ reset(Worker::Ready);gVoicePreconnectEarly=true;gVoiceReadyEarlyReply=true;fixture.statusCode=413;
+ gVoiceCaptureUpload=std::make_shared<VoiceCaptureUpload>();gVoiceCaptureUpload->turnId="fixture-turn";
+ assert(invoke());assert(fixture.starts==0&&fixture.headerWrites==0&&fixture.fileWrites==0&&fixture.parses==1);
+ assert(gVoiceReplyConnection.empty());
+ reset(Worker::Ready);gVoicePreconnectEarly=true;gVoiceReadyEarlyReply=true;
+ gVoiceCaptureUpload=std::make_shared<VoiceCaptureUpload>();gVoiceCaptureUpload->turnId="fixture-turn";
+ int status=0;String response;
+ assert(!postRawVoiceTurn(nullptr,"/voice/retained.wav",32000,"fixture-turn",status,response,true));
+ assert(status==-1&&fixture.headerWrites==0&&fixture.parses==1&&gVoiceReplyConnection.empty());
+ std::puts("PASS streamed body is never uploaded twice; failed/uncertain sends never redial; early rejection is parsed and premature 2xx rejected");
+}
+int main(){failureTests();successTests();cleanupTests();earlyAndReuseGuards();streamedRequestGuards();}
 '''
 
 CPP_NEGATIVE = r'''

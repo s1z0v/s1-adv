@@ -991,6 +991,16 @@ bool handleHostSerialCommand(String line) {
     runVoiceCaptureCheck(6, true);
     return true;
   }
+  if (cmd == "voice.ptt.start") {
+    if (!gRecording && !gSubmitting && !gThinking && !gPlaybackActive && !gRealtimeActive)
+      startRecording();
+    logf("[PTT_TEST] started=%d", static_cast<int>(gRecording));
+    return true;
+  }
+  if (cmd == "voice.ptt.release") {
+    if (gRecording) stopRecordingAndSend();
+    return true;
+  }
   if (cmd == "voice.capture.status") {
     logf("%s", gLastVoiceCaptureCheck.c_str());
     return true;

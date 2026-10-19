@@ -324,6 +324,8 @@ print('PASS real canvas recovery rejects failed allocation and recovers before r
 
 storage=r"""
 #include <cassert>
+#include <memory>
+#include <mutex>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -340,6 +342,8 @@ struct File {
  if(pos+m>bytes.size())bytes.resize(pos+m);memcpy(bytes.data()+pos,p,m);pos+=m;return m;}
  size_t size(){return bytes.size();}void flush(){}bool seek(size_t p){pos=p;return true;}void close(){open=false;}
 };
+struct CaptureFixture {File* activeFile=nullptr;};std::unique_ptr<CaptureFixture> gVoiceCaptureUpload;
+std::unique_lock<std::mutex> lockVoiceCaptureFile(){return {};}
 bool gRecording=true,gRecordingToFile=true;File gActiveRecordFile;String gActiveRecordPath="/voice/original.wav";
 std::deque<uint8_t> gRecordInflightChunks={0,1};size_t gActiveRecordBytes=468,gActiveRecordCommittedBytes=468,gActiveRecordExpectedBytes=2048,gRecordedSamples=234;
 int micStops=0,connectionCancels=0,wifiRestores=0,speakerStarts=0,notices=0;String lastError;

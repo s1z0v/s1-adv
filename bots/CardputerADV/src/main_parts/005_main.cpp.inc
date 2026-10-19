@@ -83,6 +83,26 @@ void initSpeaker();
 bool gVoiceDialBusy = false;
 bool gVoiceDialCanvasReleased = false;
 bool gVoicePreconnectEarly = false;
+struct VoiceCaptureUpload {
+  capture_upload::State stream;
+  std::mutex fileMutex;
+  fs::FS* fs = nullptr;
+  File* activeFile = nullptr;
+  String path, turnId;
+  bool registered = false;
+};
+std::shared_ptr<VoiceCaptureUpload> gVoiceCaptureUpload;
+bool gVoiceReadyStreamed = false;
+bool gVoiceReadyEarlyReply = false;
+void beginVoiceCaptureUpload();
+void finishVoiceCaptureUpload(size_t bytes);
+void publishVoiceCaptureBytes();
+// The active w+ WAV is the only spool. Its cursor is restored before capture
+// resumes; the network worker never owns this lock during TLS/socket writes.
+std::unique_lock<std::mutex> lockVoiceCaptureFile() {
+  return gVoiceCaptureUpload ? std::unique_lock<std::mutex>(gVoiceCaptureUpload->fileMutex)
+                            : std::unique_lock<std::mutex>();
+}
 reply_connection::OneShot<WiFiClient> gVoiceReplyConnection;
 bool gInboxCanvasReleased = false;
 bool gVoiceSpeechCanvasReleased = false;

@@ -311,6 +311,8 @@ void cancelRecordingDiscard() {
   gRecording = false;
   stopMic();
   if (gRecordingToFile) {
+    auto captureFileLock = lockVoiceCaptureFile();
+    if (gVoiceCaptureUpload) gVoiceCaptureUpload->activeFile = nullptr;
     gRecordInflightChunks.clear();
     if (gActiveRecordFile) {
       gActiveRecordFile.close();

@@ -54,6 +54,7 @@ bool readHttpResponseBody(WiFiClient& client, int contentLength, String& respons
 
 bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t dataSize,
                       const String& turnId, int& statusCode, String& response, bool wavFile = false) {
+  const bool streamedRequest = gVoiceCaptureUpload && gVoiceCaptureUpload->turnId == turnId;
   const bool earlyDial = gVoicePreconnectEarly;
   gVoicePreconnectEarly = false;
   struct EarlyDialGuard {
@@ -91,11 +92,20 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     // The worker already attempted the dial with a bounded TCP/TLS timeout.
     // A second synchronous connect inherits the long reply timeout and can
     // freeze input for tens of seconds while the same server is unreachable.
-    setHttpDiag("voice_post: bridge connection unavailable");
+    setHttpDiag(streamedRequest && gVoiceCaptureUpload->stream.commitAttempted.load()
+        ? "voice_post: delivery unconfirmed; open chat before retry"
+        : "voice_post: bridge connection unavailable");
     return false;
   }
   WiFiClient* client = prepared.get();
   earlyGuard.active = false; // The local unique owner now guarantees cleanup.
+  const bool earlyServerReply = streamedRequest && gVoiceReadyEarlyReply;
+  if (streamedRequest && !gVoiceReadyStreamed && !earlyServerReply) {
+    setHttpDiag("voice_post: stream not committed; recording kept");
+    return false;
+  }
+  gVoiceReadyStreamed = false;
+  gVoiceReadyEarlyReply = false;
 
   logf("[VOICE] raw post preconnect free=%u largest=%u host=%s port=%u",
        static_cast<unsigned>(ESP.getFreeHeap()),
@@ -108,9 +118,10 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   logf("[VOICE] connected via_worker=1");
   logf("[VOICE][LAT] tls_ready t=%u", static_cast<unsigned>(millis()));
 
+  const uint32_t uploadStartedMs = millis();
+  if (!streamedRequest) {
   String hostHeader = gHubHost;
   client->setNoDelay(true); // The connected socket must exist before TCP_NODELAY is set.
-  const uint32_t uploadStartedMs = millis();
   if ((!hubUsesTls() && gHubPort != 80) || (hubUsesTls() && gHubPort != 443)) {
     hostHeader += ":" + String(gHubPort);
   }
@@ -171,10 +182,17 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
     client->stop();
     return false;
   }
+  } // A streaming request already sent its single headers/body/final chunk.
 
-  logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(uploadBytes),
+  logf("[VOICE] upload complete bytes=%u ms=%u",static_cast<unsigned>(streamedRequest ? dataSize : uploadBytes),
        static_cast<unsigned>(millis()-uploadStartedMs));
   logf("[VOICE][LAT] upload_complete t=%u", static_cast<unsigned>(millis()));
+  if (streamedRequest) {
+    // Let the SD sender finish before metadata/pruning competes for the card.
+    // Server STT/front processing can run while this local index is updated.
+    registerDownloadedVoiceNote(filePath, makeVoiceNoteTitle(false, dataSize, kMicSampleRate), "Outbound voice note", false);
+    gVoiceCaptureUpload->registered = true;
+  }
   setStatus("Transcribing / AI Agent...");
   if(gVoiceNoticeVisible) gVoiceRequestPhase=VoiceRequestPhase::Processing;
   render();
@@ -189,6 +207,11 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   logf("[VOICE][LAT] response_headers t=%u code=%d", static_cast<unsigned>(millis()), statusCode);
   if (statusCode > 0) gNetworkRecovery.success();
   const bool completeBody = readHttpResponseBody(*client, contentLength, response, 15000);
+  if (earlyServerReply && statusCode >= 200 && statusCode < 300) {
+    statusCode = -1;
+    setHttpDiag("voice_post: unexpected reply before capture commit");
+    return false;
+  }
   if (!completeBody) {
     logf("[VOICE] raw post response body short status=%d body=%s", statusCode, response.c_str());
   }

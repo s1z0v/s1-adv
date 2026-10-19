@@ -13,6 +13,8 @@ void drainRecordingToFile() {
 
 void startRecording() {
   const uint32_t captureRequestedMs = millis();
+  serviceVoicePreconnect();
+  if (gVoiceDialBusy) { setStatus("Connection finishing; try voice again", 1200); return; }
   if (gRealtimeDialBusy) { setStatus("Connection finishing; try voice again", 1200); return; }
   if (gVoiceReplySpeechBusy) { setStatus("Reply voice preparing; Esc cancels", 1000); return; }
   if (gInboxHttpBusy) { setStatus("Network finishing; try voice again",900); return; }
@@ -40,6 +42,7 @@ void startRecording() {
   }
   dismissVoiceNotice();
   cancelVoicePreconnect(); // A new capture never retains an old reply/dial socket.
+  gVoiceCaptureUpload.reset();
   struct PreparationScope {
     PreparationScope() { gVoiceCapturePreparing = true; }
     ~PreparationScope() { gVoiceCapturePreparing = false; }
@@ -69,7 +72,7 @@ void startRecording() {
   if (gRecordingToFile) {
     fs::FS* fs = activeVoiceFs();
     gActiveRecordPath = recordingAudioPath(makeVoiceNoteId(false));
-    gActiveRecordFile = gActiveRecordPath.isEmpty() ? File() : fs->open(gActiveRecordPath, "w");
+    gActiveRecordFile = gActiveRecordPath.isEmpty() ? File() : fs->open(gActiveRecordPath, "w+");
     if (gActiveRecordFile) {
       gActiveRecordFile.setBufferSize(kRecordWriteBytes);
       uint8_t header[44]; writeWavHeader(header, 0, kMicSampleRate);
@@ -141,8 +144,7 @@ void startRecording() {
   setFaceMode(FaceMode::Listening);
   setStatus("Recording");
   render();
-  // No TLS during capture: it borrows the display buffer and its idle socket
-  // can expire before a longer recording is released. Dial only for upload.
+  if (gRecordingToFile) beginVoiceCaptureUpload();
   logf("[VOICE] recording started mode=%s init_ms=%u sd_ms=%u mic_ms=%u frame_ms=%u canvas=%d",
        gRecordingToFile ? "file" : "ram", static_cast<unsigned>(millis() - captureRequestedMs),
        static_cast<unsigned>(storageReadyMs - captureRequestedMs),

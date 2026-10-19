@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise actual G0/capture startup against slow storage and an idle TLS trap."""
+"""Exercise actual G0 startup: capture/UI precede asynchronous streaming."""
 from pathlib import Path
 import os
 import subprocess
@@ -26,6 +26,7 @@ code = r'''
 #include <cstddef>
 #include <string>
 #include <vector>
+#include <memory>
 struct String:std::string {
  using std::string::string;
  bool isEmpty()const{return empty();}
@@ -35,6 +36,8 @@ bool micAvailable=true,queueAvailable=true;
 bool gVoiceCapturePreparing=false;
 uint32_t millis(){return now;}
 bool gRealtimeDialBusy=false,gVoiceReplySpeechBusy=false,gInboxHttpBusy=false;
+bool gVoiceDialBusy=false;std::shared_ptr<int> gVoiceCaptureUpload;
+void serviceVoicePreconnect(){}
 bool gRealtimeExclusiveMode=false,gRealtimeActive=false,gWifiReady=true;
 bool gRecording=false,gSubmitting=false,gThinking=false,gPlaybackActive=false;
 bool gRecordFileWriteFailed=false,gRecordingToFile=false,gStorageReady=true,gCanvasSpriteActive=true;
@@ -80,6 +83,7 @@ void stopMic(bool){}void releaseRecordBuffer(){}void endVoiceWifiPerformance(){}
 void showVoiceRequestError(const char*){++startErrors;assert(!gVoiceCapturePreparing&&!gRecording);}
 // The former "optimization" both froze the canvas and aged an unused socket.
 void beginVoicePreconnect(){++networkCalls;gCanvasSpriteActive=false;now+=6000;}
+void beginVoiceCaptureUpload(){assert(gRecording&&gRecordingToFile&&gActiveRecordFile&&!gVoiceCapturePreparing&&frameLabels.back()=="Recording");}
 bool handleScreensaverWake(){++wakes;bool was=sleeping;sleeping=false;return was;}
 struct {void printf(const char*,...){} } Serial;
 void noteUiInput(const char*){}
@@ -134,12 +138,13 @@ with tempfile.TemporaryDirectory(prefix='s1-voice-capture-') as directory:
                     str(path / 'test.cpp'), '-o', str(path / 'test')], check=True)
     subprocess.run([str(path / 'test')], check=True)
 
-# Dialing may only be reachable after finalization, immediately before upload.
+# The fallback dial still follows finalization; streaming begins asynchronously
+# only after the actual capture and first REC frame have succeeded.
 post = function('035_main.cpp.inc', 'bool postRawVoiceTurn(')
 assert post.index('beginVoicePreconnect();') < post.index('takeVoicePreconnect()') < post.index('writeClientAll(*client, headers')
 begin = function('065_main.cpp.inc', 'void beginVoicePreconnect()')
 assert begin.index('if (gRecording) return;') < begin.index('releaseUiCanvasForNetwork(')
-print('PASS actual G0 starts on wake, capture excludes setup time, no TLS/canvas borrowing during a 20-second hold, fresh dial at upload')
+print('PASS actual G0 starts on wake, capture/REC precede async streaming, no synchronous TLS/canvas borrowing during a 20-second hold')
 
 paths = r'''
 #include <cassert>

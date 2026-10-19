@@ -436,13 +436,72 @@ void serviceVoiceReplySpeech() {
       static_cast<unsigned>(gVoiceReplySpeechGeneration),flashStorage?"flash":"sd",
       static_cast<unsigned>(storageLimit));
 }
-struct VoiceDialPayload { String host; uint16_t port=443; bool tls=true; uint32_t generation=0; };
-struct VoiceDialResult { std::unique_ptr<WiFiClient> socket; uint32_t generation=0; };
+struct VoiceDialPayload {
+  String host, streamHeaders;
+  std::shared_ptr<VoiceCaptureUpload> capture;
+  uint16_t port=443; bool tls=true; uint32_t generation=0;
+};
+struct VoiceDialResult {
+  std::unique_ptr<WiFiClient> socket;
+  uint32_t generation=0;
+  bool streamed=false;
+  bool earlyReply=false;
+};
 portMUX_TYPE gVoiceDialMux = portMUX_INITIALIZER_UNLOCKED;
 VoiceDialResult* gVoiceDialResult = nullptr;
 volatile bool gVoiceDialAllocationFailed = false;
 uint32_t gVoiceDialGeneration = 0;
 std::unique_ptr<WiFiClient> gVoiceReadySocket;
+
+bool streamVoiceCapture(WiFiClient& client, VoiceCaptureUpload& capture, const String& headers) {
+  File finalizedFile;
+  client.setTimeout(3); // Seconds on both pinned Arduino WiFi client classes.
+  size_t sentHeaders = 0;
+  while (sentHeaders < headers.length() && !capture.stream.cancelled.load() && client.connected()) {
+    const size_t n = client.write(reinterpret_cast<const uint8_t*>(headers.c_str()) + sentHeaders,
+                                  headers.length() - sentHeaders);
+    if (!n) return false;
+    sentHeaders += n;
+  }
+  if (sentHeaders != headers.length()) return false;
+  const bool ok = capture_upload::sendBody(client, capture.stream,
+      [&](size_t offset, uint8_t* bytes, size_t count) -> size_t {
+        std::lock_guard<std::mutex> lock(capture.fileMutex);
+        if (capture.stream.cancelled.load() || !capture.fs) return 0;
+        if (capture.activeFile && *capture.activeFile) {
+          File& file = *capture.activeFile;
+          const size_t position = file.position();
+          const bool seeked = file.seek(44U + offset);
+          const int read = seeked ? file.read(bytes, count) : -1;
+          const bool restored = file.seek(position);
+          if (!restored) capture.stream.storageFailed.store(true);
+          return restored && read == static_cast<int>(count) ? count : 0;
+        }
+        // Keep one read handle only after a valid release has finalized the
+        // original. Cancellation during live capture never pins a deleted file.
+        if (capture.stream.finished.load()) {
+          if (!finalizedFile) finalizedFile = capture.fs->open(capture.path, "r");
+          const bool seeked = finalizedFile && finalizedFile.seek(44U + offset);
+          const int read = seeked ? finalizedFile.read(bytes, count) : -1;
+          return read == static_cast<int>(count) ? count : 0;
+        }
+        File file = capture.fs->open(capture.path, "r");
+        const bool seeked = file && file.seek(44U + offset);
+        const int read = seeked ? file.read(bytes, count) : -1;
+        file.close();
+        return read == static_cast<int>(count) ? count : 0;
+      }, [] { delay(2); }, [] { return static_cast<uint32_t>(millis()); },
+      kMaxRecordSamples * sizeof(int16_t), static_cast<uint32_t>(kMaxRecordSeconds * 1000) + 17000U);
+  {
+    std::lock_guard<std::mutex> lock(capture.fileMutex);
+    finalizedFile.close();
+  }
+  logf("[VOICE_STREAM] complete=%d sent=%u first_sent_ms=%u commit=%d", ok,
+       static_cast<unsigned>(capture.stream.sent.load()),
+       static_cast<unsigned>(capture.stream.firstSentMs.load()), capture.stream.commitAttempted.load());
+  if (ok) client.setTimeout((kTurnHttpTimeoutMs + 999) / 1000);
+  return ok;
+}
 
 VoiceDialResult* performVoicePreconnect(void* arg) {
   std::unique_ptr<VoiceDialPayload> payload(static_cast<VoiceDialPayload*>(arg));
@@ -460,6 +519,16 @@ VoiceDialResult* performVoicePreconnect(void* arg) {
     if (socket->connect(payload->host.c_str(), payload->port, 4000)) result->socket = std::move(socket);
   }
   if (result->socket) result->socket->setNoDelay(true);
+  if (payload->capture) {
+    result->streamed = result->socket && streamVoiceCapture(*result->socket, *payload->capture, payload->streamHeaders);
+    if (!result->streamed) {
+      payload->capture->stream.cancelled.store(true);
+      result->earlyReply = payload->capture->stream.responseAvailable.load();
+      if (!result->earlyReply) result->socket.reset();
+      // Preserve an early 401/413/429/507 for the normal response parser.
+      // An incomplete/uncertain POST is never automatically repeated.
+    }
+  }
   return result.release();
 }
 void voicePreconnectTask(void* arg) {
@@ -472,6 +541,9 @@ void voicePreconnectTask(void* arg) {
 }
 void cancelVoicePreconnect() {
   gVoicePreconnectEarly = false;
+  gVoiceReadyStreamed = false;
+  gVoiceReadyEarlyReply = false;
+  if (gVoiceCaptureUpload) gVoiceCaptureUpload->stream.cancelled.store(true);
   gVoiceReplyConnection.clear();
   ++gVoiceDialGeneration;
   gVoiceReadySocket.reset();
@@ -485,7 +557,11 @@ void serviceVoicePreconnect() {
     std::unique_ptr<VoiceDialResult> result(completed);
     gVoiceDialBusy = false;
     const bool current = result->generation == gVoiceDialGeneration;
-    if (current) gVoiceReadySocket = std::move(result->socket);
+    if (current) {
+      gVoiceReadySocket = std::move(result->socket);
+      gVoiceReadyStreamed = result->streamed;
+      gVoiceReadyEarlyReply = result->earlyReply;
+    }
     logf("[VOICE] preconnect ready=%d current=%d", static_cast<int>(gVoiceReadySocket != nullptr), current);
   }
   if (gVoiceDialAllocationFailed) { gVoiceDialAllocationFailed = false; gVoiceDialBusy = false; }
@@ -511,6 +587,59 @@ void beginVoicePreconnect() {
     if(gVoiceDialCanvasReleased){restoreUiCanvasAfterNetwork();gVoiceDialCanvasReleased=false;}
   }
 }
+void publishVoiceCaptureBytes() {
+  // Called while the capture file mutex is held, after a successful SD write.
+  if (!gVoiceCaptureUpload || gVoiceCaptureUpload->stream.cancelled.load() || !gActiveRecordFile) return;
+  auto& state = gVoiceCaptureUpload->stream;
+  if (gActiveRecordBytes - state.published.load() < 4096U) return;
+  gActiveRecordFile.flush();
+  if (gActiveRecordFile.size() == gActiveRecordBytes + 44U) state.published.store(gActiveRecordBytes);
+}
+
+void finishVoiceCaptureUpload(size_t bytes) {
+  if (!gVoiceCaptureUpload || gVoiceCaptureUpload->stream.cancelled.load() ||
+      gVoiceCaptureUpload->stream.storageFailed.load()) return;
+  // The original file is already finalized and capture length validated.
+  gVoiceCaptureUpload->stream.published.store(bytes);
+  gVoiceCaptureUpload->stream.finished.store(true);
+  logf("[VOICE_STREAM] release total=%u already_sent=%u first_sent_ms=%u", static_cast<unsigned>(bytes),
+       static_cast<unsigned>(gVoiceCaptureUpload->stream.sent.load()),
+       static_cast<unsigned>(gVoiceCaptureUpload->stream.firstSentMs.load()));
+}
+
+void beginVoiceCaptureUpload() {
+  if (!gRecordingToFile || !gActiveRecordFile || !gRecording || gVoiceDialBusy ||
+      gInboxHttpBusy || gRealtimeDialBusy || gVoiceReplySpeechBusy || !gWifiReady) return;
+  std::shared_ptr<VoiceCaptureUpload> capture(new (std::nothrow) VoiceCaptureUpload());
+  std::unique_ptr<VoiceDialPayload> payload(new (std::nothrow) VoiceDialPayload());
+  if (!capture || !payload) return; // File-only capture keeps the existing release path.
+  capture->fs = activeVoiceFs(); capture->path = gActiveRecordPath;
+  capture->activeFile = &gActiveRecordFile;
+  capture->turnId = makeClientTurnId("voice");
+  gActiveRecordFile.flush();
+  capture->stream.published.store(gActiveRecordBytes);
+  payload->host = gHubHost; payload->port = gHubPort; payload->tls = hubUsesTls();
+  payload->generation = gVoiceDialGeneration; payload->capture = capture;
+  String host = gHubHost;
+  if ((!payload->tls && gHubPort != 80) || (payload->tls && gHubPort != 443)) host += ":" + String(gHubPort);
+  String& headers = payload->streamHeaders;
+  headers.reserve(1024);
+  headers = String("POST ") + kDeviceAudioTurnRawPath + " HTTP/1.1\r\nHost: " + host +
+      "\r\nUser-Agent: S1-ADV/" + kAppVersion +
+      "\r\nConnection: keep-alive\r\nContent-Type: application/octet-stream\r\nTransfer-Encoding: chunked\r\n" +
+      "X-Audio-Sample-Rate: " + String(kMicSampleRate) + "\r\nX-Device-Id: " + gDeviceId +
+      "\r\nX-Firmware-Version: " + kAppVersion + "\r\nX-Conversation-Key: " + currentConversationKey() +
+      "\r\nX-Client-Msg-Id: " + capture->turnId + "\r\nX-Turn-Id: " + capture->turnId +
+      "\r\nX-Reply-Audio: false\r\nX-Save-Reply-Audio: false\r\nX-Voice-Wait-Ms: 1000\r\n";
+  if (!gDeviceToken.isEmpty()) headers += "Authorization: Bearer " + gDeviceToken + "\r\nX-Device-Token: " + gDeviceToken + "\r\n";
+  headers += "\r\n";
+  gVoiceCaptureUpload = capture; gVoiceReadyStreamed = false; gVoiceDialBusy = true;
+  VoiceDialPayload* raw = payload.release();
+  if (xTaskCreate(voicePreconnectTask, "voice-stream", 8192, raw, 1, nullptr) != pdPASS) {
+    delete raw; gVoiceDialBusy = false; gVoiceCaptureUpload.reset();
+  } else logf("[VOICE_STREAM] background capture started t=%u", static_cast<unsigned>(millis()));
+}
+
 std::unique_ptr<WiFiClient> takeVoicePreconnect() {
   const uint32_t started = millis();
   while (gVoiceDialBusy && millis() - started < 17000U) {

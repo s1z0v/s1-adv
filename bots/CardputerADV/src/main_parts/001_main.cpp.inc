@@ -44,6 +44,7 @@
 #include "ui_frame_policy.h"
 #include "network_recovery.h"
 #include "reply_connection.h"
+#include "capture_upload.h"
 #ifndef DEFAULT_FOCUS_LAMP_ENABLED
 #define DEFAULT_FOCUS_LAMP_ENABLED 0
 #endif
@@ -68,6 +69,7 @@ extern "C" {
 #include <time.h>
 #include <vector>
 #include <memory>
+#include <mutex>
 
 namespace {
 

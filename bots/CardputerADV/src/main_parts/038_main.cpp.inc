@@ -125,6 +125,8 @@ bool stopRecordingAndSend() {
     stopMic(false);
     gRecordInflightChunks.clear();
     if (gActiveRecordFile) {
+      auto captureFileLock = lockVoiceCaptureFile();
+      if (gVoiceCaptureUpload) gVoiceCaptureUpload->activeFile = nullptr;
       gActiveRecordFile.flush(); // size() uses stat and cannot see buffered tail bytes.
       const size_t fileBytes = gActiveRecordFile.size();
       uint8_t header[44];
@@ -185,6 +187,7 @@ bool stopRecordingAndSend() {
     if (gRecordingToFile) {
       fs::FS* fs = activeVoiceFs();
       if (!pcmUploadPath.isEmpty()) {
+        auto captureFileLock = lockVoiceCaptureFile();
         if (fs) {
           fsRemove(*fs, pcmUploadPath);
         }
@@ -203,22 +206,31 @@ bool stopRecordingAndSend() {
   // Capture has stopped and the WAV is finalized. Establish TLS while its
   // metadata is registered, without spending the live microphone budget.
   gWifiReady = WiFi.status() == WL_CONNECTED;
-  if (gWifiReady) {
+  if (gVoiceCaptureUpload) {
+    finishVoiceCaptureUpload(dataSize);
+    gVoicePreconnectEarly = true;
+  } else if (gWifiReady) {
     beginVoicePreconnect();
     gVoicePreconnectEarly = true;
   }
-  if (gRecordingToFile) {
+  if (gRecordingToFile && !gVoiceCaptureUpload) {
     registerDownloadedVoiceNote(pcmUploadPath, makeVoiceNoteTitle(false, dataSize, kMicSampleRate), "Outbound voice note", false);
   }
   gWifiReady = WiFi.status() == WL_CONNECTED;
   if (!gWifiReady) {
     cancelVoicePreconnect(); endVoiceWifiPerformance(); initSpeaker();
+    const bool uncertain = gVoiceCaptureUpload && gVoiceCaptureUpload->stream.commitAttempted.load();
+    if (gVoiceCaptureUpload && !gVoiceCaptureUpload->registered && !pcmUploadPath.isEmpty()) {
+      registerDownloadedVoiceNote(pcmUploadPath, makeVoiceNoteTitle(false, dataSize, kMicSampleRate), "Outbound voice note", false);
+      gVoiceCaptureUpload->registered = true;
+    }
     pushError("Wi-Fi dropped during recording.");
-    showVoiceRequestError("Wi-Fi disconnected. Recording kept in Voice Notes.");
+    showVoiceRequestError(uncertain ? "Delivery unconfirmed. Open chat before retrying. Recording kept in Voice Notes."
+                                    : "Wi-Fi disconnected. Recording kept in Voice Notes.");
     setFaceMode(FaceMode::Error);
     setStatus("Wi-Fi lost", 2000);
     setVoiceDiag("voice: wifi lost");
-    logf("[VOICE] wifi lost before upload");
+    logf("[VOICE] wifi lost upload_commit_attempted=%d", uncertain);
     if (gRecordingToFile) {
       // The original WAV remains saved for replay or retry.
       gRecordingToFile = false;
