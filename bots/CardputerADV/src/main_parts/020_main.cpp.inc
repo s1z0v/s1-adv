@@ -304,6 +304,10 @@ void serviceInboxNetworkCompletion() {
   const bool cancelled = gInboxCancelRequested;
   gInboxCancelRequested = false;
   if (gInboxCanvasReleased) { restoreUiCanvasAfterNetwork(); gInboxCanvasReleased = false; }
+  if (result->code >= 200 && result->code < 300) {
+    gBridgeLastSuccessMs = millis();
+    gBridgeHttpFailed = false;
+  } else if (!cancelled) gBridgeHttpFailed = true;
   if (cancelled) {
     if(result->logsUpload) setStatus("Logs interrupted; U retry",1800);
     logf("[INBOX] poll yielded to input"); return;

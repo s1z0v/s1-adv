@@ -28,7 +28,7 @@ Device reboot reconnects to the persisted status through ordinary polling.
 | attention | CHECK CHAT / NEW MESSAGE | Clarification or an agent reply requiring attention |
 | uncertain with fresh polling | UNCONFIRMED | Request delivery has no confirmed receipt |
 | stalled with fresh polling | NO PROGRESS | Bridge responds, but the build has no recent progress |
-| active job without a status sync for 90 seconds | CHECK LINK | Connection evidence is stale; F checks without resending |
+| failed transport with no Bridge success for 90 seconds | CHECK LINK | F checks without resending; intentional voice/Realtime pauses are excluded |
 
 Ready requires a different valid manifest hash, nonzero image size, publication
 after job start, a full source commit, the published version in the final reply,

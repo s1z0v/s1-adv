@@ -88,12 +88,18 @@ void applyFirmwareJobState(const String& state, const String& requestId) {
   gFirmwareJobState = next;
   gFirmwareJobRequestId = requestId;
   gFirmwareJobLastSyncMs = millis();
+  gBridgeLastSuccessMs = millis();
+  gBridgeHttpFailed = false;
 }
 
 const char* homeStatusLabel(bool updateReady) {
   if (gG0VoicePending) return "VOICE WAIT";
   if (gVoiceCapturePreparing) return "MIC SETUP";
-  const char* label=firmware_job_display::label(gFirmwareJobState, updateReady, millis() - gFirmwareJobLastSyncMs);
+  // Voice/Realtime can intentionally pause polling for minutes. An old job
+  // timestamp alone is not evidence that the Bridge connection has failed.
+  const bool linkFailed = !gWifiReady || (gBridgeHttpFailed && autoInboxPollAllowed());
+  const char* label=firmware_job_display::label(gFirmwareJobState, updateReady,
+      millis() - gBridgeLastSuccessMs, linkFailed);
   if (strcmp(label,"CHECK CHAT")==0) return gInboxUnread ? "NEW MESSAGE" : "READY";
   if (strcmp(label,"READY")==0 && gInboxUnread) return "NEW MESSAGE";
   return label;

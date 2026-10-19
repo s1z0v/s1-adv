@@ -46,6 +46,7 @@ bool gCanvasSpriteActive=true,gInboxCanvasReleased=false,gPendingLogsUpload=fals
 bool gRecording=false,gSubmitting=false,gPlaybackActive=false,gTransferUiActive=false;
 bool gPendingOtaApplyAction=false,allowed=true,taskFails=false;
 bool gWifiReady=true;int gInboxHttpMux=0,loanCount=0,restoreCount=0;
+uint32_t gBridgeLastSuccessMs=0;bool gBridgeHttpFailed=false;
 InboxHttpResult* gInboxHttpResult=nullptr;
 std::deque<String>gInboxAckQueue;
 String status,diag;
@@ -105,16 +106,24 @@ int main(){
  assert(gCanvasSpriteActive&&loanCount==0);complete();
  assert(posts==1&&getCount==0&&posted=="immutable diagnostic snapshot");
  assert(status=="Logs uploaded"&&diag=="logs: ok"&&!gLogsUploadBusy&&!gInboxHttpBusy);
+ assert(gBridgeLastSuccessMs==now&&!gBridgeHttpFailed);
  assert(gCanvasSpriteActive&&loanCount==0&&restoreCount==0);
  // Failed upload leaves an explicit failure, never a fabricated receipt.
  responseCode=503;assert(uploadRuntimeLogs());servicePendingLogsUpload();complete();
  assert(status=="Logs HTTP 503"&&!gLogsUploadBusy&&!gInboxHttpBusy);
+ assert(gBridgeHttpFailed&&gBridgeLastSuccessMs==now);
  // Failed task creation retains the request, backs off, and leaves the frame.
  now+=4000;taskFails=true;assert(uploadRuntimeLogs());servicePendingLogsUpload();
  assert(gPendingLogsUpload&&!gInboxHttpBusy&&gInboxRetryAfterMs==now+4000);
  assert(gCanvasSpriteActive&&loanCount==0);taskFails=false;
  servicePendingLogsUpload();assert(!pendingArg);now+=4000;servicePendingLogsUpload();
  responseCode=204;complete();assert(status=="Logs uploaded");
+ assert(gBridgeLastSuccessMs==now&&!gBridgeHttpFailed);
+ // A poll yielded to microphone/input must not fabricate a failed link.
+ auto cancelled=std::make_unique<InboxHttpPayload>();cancelled->url="https://bridge.invalid/pending";
+ assert(startInboxNetworkRequest(std::move(cancelled)));gInboxCancelRequested=true;
+ auto before=gBridgeLastSuccessMs;complete();
+ assert(!gBridgeHttpFailed&&gBridgeLastSuccessMs==before);
  // A failed durable event ACK stays queued. No UI/canvas work occurs in TLS.
  auto p=std::make_unique<InboxHttpPayload>();p->url="https://bridge.invalid/ack";p->eventId="event-one";
  gInboxAckQueue.push_back("event-one");responseCode=500;

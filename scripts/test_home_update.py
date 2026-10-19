@@ -58,6 +58,9 @@ void completeCheck(){gInboxHttpBusy=false;if(checkResult&&applyAfter){gPendingOt
 firmware_job_display::State gFirmwareJobState=firmware_job_display::State::Idle;
 auto& state=gFirmwareJobState;uint32_t gFirmwareJobLastSyncMs=1000;
 String gFirmwareJobRequestId;
+uint32_t gBridgeLastSuccessMs=1000;
+bool gBridgeHttpFailed=false,gWifiReady=true,pollAllowed=true;
+bool autoInboxPollAllowed(){return pollAllowed;}
 bool gVoiceCapturePreparing=false,gG0VoicePending=false,gInboxUnread=false;
 String gInputBuffer;uint32_t gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
 enum class FocusState{Stopped,Focus,ShortBreak,LongBreak,Reflect,Paused};
@@ -177,7 +180,8 @@ int main(){
  gVoiceCapturePreparing=false;gG0VoicePending=false;gFocus.state=FocusState::Stopped;
  state=firmware_job_display::State::Idle;gInboxUnread=true;gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"NEW MESSAGE"})&&gCanvas.w==74);
- gInboxUnread=false;state=firmware_job_display::State::Building;now=gFirmwareJobLastSyncMs+90001;
+ gInboxUnread=false;state=firmware_job_display::State::Building;now=gBridgeLastSuccessMs+90001;
+ gBridgeHttpFailed=true;
  gCanvas=Canvas{};drawHomeReadyStatus(false,false);
  assert((gCanvas.labels==std::vector<std::string>{"CHECK LINK","F retry"}));
  gOtaManifest.parsed=false; // No candidate: the real shortcut sees the stale-build badge.
@@ -185,14 +189,14 @@ int main(){
  assert(gPendingOtaCheckAction&&!gPendingOtaApplyAction);
  resetQueue();gInputBuffer="draft";assert(!handleHomeLinkRetryKey('f',keys));gInputBuffer.clear();
  state=firmware_job_display::State::Idle;assert(!handleHomeLinkRetryKey('f',keys));
- assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,false,90001))=="CHECK LINK");
+ assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,false,90001,true))=="CHECK LINK");
  // An older, uninstalled candidate cannot hide a newly confirmed build.
  assert(std::string(firmware_job_display::label(firmware_job_display::State::Building,true,1000))=="BUILDING");
  for(auto sample:{firmware_job_display::State::Idle,firmware_job_display::State::Building,
       firmware_job_display::State::Ready,firmware_job_display::State::Attention,
       firmware_job_display::State::Failed,firmware_job_display::State::Stalled,
       firmware_job_display::State::Unconfirmed})
-  assert(std::string(firmware_job_display::label(sample,true,90001))=="NEW UPDATE");
+  assert(std::string(firmware_job_display::label(sample,true,90001,true))=="NEW UPDATE");
  // A successful poll of the old uncertain request is fresh link evidence.
  // F must not imply that a connectivity retry can resolve that request.
  applyFirmwareJobState("uncertain","old-request");
@@ -200,12 +204,21 @@ int main(){
  assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
  resetQueue();assert(!handleHomeLinkRetryKey('f',keys));assert(!gPendingOtaCheckAction);
  now+=90000;assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
- ++now;assert(std::string(homeStatusLabel(false))=="CHECK LINK");
+ ++now;assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
+ gBridgeHttpFailed=true;assert(std::string(homeStatusLabel(false))=="CHECK LINK");
  assert(handleHomeLinkRetryKey('f',keys));assert(gPendingOtaCheckAction&&!gPendingOtaApplyAction);
  applyFirmwareJobState("uncertain","old-request");
  assert(std::string(homeStatusLabel(false))=="UNCONFIRMED");
  applyFirmwareJobState("stalled","old-request");
  assert(std::string(homeStatusLabel(false))=="NO PROGRESS");
+ // Deliberate transport pauses are not connection failures, even when a
+ // previous HTTP attempt failed. Offline Wi-Fi remains an actual link loss.
+ now+=600000;pollAllowed=false;gBridgeHttpFailed=true;
+ assert(std::string(homeStatusLabel(false))=="NO PROGRESS");
+ applyFirmwareJobState("building","new-request");now+=600000;
+ assert(std::string(homeStatusLabel(false))=="BUILDING");
+ gWifiReady=false;assert(std::string(homeStatusLabel(false))=="CHECK LINK");
+ gWifiReady=true;pollAllowed=true;
  applyFirmwareJobState("idle","");assert(std::string(homeStatusLabel(false))=="READY");
 }
 '''

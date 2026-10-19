@@ -60,6 +60,8 @@ volatile uint32_t gVoiceReplySpeechGeneration = 0;
 void showVoiceNotice(const String& text, bool pending);
 firmware_job_display::State gFirmwareJobState = firmware_job_display::State::Idle;
 uint32_t gFirmwareJobLastSyncMs = 0;
+uint32_t gBridgeLastSuccessMs = 0;
+bool gBridgeHttpFailed = false;
 String gFirmwareJobRequestId;
 void applyFirmwareJobState(const String& state, const String& requestId);
 const char* homeStatusLabel(bool updateReady);
