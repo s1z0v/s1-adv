@@ -134,6 +134,10 @@ explicit Gateway-token-file input and optional WIF subject-token read followed
 by their configured network exchanges. The assessment is retained and disclosed,
 not bypassed or relabeled as Clean. Its overview describes a disclosed,
 purpose-aligned self-hosted bridge with mostly opt-in sensitive capabilities.
+The plugin's summary card simultaneously displays **Pass**; the detailed audit
+metadata still says **Review** for version 0.3.6. These are distinct displayed
+signals, so this record retains the detailed findings rather than inferring a
+clean certification from the summary badge.
 The host tests and isolated service do not remove the trusted native plugin's
 OS privileges. Review the [registry report](https://clawhub.ai/srg0/plugins/openclaw-s1-adv/security-audit)
 before installing this exact executable artifact.

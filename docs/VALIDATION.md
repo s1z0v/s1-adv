@@ -36,7 +36,7 @@ device are separate gates from these server checks.
 
 ClawHub subsequently published 0.3.6 from `66ea7e3`; its 39 downloaded files
 matched the qualified and installed package hashes. The registry's automated
-assessment is **Review**, concerning the disclosed process, credential and
+detail assessment is **Review** (the summary card displays **Pass**), concerning the disclosed process, credential and
 optional file/network capabilities; see the updated security review. Both
 GitHub CI jobs passed for this source, including the GCC recording-clock bound.
 The final private 0.2.179-dev candidate is 2,008,016 bytes, SHA-256
