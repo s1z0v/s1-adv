@@ -1,6 +1,6 @@
 {
   "name": "openclaw-s1-adv",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "private": false,
   "type": "module",
   "scripts": {
@@ -10,7 +10,7 @@
     "smoke:realtime-contract": "node scripts/smoke-realtime-contract.mjs",
     "smoke:mininerva": "node src/mininerva-compat-smoke.mjs",
     "test:security": "node src/security-policy.test.mjs",
-    "test:boundaries": "node --test src/security-boundaries.test.mjs src/turn-delivery-policy.test.mjs src/turn-correlation.test.mjs src/voice-upload-codec.test.mjs src/reply-language.test.mjs src/focus-audio.test.mjs",
+    "test:boundaries": "node --test src/security-boundaries.test.mjs src/turn-delivery-policy.test.mjs src/turn-correlation.test.mjs src/voice-upload-codec.test.mjs src/reply-language.test.mjs src/focus-audio.test.mjs src/agent-status.test.mjs",
     "gate:security": "node src/security-model-gate.mjs",
     "publish:firmware": "node scripts/publish-firmware.mjs",
     "enqueue:ota-install": "node scripts/enqueue-ota-install.mjs",
@@ -58,7 +58,8 @@
     "LICENSE",
     "CREDITS.md",
     "assets/focus-audio/en",
-    "assets/focus-audio/manifest.json"
+    "assets/focus-audio/manifest.json",
+    "scripts/agent-status.mjs"
   ],
   "openclaw": {
     "extensions": [

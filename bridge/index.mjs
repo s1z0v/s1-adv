@@ -1,5 +1,6 @@
 import { createBridgeService } from "./src/plugin-service.mjs";
 import { setupCli } from "./scripts/setup.mjs";
+import { createAgentStatusTool } from "./src/agent-status.mjs";
 
 async function printCommand(name, options) {
   const args = [name];
@@ -19,6 +20,8 @@ export default {
   id: "s1-adv",
   name: "ESP32 S1-ADV",
   register(api) {
+    api.registerTool?.(context => createAgentStatusTool(context, api.pluginConfig || {}),
+      { name: 'cardputer_status' });
     api.registerService(createBridgeService(api.pluginConfig || {}, { logger: api.logger }));
     api.registerCli(({ program }) => {
       const command = program.command("s1-adv").description("Plan, configure and diagnose the Cardputer bridge");

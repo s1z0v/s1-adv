@@ -1,6 +1,7 @@
 import { REPLY_LANGUAGE_POLICY, requestedReplyLanguage } from "./reply-language.mjs";
 import { startFirmwareJob, updateFirmwareJob, publicFirmwareJob, firmwareJobDeliveryUncertain } from "./firmware-job-status.mjs";
 import { firmwareCapability, firmwareWorkflowPaths } from "./firmware-automation.mjs";
+import { AGENT_STATES, WORK_KINDS, hasAgentStatusAccess, publishedAfterTask } from './agent-status.mjs';
 import { PrivateStorageBudget } from "./storage-budget.mjs";
 import { loadFocusAudioBundle } from "./focus-audio.mjs";
 import { createReadStream, createWriteStream, readFileSync, existsSync } from "node:fs";
@@ -312,8 +313,6 @@ const DEVICE_ACTION_CATALOG = [
 ];
 
 const CARDPUTER_FIRMWARE_CONTEXT_VERSION = "2026-05-03.1";
-const CARDPUTER_FIRMWARE_WORK_RE =
-  /\b(firmware|ota|release|build|flash|version|bump)\b|\b(?:add|build|publish|release)\b.{0,48}\b(?:calculator|calc)\b|прошивк|верс(?:ия|ию|ии)|сборк|собер|собери|опубликуй|публикац|релиз|добав(?:ь|ить).{0,48}калькулятор|добавь функцию|добавить функцию/iu;
 const CARDPUTER_PRIMARY_TOPIC_TITLE = "Cardputer";
 const CARDPUTER_SINGLE_TOPIC_MODE = true;
 const CARDPUTER_FIRMWARE_TOPIC_TITLE = "Cardputer Firmware";
@@ -721,13 +720,6 @@ function trimDeviceEventMessage(message, maxTextChars) {
     cloned.content.original_chars = text.length;
   }
   return cloned;
-}
-
-function wantsFirmwareWork(text) {
-  const value = String(text || "");
-  return CARDPUTER_FIRMWARE_WORK_RE.test(value) ||
-    (/убери|убрать|добавь|добавить|замени|поменяй|измени|сделай|сделать|увелич|уменьш|remove|add|replace|change|make|larger|smaller/iu.test(value) &&
-     /главн.{0,10}экран|индикатор|интерфейс|шторк|батарей|штрих|home screen|indicator|interface|notification sheet|battery|stripes/iu.test(value));
 }
 
 function requestedFirmwareVersion(text) {
@@ -1605,6 +1597,7 @@ async function runRealtimeS1Tool({ runtime, device, topic, sessionId, call, inpu
     clientMsgId,
     text: String(inputTranscript || request).trim(),
     upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
       device,
       topicKey: topic.topic_key,
       text: (
@@ -4659,11 +4652,80 @@ class BridgeRuntime {
   }
 
   firmwareJobStatusForDevice(device) {
+    const primaryKey = this.primaryCardputerTopicForDevice(device)?.topic_key;
+    const primary = primaryKey && this.store.getTopic(primaryKey);
+    if (primary?.agent_task?.device_id === device.device_id)
+      return publicFirmwareJob(primary.agent_task);
     const job = Object.values(this.store.state.topics)
       .map(topic => topic.firmware_job)
       .filter(job => job?.device_id === device.device_id)
       .sort((a, b) => String(b.started_at).localeCompare(String(a.started_at)))[0];
     return publicFirmwareJob(job);
+  }
+
+  setAgentTaskStatus(payload) {
+    const next = (this.agentStatusTail || Promise.resolve()).then(() => this.applyAgentTaskStatus(payload));
+    this.agentStatusTail = next.catch(() => {});
+    return next;
+  }
+
+  async applyAgentTaskStatus(payload) {
+    const reject = (message, statusCode = 409) => { throw Object.assign(new Error(message), { statusCode }); };
+    if (!payload || !AGENT_STATES.includes(payload.state) || !WORK_KINDS.includes(payload.work_kind) ||
+        typeof payload.request_id !== 'string' || !payload.request_id || payload.request_id.length > 160 ||
+        typeof payload.session_key !== 'string' || payload.session_key.length > 512 ||
+        (payload.question !== undefined && (typeof payload.question !== 'string' || payload.question.length > 512)))
+      reject('Invalid agent status.', 400);
+    const topic = Object.values(this.store.state.topics).find(item => item.session_key === payload.session_key && !item.hidden);
+    const device = topic && this.config.devices.find(item => item.topics.includes(topic.topic_key));
+    if (!device || this.primaryCardputerTopicForDevice(device)?.topic_key !== topic.topic_key ||
+        this.store.getDevice(device.device_id)?.revoked_at) reject('No authorized Cardputer conversation.');
+    const receipt = this.store.getIdempotent(topic.topic_key, payload.request_id);
+    const entry = receipt && this.turnOutbox.entries().find(item => item.run_id === receipt.upstream_run_id);
+    if (!entry || entry.device_id !== device.device_id || entry.session_key !== payload.session_key ||
+        !['dispatching', 'inflight', 'uncertain'].includes(entry.phase)) reject('No active owned turn.');
+    const previous = topic.agent_task;
+    if (payload.task_id && (!previous || previous.task_id !== payload.task_id)) reject('Task identity changed.');
+    if (previous && !['completed', 'cancelled', 'ready', 'failed'].includes(previous.state) &&
+        payload.task_id !== previous.task_id && payload.request_id !== previous.task_id)
+      reject('Continue the existing active task explicitly; do not overwrite it.');
+    if (payload.state === 'building' && payload.work_kind !== 'firmware') reject('Only firmware work can be building.', 400);
+    if (payload.state === 'awaiting_input' && !payload.question?.trim()) reject('A visible question is required.', 400);
+    if (payload.state === 'cancelled' && previous?.state !== 'awaiting_input')
+      reject('Only an unanswered clarification can be closed; this tool cannot stop running work.');
+    if (payload.state === 'building') {
+      const capability = await firmwareCapability(this.config, {
+        CARDPUTER_FIRMWARE_REPO, CARDPUTER_FIRMWARE_BUILD_BIN, CARDPUTER_FIRMWARE_PUBLISH_BIN, CARDPUTER_FIRMWARE_SMOKE_BIN
+      });
+      if (!capability.ready) reject(capability.reason);
+    }
+    const manifest = readJsonFileSyncSafe(this.firmwareManifestPath(), null);
+    const sameTask = previous && (payload.task_id === previous.task_id || payload.request_id === previous.task_id);
+    const stamp = nowIso();
+    const task = sameTask ? { ...previous } : {
+      device_id: device.device_id, task_id: payload.request_id, started_at: stamp,
+      baseline_sha256: manifest?.sha256 || null, agent_managed: true
+    };
+    if (sameTask && task.work_kind !== payload.work_kind) reject('Task kind cannot change during a continuation.');
+    if (payload.state === 'completed' && payload.work_kind === 'firmware' && !publishedAfterTask(manifest, task))
+      reject('A verified new OTA manifest is required before firmware completion.');
+    Object.assign(task, { request_id: payload.request_id, work_kind: payload.work_kind,
+      state: payload.state === 'completed' && payload.work_kind === 'firmware' ? 'ready' : payload.state,
+      question: payload.state === 'awaiting_input' ? payload.question.trim() : null, updated_at: stamp });
+    topic.agent_task = task;
+    await this.store.save();
+    if (task.state === 'awaiting_input') {
+      const existingQuestion = this.store.getHistory(topic.topic_key, 0, 100000).items.some(message =>
+        message.source?.transport === 'cardputer_agent_question' &&
+        message.client_msg_id === `${payload.request_id}:reply` && message.content?.text === task.question);
+      if (!existingQuestion) await this.appendAssistantReply({ topicKey: topic.topic_key,
+        text: task.question, clientMsgId: payload.request_id,
+        source: 'cardputer_agent_question', upstreamRunId: entry.run_id });
+    }
+    this.broadcast(topic.topic_key, { type: 'task_status', firmware_job: publicFirmwareJob(task) });
+    return { ok: true, task: publicFirmwareJob(task),
+      ...(task.state === 'awaiting_input' ? { question_delivered: true,
+        instruction: 'The exact question is already delivered to the user. Finish this turn by repeating that exact question with no additional text; identical delivery is deduplicated. Wait for the owner reply before doing work.' } : {}) };
   }
 
   recordDeviceFirmware(device, params) {
@@ -4677,140 +4739,10 @@ class BridgeRuntime {
       console.info(`[device] firmware device=${device.device_id} version=${version} git=${git}`);
   }
 
-  firmwareClarificationTopic(topic, text) {
-    if(!/^(?:yes|yep|yeah|ok|okay|sure|go ahead|please do|no|да|ага|верно|именно|делай|нет)(?:\s|[.!?,]|$)/iu.test(String(text||'').trim())) return null;
-    const last=this.store.getHistory(topic.topic_key,0,12).items
-      .filter(m=>m.sender?.kind==='assistant' && m.content?.text).at(-1);
-    if(last?.source?.transport!=='cardputer_firmware_job_mirror' || !/[?？]/u.test(last.content.text)) return null;
-    return Object.values(this.store.state.topics||{})
-      .filter(t=>t.mirror_topic_key===topic.topic_key && t.topic_key.startsWith('local:cardputer-firmware-job:') &&
-        Date.now()-Date.parse(t.updated_at||t.created_at||0)<30*60*1000)
-      .sort((a,b)=>String(b.updated_at).localeCompare(String(a.updated_at)))
-      .find(t=>this.store.getHistory(t.topic_key,0,5).items.some(m=>
-        m.sender?.kind==='assistant' && m.content?.text===last.content.text)) || null;
-  }
-
-  async tryFastLaneTurn({ req, device, topic, clientMsgId, transcript, inputMode, wantsReplyAudio }) {
-    const continuation=this.firmwareClarificationTopic(topic,transcript);
-    if (wantsFirmwareWork(transcript) || continuation) {
-      const capability = await firmwareCapability(this.config, {
-        CARDPUTER_FIRMWARE_REPO, CARDPUTER_FIRMWARE_BUILD_BIN,
-        CARDPUTER_FIRMWARE_PUBLISH_BIN, CARDPUTER_FIRMWARE_SMOKE_BIN
-      });
-      if (!capability.ready) {
-        await this.appendDeviceText({ device, topicKey: topic.topic_key, text: transcript, clientMsgId });
-        const replyMessage = await this.appendAssistantReply({ topicKey: topic.topic_key,
-          text: capability.reason, clientMsgId, source: "cardputer_firmware_unavailable" });
-        return { response: { ...await this.buildTurnResponse({ req, topic, transcript,
-          replyText: capability.reason, replyMessage, includeAudio: false }),
-          ok: false, status: "unavailable", pending: false } };
-      }
-      const dashboardTopic = this.primaryCardputerTopicForDevice(device) || await this.firmwareTopicForDevice(device);
-      const routeTopic = continuation || await this.createFirmwareJobTopicForDevice(device, transcript);
-      console.info(
-        `[firmware-route] upstream device=${device?.device_id || "-"} ` +
-        `job_topic=${routeTopic?.topic_key || "-"} dashboard=${dashboardTopic?.topic_key || "-"} ` +
-        `from=${topic?.topic_key || "-"} mode=${inputMode}`
-      );
-      const ack = await this.sendText({
-        device,
-        topicKey: routeTopic.topic_key,
-        clientMsgId,
-        text: transcript,
-        upstreamText: continuation
-          ? `Authenticated Cardputer owner follow-up in this existing server firmware job. Continue the earlier request and preserve its installation choice. Do not create a competing job or require any desktop chat or binding.\n\nOwner reply:\n${transcript}`
-          : this.buildFirmwareJobUpstreamText({
-          device,
-          sourceTopic: topic,
-          jobTopic: routeTopic,
-          text: transcript,
-          inputMode,
-          clientMsgId
-        }),
-        waitForUpstream: false
-      });
-      const replyText = languageNameForText(transcript) === "Russian"
-        ? (
-          `Задача принята. OpenClaw подготовит прошивку и пришлёт результат на устройство.`
-        )
-        : (
-          `Request accepted. OpenClaw will prepare the firmware and send the result to your device.`
-        );
-      const replyMessage = await this.appendAssistantReply({
-        topicKey: dashboardTopic.topic_key,
-        text: replyText,
-        clientMsgId,
-        source: "cardputer_firmware_job_ack"
-      });
-      return {
-        ack,
-        response: { ...await this.buildTurnResponse({
-          req,
-          topic: dashboardTopic,
-          transcript,
-          replyText,
-          replyMessage,
-          includeAudio: false
-        }), status: "accepted", pending: true, after_seq: replyMessage.seq,
-        reply_seq: replyMessage.seq, job_topic_key: routeTopic.topic_key,
-        firmware_job: this.firmwareJobStatusForDevice(device) }
-      };
-    }
-    // Ordinary voice keeps the existing conversation and tools, without a
-    // second direct-model answer. Firmware work above has exactly one owner.
-    if (inputMode === "voice") return null;
-    if (!this.fastLaneEnabled(inputMode)) {
-      return null;
-    }
-    const ack = await this.sendText({
-      device,
-      topicKey: topic.topic_key,
-      clientMsgId,
-      text: transcript,
-      upstreamText: this.buildDeviceTurnUpstreamText({
-        device,
-        topicKey: topic.topic_key,
-        text: transcript,
-        inputMode
-      }),
-      waitForUpstream: false
-    });
-    try {
-      const fastReply = await this.generateFastLaneReply({
-        device,
-        topic,
-        transcript,
-        inputMode
-      });
-      const replyMessage = await this.appendAssistantReply({
-        topicKey: topic.topic_key,
-        text: fastReply.text,
-        clientMsgId,
-        source: "cardputer_fast_lane"
-      });
-      return {
-        ack,
-        response: await this.buildTurnResponse({
-          req,
-          topic,
-          transcript,
-          replyText: fastReply.text,
-          replyMessage,
-          includeAudio: wantsReplyAudio
-        })
-      };
-    } catch (error) {
-      console.warn(
-        `[fast-lane] failed device=${device?.device_id || "-"} topic=${topic?.topic_key || "-"} ` +
-        `mode=${inputMode} err=${String(error.message || error)}`
-      );
-      return {
-        ack,
-        response: null,
-        fallback: this.config.fastLane?.fallbackToOpenClaw === true,
-        error
-      };
-    }
+  async tryFastLaneTurn() {
+    // Every ordinary text/voice turn belongs to the configured persistent
+    // OpenClaw session. Intent and work status are the agent's decisions.
+    return null;
   }
 
   async runFirmwareWorkJob({ device, topic, transcript, clientMsgId }) {
@@ -4925,6 +4857,7 @@ class BridgeRuntime {
       trace_id: traceId,
       turn_id: turnId || traceId,
       topic_key: topic?.topic_key || null,
+      firmware_job: this.firmwareJobStatusForDevice(this.config.devices[0]),
       transcript: String(transcript || "").trim(),
       short_text: this.shortReplyText(fullText),
       full_text: fullText,
@@ -5495,7 +5428,7 @@ class BridgeRuntime {
     return overview;
   }
 
-  buildDeviceTurnUpstreamText({ device, topicKey, text, inputMode = "text" }) {
+  buildDeviceTurnUpstreamText({ device, topicKey, text, clientMsgId = "", inputMode = "text" }) {
     if (!this.config.deviceTurnContext?.enabled) {
       return text;
     }
@@ -5519,6 +5452,8 @@ class BridgeRuntime {
       : {};
     const context = {
       client: "cardputer_adv",
+      request_id: clientMsgId,
+      active_task: topic?.agent_task || null,
       user_id: device?.device_id || "cardputer",
       input_mode: inputMode,
       fast_profile: voiceTurn ? "cardputer_voice_fast" : "cardputer_text_fast",
@@ -5558,6 +5493,7 @@ class BridgeRuntime {
         ? `For voice turns, give the actual answer in 1-3 spoken sentences when possible. Keep the full session context and all tools. For firmware/features, perform the requested work with normal rigor, then report the result. Do not merely promise to send a request. Never reply NO_REPLY.`
         : "If a full answer would be long, keep the text short and front-load the key point.",
       firmware_capabilities: buildFirmwareCapabilityPolicyText(),
+      agent_status: "You own intent and task status in this one persistent OpenClaw session. Text and G0 voice replies share this context. Do not route or classify by keywords. For a normal question, answer normally without starting firmware work or changing an unrelated active task. For missing requirements, call cardputer_status(request_id, state=awaiting_input, work_kind, question) and ask that exact question visibly; do not begin implementation. The next user text or voice reply is normal session context: decide whether it answers the question, changes the request or is unrelated. For a continuation, pass active_task.task_id explicitly. Before actually starting authorized firmware changes call cardputer_status with state=building and work_kind=firmware; use working for other tasks. After verified publication call completed; failed for a real failure. If the owner declines an unanswered clarification, close that same task with cancelled; this does not stop a running operation. Never claim a status changed if the tool failed. A receipt only confirms delivery, not work acceptance. Do not mark a weather question or an installed-version question as firmware development. Never infer installation permission from a keyword; use the owner's actual instruction and context. Keep questions and results in this conversation, without creating another session.",
       device_actions: buildDeviceActionPolicyText()
     };
     return buildDeviceTurnEnvelope({ context, policy, text, inputMode, compact: voiceTurn });
@@ -6040,6 +5976,15 @@ async function main() {
       }
 
       if (url.pathname.startsWith("/internal/")) {
+        if (url.pathname === '/internal/cardputer/agent-status') {
+          if (req.method !== 'POST' || !hasAgentStatusAccess(req, config)) {
+            json(res, 404, { error: 'not_found' }); return;
+          }
+          const payload = await readJsonBody(req, Math.min(config.security.maxJsonBytes, 4096));
+          try { json(res, 200, await runtime.setAgentTaskStatus(payload)); }
+          catch (error) { requestError(res, Number(error.statusCode) || 400, String(error.message || error)); }
+          return;
+        }
         if (!hasInternalOtaAccess(req, config) ||
             req.method !== "POST" ||
             url.pathname !== "/internal/cardputer/ota-install") {
@@ -6197,6 +6142,7 @@ async function main() {
           clientMsgId,
           text: message,
           upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
             device,
             topicKey: topic.topic_key,
             text: message,
@@ -6304,6 +6250,7 @@ async function main() {
           text: transcript,
           inputMode: "voice",
           upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
             device,
             topicKey: topic.topic_key,
             text: transcript,
@@ -6440,6 +6387,7 @@ async function main() {
           text: transcript,
           inputMode: "voice",
           upstreamText: runtime.buildDeviceTurnUpstreamText({
+            clientMsgId,
             device,
             topicKey: topic.topic_key,
             text: transcript,

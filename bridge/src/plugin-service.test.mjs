@@ -9,9 +9,10 @@ import { createBridgeService } from "./plugin-service.mjs";
 import plugin from "../index.mjs";
 
 test("native plugin registers lifecycle and CLI; disabled installation does not execute code", async()=>{
-  let service,cli,spawns=0;
-  plugin.register({pluginConfig:{},logger:{info(){}},registerService:s=>service=s,registerCli:c=>cli=c});
+  let service,cli,toolFactory,spawns=0;
+  plugin.register({pluginConfig:{},logger:{info(){}},registerService:s=>service=s,registerCli:c=>cli=c,registerTool:f=>toolFactory=f});
   assert.equal(service.id,"s1-adv-bridge");assert.equal(typeof cli,"function");
+  assert.equal(typeof toolFactory,'function');assert.equal(toolFactory({sessionKey:'unconfigured'}),null);
   await createBridgeService({}, {logger:{info(){}},spawnChild:()=>{++spawns;}}).start();
   assert.equal(spawns,0);
 });

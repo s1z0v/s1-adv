@@ -1,5 +1,9 @@
 # ESP32 S1-ADV
 
+Text and G0 voice replies continue the same OpenClaw session. The agent sets
+NEEDS INPUT / WORKING / BUILDING explicitly; ordinary questions do not start
+firmware builds. See [contextual replies and task status](https://github.com/srg0/s1-adv/blob/main/docs/AGENT-STATUS.md).
+
 ![S1-ADV: voice, AI and firmware on a real M5Stack Cardputer ADV](https://raw.githubusercontent.com/srg0/s1-adv/d13d260a6da91636924c2a0286bf1f8955701709/docs/assets/s1-adv-hero.jpg)
 
 A community OpenClaw plugin and standalone Node.js bridge for the ESP32-S3 based
@@ -63,12 +67,12 @@ Install the published plugin on your intended OpenClaw host:
 openclaw plugins install clawhub:openclaw-s1-adv@0.3.4
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.4` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.5` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.4.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.5.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply

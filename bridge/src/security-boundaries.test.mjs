@@ -8,6 +8,16 @@ import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { agentStatusCredential } from './agent-status.mjs';
+
+test('agent status endpoint rejects device credentials, forwarded requests and unowned turns', () => withBridge(async ({base,token,config}) => {
+  const url=base+'/internal/cardputer/agent-status';
+  const body=JSON.stringify({session_key:config.topics[0].session_key,request_id:'unknown',state:'awaiting_input',work_kind:'firmware',question:'Which model?'});
+  const headers={'content-type':'application/json','x-s1-agent-status':agentStatusCredential(config)};
+  assert.equal((await fetch(url,{method:'POST',headers:{authorization:`Bearer ${token}`},body})).status,404);
+  assert.equal((await fetch(url,{method:'POST',headers:{...headers,'x-forwarded-for':'127.0.0.1'},body})).status,404);
+  assert.equal((await fetch(url,{method:'POST',headers,body})).status,409);
+}));
 import WebSocket from "ws";
 import { encodeMininervaFrame, decodeMininervaFrame } from "./mininerva-compat.mjs";
 import { agentIdForSession, validateDeviceTokens, validateUpstreamTransport } from "./security-policy.mjs";

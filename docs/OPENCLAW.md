@@ -50,10 +50,10 @@ the plugin/skills enabled, set its `autoStart: false` and use the
 This does not require moving other agents or credentials.
 
 ```bash
-git clone --branch bridge-v0.3.4 https://github.com/srg0/s1-adv.git
+git clone --branch bridge-v0.3.5 https://github.com/srg0/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.4.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.5.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a

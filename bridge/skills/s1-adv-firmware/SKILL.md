@@ -24,6 +24,19 @@ within the owner's request and permissions. Installing a skill does not grant
 file access, command execution, provider access or repository push permission.
 Clarify an unspecified feature before changing source.
 
+Keep the configured OpenClaw session for questions, typed answers and G0 voice
+answers. Do not create a separate firmware session or infer intent from a word
+such as "version". Use `cardputer_status` with the current `request_id` supplied
+by the bridge: `awaiting_input` with the visible question before work,
+`building` with `work_kind: firmware` immediately before implementation,
+`completed` only after verified publication, or `failed` for a real failure.
+For a continuation, include the existing `active_task.task_id`. Ordinary
+questions do not change a pending task. The tool is scoped to this configured
+Cardputer conversation and grants no build/install permission. If unavailable
+in a standalone installation, its equivalent is `scripts/agent-status.mjs`
+with the operator's private `--config`, exact `--session-key`, `--request-id`,
+`--state` and `--work-kind`. Never invent a successful status update.
+
 For an authorized change:
 
 1. Acknowledge the requested feature before a long build. Inspect the exact

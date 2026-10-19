@@ -1,10 +1,7 @@
 // Transport policy only: all turns keep the same S1 session, model and tools.
 export function voiceThinking(text, inputMode) {
-  if (inputMode !== "voice") return undefined;
-  // A conservative development/deep-work fence. Ambiguous follow-ups retain
-  // the session default instead of silently downgrading a firmware task.
-  if (/прошив|фич|добав|исправ|реализ|разработ|код|ошиб|обнов|собер|сборк|выкат|депло|интегр|анализ|подроб|продолж|сделай|делай|давай|firmware|feature|implement|fix|build|code|deploy|develop|analy[sz]|continue/iu.test(text)) return undefined;
-  return "low";
+  // Preserve the configured session/model policy for every input modality.
+  return undefined;
 }
 
 export function unwrapCardputerEnvelope(text) {

@@ -181,6 +181,7 @@ export class StateStore {
     for (const [topicKey, defaultTopic] of Object.entries(defaults.topics)) {
       const existing = this.state.topics[topicKey] || {};
       if (existing.session_key && existing.session_key !== defaultTopic.session_key) {
+        delete existing.agent_task;
         // A config remap revokes the old session and its cached conversation.
         this.state.messages[topicKey] = [];
         for (const [key, media] of Object.entries(this.state.media)) {
