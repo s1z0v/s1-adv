@@ -10,12 +10,14 @@ assert part(17).index('apply blocked before reboot') < part(17).index('requestOt
 assert part(17).count('release_delivery::otaPowerAllowed') == 2
 assert 'modeChanged && mode == UiMode::Ota' in part(24)
 assert 'gPendingOtaCheckAction = true' in part(24)
-assert 'gUiMode == UiMode::Ota' in part(20)
+# Executable owner/OTA tests cover the current background worker implementation.
+assert 'bool autoInboxPollAllowed()' in part(20)
 assert 'gVoiceReplyPending ? 4000U' in part(20)
 assert 'seq > gVoiceReplyAfterSeq' in part(20)
 pending=part(39).split('if (resp["pending"] | false) {',1)[1].split('gVoiceReplyPending = false;',1)[0]
 assert 'return true;' in pending and 'requestAndPlayTts(' not in pending
-assert 'replySeq > gInboxLastSeq' in part(39)
+# Receipt/final replies are deduplicated without skipping a racing Inbox item.
+assert 'rememberStoredAssistantSeq(replySeq)' in part(39)
 assert 'gOtaManifest.version != gOtaNotifiedVersion' in part(15)
 assert 'focusTone(1320, 120)' not in part(15)
 assert 'drawSmoothUncannyEye' in part(50) and 'pushImage' not in part(50)
