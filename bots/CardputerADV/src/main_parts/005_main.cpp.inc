@@ -528,3 +528,7 @@ void applySpeakerVolumeSetting();
 bool handleScreensaverWake();
 void markUserActivity();
 void serviceIdleScreensaver();
+
+void refreshFileManager();
+bool handleFileManagerKey(char key, const Keyboard_Class::KeysState& keys);
+void renderFileManagerUi();

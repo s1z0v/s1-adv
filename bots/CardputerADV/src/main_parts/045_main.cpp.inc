@@ -207,3 +207,92 @@ bool handleOtaKey(char key, const Keyboard_Class::KeysState& keys) {
   appendRuntimeLog("OTA", "install requested by Enter", true);
   return true;
 }
+
+bool fileManagerBusy() {
+  return gRecording || gSubmitting || gPlaybackActive || gRealtimeActive ||
+         gInboxHttpBusy || gVoiceReplySpeechBusy || gVoiceDialBusy || gRealtimeDialBusy ||
+         gBlockingInputPumpActive || gBootBackgroundActive;
+}
+
+void refreshFileManager() {
+  gFileDelete.cancel();
+  gFileEntries.clear();
+  gFilesTruncated = false;
+  if (!gSdReady) { gFilesStatus = "Insert SD card"; return; }
+  if (fileManagerBusy()) { gFilesStatus = "Storage busy; R to retry"; return; }
+  if (!sd_file_manager::validPath(gFilesDir.c_str())) gFilesDir = "/";
+  File dir = SD.open(gFilesDir.c_str(), "r");
+  if (!dir || !dir.isDirectory()) { gFilesStatus = "Cannot open folder"; return; }
+  for (;;) {
+    File file = dir.openNextFile();
+    if (!file) break;
+    String name = filenameFromPath(String(file.path()));
+    String path = gFilesDir == "/" ? "/" + name : gFilesDir + "/" + name;
+    if (sd_file_manager::directChild(gFilesDir.c_str(), path.c_str())) {
+      if (gFileEntries.size() >= sd_file_manager::kMaxEntries) {
+        gFilesTruncated = true; file.close(); break;
+      }
+      gFileEntries.push_back({name, path, static_cast<uint64_t>(file.size()), file.isDirectory()});
+    }
+    file.close();
+  }
+  dir.close();
+  std::sort(gFileEntries.begin(), gFileEntries.end(), [](const SdFileEntry& a, const SdFileEntry& b) {
+    if (a.directory != b.directory) return a.directory;
+    return a.name.compareTo(b.name) < 0;
+  });
+  gSelectedFile = clampValue<int>(gSelectedFile, 0, max<int>(0, static_cast<int>(gFileEntries.size()) - 1));
+  gFilesStatus = gFilesTruncated ? "First 128; refresh after cleanup" :
+                 gFileEntries.empty() ? "Empty folder" : String(gFileEntries.size()) + " entries";
+}
+
+bool handleFileManagerKey(char key, const Keyboard_Class::KeysState& keys) {
+  const char lower = static_cast<char>(tolower(static_cast<unsigned char>(key)));
+  const bool escape = key == 27 || key == '`' || key == '~' || hasHidKey(keys, kHidKeyEscape);
+  if (gFileDelete.pending()) {
+    const String path = gFileDelete.path.c_str();
+    const bool busy = !gSdReady || fileManagerBusy();
+    bool directory = true;
+    uint64_t size = 0;
+    bool exists = false;
+    if (!busy && lower == 'y' && !keys.ctrl && !keys.alt && !keys.fn) {
+      File file = SD.open(path.c_str(), "r");
+      if (file) { exists = true; directory = file.isDirectory(); size = file.size(); file.close(); }
+    }
+    const bool confirmed = gFileDelete.confirm(
+        lower == 'y' && !keys.ctrl && !keys.alt && !keys.fn ? 'y' : 'n',
+        gFilesDir.c_str(), path.c_str(), size, directory, busy || !exists);
+    if (confirmed) {
+      const bool removed = SD.remove(path.c_str());
+      refreshFileManager();
+      gFilesStatus = removed ? "File deleted" : "Delete failed";
+      if (removed) { gNotesScanned = false; clearEmojiCache(); }
+    } else {
+      gFilesStatus = lower == 'y' ? "Not deleted: busy or changed" : "Deletion cancelled";
+    }
+    return true;
+  }
+  if (keys.tab || keys.ctrl) return false;
+  if (escape) {
+    if (gFilesDir == "/") setUiMode(UiMode::Home);
+    else { gFilesDir = parentDirOf(gFilesDir); gSelectedFile = 0; refreshFileManager(); }
+    return true;
+  }
+  if (lower == 'r') { refreshFileManager(); return true; }
+  if (fileManagerBusy()) { gFilesStatus = "Storage busy; R to retry"; return true; }
+  if (key == ',' || key == ';') gSelectedFile = max<int>(0, gSelectedFile - 1);
+  else if (key == '.' || key == '/')
+    gSelectedFile = min<int>(max<int>(0, static_cast<int>(gFileEntries.size()) - 1), gSelectedFile + 1);
+  else if (!gFileEntries.empty()) {
+    gSelectedFile = clampValue<int>(gSelectedFile, 0, static_cast<int>(gFileEntries.size()) - 1);
+    const auto& entry = gFileEntries[gSelectedFile];
+    if (keys.enter || key == '\r' || key == '\n') {
+      if (entry.directory) { gFilesDir = entry.path; gSelectedFile = 0; refreshFileManager(); }
+      else gFilesStatus = "D or Del to delete this file";
+    } else if (lower == 'd' || keys.del || key == '\b') {
+      if (!gFileDelete.arm(gFilesDir.c_str(), entry.path.c_str(), entry.size, entry.directory))
+        gFilesStatus = "Folders cannot be deleted";
+    }
+  }
+  return true;
+}

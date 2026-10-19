@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Files:
+        renderFileManagerUi();
+        break;
       case UiMode::Nes:
         renderNesMenu();
         break;
