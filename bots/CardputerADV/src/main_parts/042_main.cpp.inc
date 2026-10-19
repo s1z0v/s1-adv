@@ -62,6 +62,20 @@ bool acceptRealtimePcmBytes(const uint8_t* pcm, size_t pcmBytes) {
   if (!pcm || pcmBytes == 0 || (pcmBytes & 1U) != 0) {
     return false;
   }
+  // PCM can follow speech_stopped within the same socket poll. Stop capture
+  // before allocating/playing the reply instead of waiting for the next loop.
+  if (gRealtimeRecording) {
+    gRealtimeVadStopPending = false;
+    stopRealtimeRecordingForVad();
+    if (!gRealtimeActive) return false;
+  }
+  if (!gRealtimePlaybackRing) {
+    gRealtimePlaybackRing.reset(new (std::nothrow) uint8_t[kRealtimePlaybackRingBytes]);
+    if (!gRealtimePlaybackRing) {
+      failRealtimeSession("Not enough memory for reply audio");
+      return false;
+    }
+  }
   const uint32_t now = millis();
   const bool firstAudio = gRealtimeFirstAudioDeltaMs == 0;
   if (firstAudio) {

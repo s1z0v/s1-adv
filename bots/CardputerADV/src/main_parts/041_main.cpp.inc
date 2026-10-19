@@ -85,6 +85,10 @@ void resetRealtimePlaybackState(bool stopSpeaker) {
   gRealtimePlaybackRead = 0;
   gRealtimePlaybackWrite = 0;
   gRealtimePlaybackBufferedBytes = 0;
+  // Mic capture and reply playback are half duplex. Do not permanently take
+  // 16 KB away from the Wi-Fi driver while it is sending microphone frames.
+  // Speaker DMA owns separate copied chunks, so it never references this ring.
+  gRealtimePlaybackRing.reset();
   gRealtimePlaybackDroppedBytes = 0;
   gRealtimePlaybackNextBuffer = 0;
   gRealtimeReplyBytes = 0;
@@ -110,9 +114,9 @@ size_t writeRealtimePlaybackRing(const uint8_t* data, size_t length) {
   }
   const size_t writable = min(length, kRealtimePlaybackRingBytes - gRealtimePlaybackBufferedBytes);
   const size_t first = min(writable, kRealtimePlaybackRingBytes - gRealtimePlaybackWrite);
-  memcpy(gRealtimePlaybackRing + gRealtimePlaybackWrite, data, first);
+  memcpy(gRealtimePlaybackRing.get() + gRealtimePlaybackWrite, data, first);
   if (writable > first) {
-    memcpy(gRealtimePlaybackRing, data + first, writable - first);
+    memcpy(gRealtimePlaybackRing.get(), data + first, writable - first);
   }
   gRealtimePlaybackWrite = (gRealtimePlaybackWrite + writable) % kRealtimePlaybackRingBytes;
   gRealtimePlaybackBufferedBytes += writable;
@@ -125,9 +129,9 @@ size_t writeRealtimePlaybackRing(const uint8_t* data, size_t length) {
 size_t readRealtimePlaybackRing(uint8_t* data, size_t length) {
   const size_t readable = min(length, gRealtimePlaybackBufferedBytes);
   const size_t first = min(readable, kRealtimePlaybackRingBytes - gRealtimePlaybackRead);
-  memcpy(data, gRealtimePlaybackRing + gRealtimePlaybackRead, first);
+  memcpy(data, gRealtimePlaybackRing.get() + gRealtimePlaybackRead, first);
   if (readable > first) {
-    memcpy(data + first, gRealtimePlaybackRing, readable - first);
+    memcpy(data + first, gRealtimePlaybackRing.get(), readable - first);
   }
   gRealtimePlaybackRead = (gRealtimePlaybackRead + readable) % kRealtimePlaybackRingBytes;
   gRealtimePlaybackBufferedBytes -= readable;
