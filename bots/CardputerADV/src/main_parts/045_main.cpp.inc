@@ -192,32 +192,18 @@ bool handleAssetsKey(char key) {
 }
 
 bool handleOtaKey(char key, const Keyboard_Class::KeysState& keys) {
-  char lowerKey = static_cast<char>(tolower(static_cast<unsigned char>(key)));
-  if (lowerKey == 'f') {
-    gPendingOtaCheckAction = true;
-    gPendingOtaActionAfterMs = millis() + 100;
-    setStatus("Checking Bridge", 1200);
+  if ((!keys.enter && key != '\n' && key != '\r') || keys.ctrl || keys.alt || keys.fn) return false;
+  if (gOtaPendingVerify) { setStatus("Verifying installed update", 1200); return true; }
+  if (!homeFirmwareUpdateAvailable()) {
+    setStatus(gOtaManifest.parsed ? "Firmware is current" : "Checking for updates", 1200);
     return true;
   }
-  if (lowerKey == 'r') {
-    loadOtaManifestSummary();
-    setStatus("OTA manifest reloaded", 900);
-    return true;
-  }
-  if (lowerKey == 'c') {
-    confirmOtaBootIfPending("manual confirm");
-    return true;
-  }
-  if (lowerKey == 'x' || lowerKey == 'b') {
-    rollbackPendingOta("manual key");
-    return true;
-  }
-  if (lowerKey == 'a' || keys.enter || key == '\n' || key == '\r') {
-    setStatus("OTA apply requested", 700);
-    appendRuntimeLog("OTA", "apply requested by keyboard", true);
-    render();
-    applyOtaFromManifest();
-    return true;
-  }
-  return false;
+  // One press queues a fresh authenticated check, then applies only its
+  // successful result. Escape and all existing power/hash checks still apply.
+  gPendingOtaCheckAction = true;
+  gPendingOtaApplyAction = true;
+  gPendingOtaActionAfterMs = millis() + 100;
+  setStatus("Preparing update", 1200);
+  appendRuntimeLog("OTA", "install requested by Enter", true);
+  return true;
 }

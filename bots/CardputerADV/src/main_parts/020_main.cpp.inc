@@ -381,15 +381,18 @@ bool startBackgroundManifestCheck(bool applyAfter, bool announce) {
   }
   gOtaLastAutoCheckMs = millis();
   logf("[OTA_AUTO] GET at_ms=%u interval_ms=%u apply=%d", static_cast<unsigned>(millis()),
-       kOtaAutoCheckIntervalMs, static_cast<int>(applyAfter));
+       gUiMode == UiMode::Ota ? kOtaScreenCheckIntervalMs : kOtaAutoCheckIntervalMs,
+       static_cast<int>(applyAfter));
   return true;
 }
 
 void serviceAutoInboxPoll() {
   uint32_t now = millis();
-  if (gInboxHttpBusy || now < 30000U || now - gLastUserInputMs < 1000U || !autoInboxPollAllowed()) return;
+  if (gInboxHttpBusy || (now < 30000U && gUiMode != UiMode::Ota) ||
+      now - gLastUserInputMs < 1000U || !autoInboxPollAllowed()) return;
   if (gVoiceReplyPending && now - gVoiceReplyPendingMs > 300000U) gVoiceReplyPending = false;
-  const bool otaDue = now - gOtaLastAutoCheckMs >= kOtaAutoCheckIntervalMs &&
+  const uint32_t otaInterval = gUiMode == UiMode::Ota ? kOtaScreenCheckIntervalMs : kOtaAutoCheckIntervalMs;
+  const bool otaDue = now - gOtaLastAutoCheckMs >= otaInterval &&
                       !gPendingOtaCheckAction && !gPendingOtaApplyAction;
   const uint32_t interval = !gInboxAckQueue.empty() ? 250U : (gVoiceReplyPending ? 4000U : kInboxAutoPollIntervalMs);
   if (gInboxRetryAfterMs && static_cast<int32_t>(now-gInboxRetryAfterMs)<0) return;

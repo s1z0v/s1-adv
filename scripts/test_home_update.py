@@ -36,7 +36,7 @@ struct String:std::string {
 };
 enum class UiMode {Home,Clock,ChatFull,Face,Ota};
 UiMode gUiMode=UiMode::Home;
-struct Keyboard_Class {struct KeysState {bool ctrl=false,alt=false,fn=false;};};
+struct Keyboard_Class {struct KeysState {bool ctrl=false,alt=false,fn=false,enter=false;};};
 struct {bool parsed=false;String url,sha256,version;uint32_t size=0;} gOtaManifest;
 const char* kAppVersion="0.2.161-dev";
 bool gLauncherVisible=false,gChatCommandsVisible=false,gVoiceNoticeVisible=false;
@@ -44,6 +44,8 @@ bool gBlockingInputPumpActive=false,gRecording=false,gSubmitting=false,gThinking
 bool gPlaybackActive=false,gRealtimeActive=false,gRealtimeDialBusy=false,gOtaApplyInProgress=false;
 bool gPendingOtaCheckAction=false,gPendingOtaApplyAction=false,gInboxHttpBusy=false;
 bool gVoiceDialBusy=false,gVoiceReplySpeechBusy=false,gTextTurnTaskHandle=false;
+bool gOtaPendingVerify=false;
+bool voiceRequestBusyUi(){return gVoiceNoticeVisible && (gRecording || gSubmitting || gThinking);}
 uint32_t gPendingOtaActionAfterMs=0,now=1000;
 uint32_t millis(){return now;}
 String status;
@@ -93,6 +95,7 @@ struct Canvas {
 '''
 code += function('015_main.cpp.inc', 'bool homeFirmwareUpdateAvailable()')
 code += function('064_main.cpp.inc', 'bool handleHomeUpdateKey(')
+code += function('045_main.cpp.inc', 'bool handleOtaKey(')
 code += function('024_main.cpp.inc', 'void servicePendingOtaAction()')
 code += function('065_main.cpp.inc', 'void applyFirmwareJobState(')
 code += function('065_main.cpp.inc', 'const char* homeStatusLabel(')
@@ -234,6 +237,19 @@ int main(){
  gWifiReady=false;assert(std::string(homeStatusLabel(false))=="CHECK LINK");
  gWifiReady=true;pollAllowed=true;
  applyFirmwareJobState("idle","");assert(std::string(homeStatusLabel(false))=="READY");
+ // The firmware screen has one action. Enter queues a fresh check and one
+ // install; old Fetch/Reload/Apply/Confirm/Rollback letters have no UI action.
+ resetQueue();keys={};gUiMode=UiMode::Ota;candidate();
+ for(char key:{'f','r','a','c','x','b'})assert(!handleOtaKey(key,keys));
+ assert(!gPendingOtaCheckAction&&!gPendingOtaApplyAction);
+ assert(handleOtaKey('\n',keys));assert(gPendingOtaCheckAction&&gPendingOtaApplyAction);
+ resetQueue();gOtaManifest.version=kAppVersion;
+ assert(handleOtaKey('\n',keys));assert(!gPendingOtaCheckAction&&!gPendingOtaApplyAction);
+ candidate();gOtaPendingVerify=true;
+ assert(handleOtaKey('\n',keys));assert(!gPendingOtaApplyAction);gOtaPendingVerify=false;
+ // The compact Home badge remains honest while the unified scene is sending.
+ gThinking=true;assert(std::string(homeStatusLabel(false))=="THINKING");
+ gThinking=false;
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-home-update-') as directory:

@@ -20,7 +20,7 @@
 
   if (state == AssistantPulseState::Recording) {
     c1 = red;
-    c2 = rgb565_local(255, 178, 59);
+    c2 = rgb565_local(255, 111, 128);
     c3 = rgb565_local(88, 32, 42);
     fg = rgb565_local(255, 241, 239);
     label = "REC";
@@ -222,7 +222,7 @@
   if (state == AssistantPulseState::Recording || (realtime && gRealtimeRecording)) {
     d.fillCircle(133, 112, 4 + static_cast<int16_t>(sinf(t * 8.0f)), c1);
   }
-  if(state==AssistantPulseState::Ready) {
+  if(state==AssistantPulseState::Ready || state==AssistantPulseState::Thinking) {
     drawHomeReadyStatus(homeFirmwareUpdateAvailable() || millis()<gHomeUpdatePreviewUntilMs,
                         millis()<gAssistantPulsePressUntilMs);
     drawHomeBatteryStatus(gBatterySnapshot.level);
@@ -232,12 +232,6 @@
     d.setTextColor(rgb565_local(255, 189, 88), bg);
     d.setCursor(123, 13);
     d.print("realtime");
-  }
-  if (gAssistantPendingVisible && state == AssistantPulseState::Thinking) {
-    d.setFont(&fonts::Font2);
-    d.setTextColor(amber, bg);
-    d.setCursor(123, 13);
-    d.print("agent thinking");
   }
   if (gBootBackgroundActive) {
     uint8_t phase = static_cast<uint8_t>((millis() / 180U) % 4U);

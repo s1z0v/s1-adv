@@ -2,6 +2,7 @@
 struct InboxHttpPayload { String url, token, eventId, body; bool otaManifest = false, applyAfter = false, announce = false, logsUpload = false; };
 struct InboxHttpResult { int code=0; String body, eventId; bool otaManifest = false, applyAfter = false, announce = false, logsUpload = false; };
 constexpr uint32_t kOtaAutoCheckIntervalMs = 20000U;
+constexpr uint32_t kOtaScreenCheckIntervalMs = 5000U;
 uint32_t gOtaLastAutoCheckMs = 0;
 portMUX_TYPE gInboxHttpMux = portMUX_INITIALIZER_UNLOCKED;
 InboxHttpResult* gInboxHttpResult = nullptr;

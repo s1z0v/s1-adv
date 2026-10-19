@@ -32,7 +32,7 @@ void* gTextTurnTaskHandle=nullptr;void* gCompletedTextTurn=nullptr;
 String gActiveTextTurn,gInputBuffer,gDeviceToken="private-in-memory",gHubHost="bridge.invalid";
 std::deque<String> gPendingTextTurns,gInboxAckQueue;
 uint32_t now=30000,gOtaLastAutoCheckMs=0,gLastUserActivityMs=0,gLastUserInputMs=0,gLastInboxAutoPollMs=0,gInboxRetryAfterMs=0;
-constexpr uint32_t kOtaAutoCheckIntervalMs=20000,kInboxAutoPollIntervalMs=15000;
+constexpr uint32_t kOtaAutoCheckIntervalMs=20000,kOtaScreenCheckIntervalMs=5000,kInboxAutoPollIntervalMs=15000;
 constexpr const char* kFirmwareManifestFetchPath="/api/cardputer/firmware/manifest";
 constexpr const char* kAppVersion="0.2.167-dev";constexpr const char* kBuildGitSha="test";
 bool gInboxHttpBusy=false,gVoiceReplyPending=false,gPendingOtaCheckAction=false,gPendingOtaApplyAction=false,failStart=false;
@@ -127,6 +127,19 @@ int main(){
  assert(autoInboxPollAllowed());now+=20000;gLastUserInputMs=now;
  auto n=dispatched.size();serviceAutoInboxPoll();assert(dispatched.size()==n);
  now+=1001;serviceAutoInboxPoll();assert(dispatched.size()==n+1);finish();
+ // An open firmware screen checks every five seconds using that same owner.
+ // Returning Home restores twenty seconds. Busy audio still defers a due GET.
+ gUiMode=UiMode::Ota;gLauncherVisible=false;gLastUserInputMs=0;gOtaLastAutoCheckMs=now;
+ auto screenCount=manifestTimes.size();
+ now+=4999;serviceAutoInboxPoll();finish();assert(manifestTimes.size()==screenCount);
+ ++now;serviceAutoInboxPoll();assert(manifestTimes.size()==screenCount+1);finish();
+ auto lastScreenCheck=now;
+ gRecording=true;now+=5000;serviceAutoInboxPoll();assert(manifestTimes.size()==screenCount+1);
+ gRecording=false;serviceAutoInboxPoll();assert(manifestTimes.back()==now);finish();
+ gUiMode=UiMode::Home;auto homeCount=manifestTimes.size();
+ now+=5000;serviceAutoInboxPoll();finish();assert(manifestTimes.size()==homeCount);
+ now+=15000;serviceAutoInboxPoll();finish();assert(manifestTimes.size()==homeCount+1);
+ assert(lastScreenCheck>0);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-auto-ota-') as directory:

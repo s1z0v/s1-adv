@@ -176,7 +176,7 @@ void renderOtaUi() {
   }
   auto& d = gCanvas;
   const bool hasCandidate = gOtaManifest.parsed && !gOtaManifest.version.isEmpty();
-  const bool updateReady = hasCandidate && release_delivery::isNewerVersion(gOtaManifest.version.c_str(),kAppVersion);
+  const bool updateReady = homeFirmwareUpdateAvailable();
   const uint16_t bg = rgb565_local(3, 5, 10);
   const uint16_t panel = rgb565_local(12, 12, 20);
   const uint16_t panel2 = rgb565_local(25, 16, 24);
@@ -196,9 +196,10 @@ void renderOtaUi() {
   d.setFont(&fonts::Font2);
   d.setTextColor(accent, panel);
   d.setCursor(16, 14);
-  d.print("FIRMWARE OTA");
+  d.print("FIRMWARE");
   d.setFont(&fonts::Font0);
-  String state = gPendingOtaCheckAction ? "CHECK" : gOtaPendingVerify ? "VERIFY" : updateReady ? "UPDATE" : hasCandidate ? "CURRENT" : "FETCH";
+  String state = gOtaPendingVerify ? "VERIFY" : updateReady ? "UPDATE" :
+      (gPendingOtaCheckAction || gInboxHttpBusy) ? "CHECKING" : hasCandidate ? "CURRENT" : "CHECKING";
   d.setTextColor(accent, panel);
   d.setCursor(224 - d.textWidth(state), 17);
   d.print(state);
@@ -226,15 +227,6 @@ void renderOtaUi() {
   if (updateReady && !release_delivery::otaPowerAllowed(gBatterySnapshot.level, externalPower, minimum)) {
     d.setTextColor(amber, panel);
     d.print(fitCurrentFontToWidth("Charge to " + String(minimum) + "% or connect USB", 202));
-  } else if (strcmp(homeStatusLabel(updateReady),"CHECK LINK")==0) {
-    d.setTextColor(amber, panel);
-    d.print("Bridge status stale; F checks");
-  } else if (strcmp(homeStatusLabel(updateReady),"UNCONFIRMED")==0) {
-    d.setTextColor(amber, panel);
-    d.print("Request receipt not confirmed");
-  } else if (strcmp(homeStatusLabel(updateReady),"NO PROGRESS")==0) {
-    d.setTextColor(amber, panel);
-    d.print("No recent build progress");
   } else if (!gOtaManifest.error.isEmpty()) {
     d.setTextColor(amber, panel);
     d.print(fitCurrentFontToWidth(gOtaManifest.error, 202));
@@ -253,17 +245,24 @@ void renderOtaUi() {
   } else if (hasCandidate) {
     d.print(fitCurrentFontToWidth(gOtaRunningSlot + " " + gOtaBootState + "; reserve " + compactFlashKb(fw.reserveBytes), 202));
   } else {
-    d.print("fetch manifest from bridge");
+    d.print("Automatically checks every 5s");
   }
 
-  if (gOtaPendingVerify) {
-    drawActionChip(17, 112, 58, "C", "confirm", green, panel2);
-    drawActionChip(81, 112, 58, "X", "rollback", red, panel2);
-    drawActionChip(145, 112, 58, "F", "fetch", cyan, panel2);
+  d.setFont(&fonts::Font0);
+  if (updateReady && !gOtaPendingVerify) {
+    d.fillRoundRect(17, 110, 202, 16, 5, panel2);
+    d.drawRoundRect(17, 110, 202, 16, 5, amber);
+    const char* action = "Enter  Install update";
+    d.setTextColor(amber, panel2);
+    d.setCursor(118 - d.textWidth(action) / 2, 114);
+    d.print(action);
   } else {
-    drawActionChip(17, 112, 58, "F", "fetch", cyan, panel2);
-    drawActionChip(81, 112, 58, "A", "apply", red, panel2);
-    drawActionChip(145, 112, 58, "R", "check", amber, panel2);
+    const char* status = gOtaPendingVerify ? "Verifying installed update" :
+        !gOtaManifest.error.isEmpty() ? "Check failed; retrying" :
+        hasCandidate ? "Up to date; checks every 5s" : "Checking for updates...";
+    d.setTextColor(gOtaPendingVerify ? amber : muted, panel);
+    d.setCursor(118 - d.textWidth(status) / 2, 114);
+    d.print(status);
   }
   renderLauncherOverlay();
   renderDebugOverlay();
