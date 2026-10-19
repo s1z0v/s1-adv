@@ -141,8 +141,10 @@
   }
 	  if (state == AssistantPulseState::Recording) {
 	    uint32_t elapsed = (millis() - gRecordStartMs) / 1000;
+	    unsigned minutes = static_cast<unsigned>(elapsed / 60);
+	    if (minutes > 99) minutes = 99;
 	    char rec[6];
-	    snprintf(rec, sizeof(rec), "%02u:%02u", static_cast<unsigned>(elapsed / 60),
+	    snprintf(rec, sizeof(rec), "%02u:%02u", minutes,
 	             static_cast<unsigned>(elapsed % 60));
 	    hhmm = rec;
 	  } else if (realtime) {

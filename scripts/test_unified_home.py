@@ -118,6 +118,7 @@ int main(){
  assert(gCanvas.clockRects==1&&gCanvas.chatRects==0&&batteries==0&&badges==0&&printed("00:12"));
  assert(!printed("saved draft")&&!printed("> type to chat"));
  assert(printed("RECORDING")&&!printed("Loading voice..."));
+ nowMs=gRecordStartMs+6000000;reset();renderAssistantPulseUi();assert(printed("99:00"));nowMs=13000;
  for(uint16_t color:{rgb565_local(255,63,85),rgb565_local(255,111,128)})
   assert(std::find(gCanvas.arcs.begin(),gCanvas.arcs.end(),color)!=gCanvas.arcs.end());
  gRecording=false;gVoiceNoticeVisible=true;gVoiceRequestPhase=VoiceRequestPhase::Sending;
