@@ -1,5 +1,36 @@
 # Public source validation
 
+## Spoken first replies, plugin 0.3.7 and firmware 0.2.180, 2026-10-19
+
+Source `1607f84d187e05309294d35b4cca5a0d41f95cb5` passed all 142 Bridge
+tests, package/security checks, 14 related firmware host checks and both GitHub
+CI jobs in run 39230098739. The reviewed source archive was installed on the
+personal host; all 39 native extension and isolated HTTP worker files matched
+the artifact. Models, agent/tools, channels, authentication and operator
+configuration were preserved. ClawHub latest remains 0.3.6; this verification
+does not assert a 0.3.7 registry publication.
+
+The private 0.2.180-dev image is 2,008,128 bytes, SHA-256
+`1a0586e6517a7953466fc126013aa3ddbfe3a594e38f3af50561559107c1812e`.
+The pushed source, manifest and complete served file were verified before one
+OTA install event. After one SD-stage remount/retry, the device installed the
+image and USB boot reported that version and full source at 09:38:05 UTC,
+running app1, state valid. The Bridge received the matching device report at
+09:38:52.979 UTC. The provisioned binary remains private.
+
+A real synthetic-WAV test exercised STT, the existing isolated LUNA / medium
+completion and OpenAI TTS. It transcribed the arithmetic question, answered
+`4`, and returned `speak_reply: true`. Voice HTTP took 7.827 s, including a
+6.773 s first completion; reply speech took another 1.401 s, total 9.228 s to
+ready audio on host loopback. Microphone capture, Cardputer Wi-Fi and audible
+speaker output are outside this timing. Subsecond or three-second full voice
+response is not established. A physical G0/voice and visible-screen check was
+requested and remains separate from these host and installation results.
+
+The historical held record in another session remains untouched. Current
+front delivery has zero pending or held records; the old global delivery hold
+is not relabeled as healthy or replayed by this release.
+
 ## Semantic first response and contextual status, plugin 0.3.6, 2026-10-19
 
 All 141 bridge tests passed, including ownership, durable dispatch, restart,
