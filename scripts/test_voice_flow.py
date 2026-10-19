@@ -44,6 +44,7 @@ unsigned uiSceneKey(){return 0;}bool gUiInputPending=false;
 bool gCanvasSpriteActive=true,gSetupPortalActive=false,gVoiceNoticePending=false;
 bool gLauncherVisible=false,gChatCommandsVisible=false;
 bool gVoiceReplySpeechBusy=false,gTransferUiActive=false,gOtaApplyInProgress=false,gPendingRestart=false;
+bool gVoiceReplyPending=true;int gChatScrollOffset=12;
 int speakerPlaying=0;struct {struct {int isPlaying(){return speakerPlaying;}} Speaker;} M5Cardputer;
 String gStatusText,gVoiceNoticeText,gVoiceRequestTranscript;
 unsigned gStatusUntilMs=0,gLastUiSlowLogMs=0,gVoiceNoticeShownMs=0,gVoiceRequestProgress=0;
@@ -73,11 +74,13 @@ struct {
 } gCanvas;
 '''
 code += 'enum class UiMode {' + ','.join(modes) + '};UiMode gUiMode=UiMode::Home;\n'
+code += 'void setUiMode(UiMode mode){gUiMode=mode;}\n'
 code += function((parts / '064_main.cpp.inc').read_text(), 'bool isAssistantUi()')
 code += function(notice, 'bool voiceRequestBusyUi()')
 code += function(notice, 'void beginVoiceRequestUi()')
 code += function(notice, 'void showVoiceNotice(')
 code += function(notice, 'void showVoiceRequestError(')
+code += function(notice, 'void openAssistantConversation()')
 code += function(notice, 'bool voiceReplyFeedbackReady()')
 code += function((parts / '009_main.cpp.inc').read_text(), 'AssistantPulseState assistantPulseState()')
 code += function((parts / '009_main.cpp.inc').read_text(), 'bool screensaverMayRun()')
@@ -133,6 +136,9 @@ int main(){
  gVoiceReplySpeechBusy=true;assert(!screensaverMayRun());gVoiceReplySpeechBusy=false;
  gUiMode=UiMode::Home;beginVoiceRequestUi();gRealtimeActive=true;
  assert(!voiceRequestBusyUi()); // Realtime retains its own rendering path.
+ gRealtimeActive=false;gSubmitting=gThinking=true;gVoiceRequestPhase=VoiceRequestPhase::Processing;
+ openAssistantConversation();expect({"CHAT"});
+ assert(gVoiceReplyPending&&gSubmitting&&gThinking&&gVoiceRequestPhase==VoiceRequestPhase::Processing);
 }
 '''
 with tempfile.TemporaryDirectory(prefix='s1-voice-flow-') as directory:

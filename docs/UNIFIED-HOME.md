@@ -18,6 +18,13 @@ are displayed/acknowledged normally but never reach the inline device-action
 parser. This applies to both pending-event batches and single-item envelopes.
 Primary-agent messages without that field retain supported device actions.
 
+Enter on an unread badge opens the locally stored conversation from every
+assistant view, including Clock (which shares the Home renderer). It jumps to
+the latest message, preserves the composer draft and pending agent/TTS state,
+and never fetches history or starts audio as part of opening. An in-flight
+voice wait can be left for chat; actual capture/preparation keeps its input
+ownership. Existing explicit playback from an already-read chat is unchanged.
+
 The firmware screen has one primary action, Enter / Install update. Enter
 queues one fresh authenticated manifest check and installs only its successful
 new-candidate result through the existing power/hash/boot gates. The normal

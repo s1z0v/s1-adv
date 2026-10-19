@@ -122,9 +122,9 @@ notice=r'''
 #include <cassert>
 #include <string>
 #include <cstdint>
-struct String:std::string {using std::string::string;String(const std::string& s):std::string(s){};};
-enum class UiMode {Home,Clock,ChatFull,ChatFace,Other}; UiMode gUiMode=UiMode::Home;
-struct Keyboard_Class {struct KeysState {bool enter=false,ctrl=false;};};
+struct String:std::string {using std::string::string;String(const std::string& s):std::string(s){}bool isEmpty()const{return empty();}};
+enum class UiMode {Home,Clock,Face,Hero,ChatFull,ChatFace,Other}; UiMode gUiMode=UiMode::Home;
+struct Keyboard_Class {struct KeysState {bool enter=false,ctrl=false,alt=false,fn=false;};};
 bool gVoiceNoticeVisible=false,gInboxUnread=true;
 enum class VoiceRequestPhase {None,Recording,Sending,Processing,Accepted,Reply,Error};
 VoiceRequestPhase gVoiceRequestPhase=VoiceRequestPhase::None;
@@ -132,6 +132,8 @@ String gVoiceRequestTranscript,gVoiceNoticeText;unsigned gVoiceRequestProgress=0
 bool gVoiceNoticePending=false,gLauncherVisible=false,gChatCommandsVisible=false;
 bool gRecording=false,gSubmitting=false,gThinking=false,gAssistantPendingVisible=false,gPlaybackActive=false;
 bool gVoiceReplyPending=true;unsigned gVoiceNoticeShownMs=0;
+bool gVoiceCapturePreparing=false,gG0VoicePending=false,gRealtimeExclusiveMode=false;int gChatScrollOffset=12;
+String gInputBuffer;
 enum class AssistantPulseState{Realtime,Recording,Thinking,Playback,Ready};
 bool gRealtimeActive=false,gRealtimeRecording=false,gRealtimeAwaiting=false;
 enum class FaceMode {Idle};void setFaceMode(FaceMode){}
@@ -151,12 +153,38 @@ notice+='\nstruct{void invalidate(){}}gUiFramePolicy;\n'
 notice+='\n'+function('065_main.cpp.inc','void showVoiceNotice(')
 notice+='\n'+function('065_main.cpp.inc','void showVoiceRequestError(')
 notice+='\n'+function('065_main.cpp.inc','bool handleVoiceRequestEscape()')
+notice+='\n'+function('065_main.cpp.inc','void openAssistantConversation()')
+notice+='\n'+function('065_main.cpp.inc','bool handleUnreadAssistantKey(')
 notice+='\n'+function('065_main.cpp.inc','bool handleVoiceNoticeKey(')
 notice+='\n'+function('065_main.cpp.inc','bool voiceRequestBusyUi()')
 notice+='\n'+function('009_main.cpp.inc','AssistantPulseState assistantPulseState()')
 notice+=r'''
 int main(){
  Keyboard_Class::KeysState keys;
+ // Clock draws the same unread Home badge, but previously only Home had an
+ // Enter/open path. Opening must preserve a draft and pending background work.
+ for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::Face,UiMode::Hero}){
+  gUiMode=mode;gInboxUnread=true;gVoiceNoticeVisible=true;
+  gVoiceRequestPhase=VoiceRequestPhase::Processing;gSubmitting=gThinking=true;
+  gChatScrollOffset=13;gInputBuffer="Unsent draft";gLastRenderMs=90;
+  keys.enter=true;assert(handleUnreadAssistantKey('\n',keys));
+  assert(gUiMode==UiMode::ChatFull&&!gInboxUnread&&!gVoiceNoticeVisible&&!voiceRequestBusyUi());
+  assert(gVoiceReplyPending&&gSubmitting&&gThinking&&gVoiceRequestPhase==VoiceRequestPhase::Processing);
+  assert(gInputBuffer=="Unsent draft"&&gChatScrollOffset==0&&gLastRenderMs==0);
+  assert(gQueuedVoiceReplySpeech=="voice"&&gVoiceReplySpeechGeneration==4);
+  assert(!handleUnreadAssistantKey('\n',keys)); // One press consumes the notice once.
+ }
+ gSubmitting=gThinking=false;gVoiceRequestPhase=VoiceRequestPhase::None;
+ gUiMode=UiMode::ChatFull;gInboxUnread=true;
+ assert(!handleUnreadAssistantKey('\n',keys)); // Composer Enter still sends its draft.
+ gInputBuffer="";assert(handleUnreadAssistantKey('\n',keys));
+ gUiMode=UiMode::Clock;gInboxUnread=true;
+ for(bool* owner:{&gRecording,&gVoiceCapturePreparing,&gG0VoicePending,&gRealtimeActive,&gRealtimeExclusiveMode,&gLauncherVisible,&gChatCommandsVisible}){
+  *owner=true;assert(!handleUnreadAssistantKey('\n',keys));*owner=false;
+ }
+ keys.ctrl=true;assert(!handleUnreadAssistantKey('\n',keys));keys.ctrl=false;
+ gUiMode=UiMode::Other;assert(!handleUnreadAssistantKey('\n',keys));
+ gUiMode=UiMode::Home;gVoiceNoticeVisible=false;gInboxUnread=true;keys.enter=false;
  assert(!handleVoiceNoticeKey('x',keys));
  gVoiceNoticeVisible=true;assert(handleVoiceNoticeKey('x',keys));
  assert(gVoiceNoticeVisible&&gUiMode==UiMode::Home);
@@ -178,10 +206,14 @@ int main(){
  gRecording=false;gVoiceRequestPhase=VoiceRequestPhase::Sending;
  // SD finalization already owns the window, before network busy flags are set.
  keys.enter=true;assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible);
- assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible&&gUiMode==UiMode::Home);
+ assert(handleVoiceNoticeKey('\n',keys)&&!gVoiceNoticeVisible&&gUiMode==UiMode::ChatFull);
+ assert(gVoiceRequestPhase==VoiceRequestPhase::Sending&&gVoiceReplyPending&&gChatScrollOffset==0);
+ gUiMode=UiMode::Home;gVoiceNoticeVisible=true;
  gSubmitting=true;gThinking=true;
  assert(handleVoiceRequestEscape()&&gVoiceNoticeVisible&&gVoiceRequestPhase==VoiceRequestPhase::Sending);
- keys.enter=true;assert(handleVoiceNoticeKey('\n',keys)&&gVoiceNoticeVisible);
+ keys.enter=true;assert(handleVoiceNoticeKey('\n',keys)&&!gVoiceNoticeVisible&&gUiMode==UiMode::ChatFull);
+ assert(gSubmitting&&gThinking&&gVoiceRequestPhase==VoiceRequestPhase::Sending);
+ gUiMode=UiMode::Home;
  gSubmitting=false;gThinking=false;gVoiceRequestTranscript="Russian input is retained";
  showVoiceNotice("Firmware request accepted on the server",true);
  assert(!voiceRequestBusyUi());
@@ -217,6 +249,8 @@ assert escape.index('handleVoiceRequestEscape()') < escape.index('setUiMode(UiMo
 state=function('009_main.cpp.inc','AssistantPulseState assistantPulseState()')
 assert 'gVoiceReplyPending' not in state
 print('PASS voice transitions, busy dismissal guard, accepted receipt, Enter chat, Esc Home; pending server task survives UI dismissal')
+typing=function('048_main.cpp.inc','void handleTypingKey(')
+assert typing.index('handleUnreadAssistantKey(')<typing.index('handleVoiceNoticeKey(')<typing.index('handlePetKey(')
 
 record=r'''
 #include <cassert>

@@ -67,6 +67,8 @@ String gFirmwareJobRequestId;
 void applyFirmwareJobState(const String& state, const String& requestId);
 const char* homeStatusLabel(bool updateReady);
 bool handleHomeLinkRetryKey(char key, const Keyboard_Class::KeysState& keys);
+void openAssistantConversation();
+bool handleUnreadAssistantKey(char key, const Keyboard_Class::KeysState& keys);
 void acceptPendingAssistantRequest(const String& transcript, const String& acknowledgement,
                                    uint32_t afterSeq, uint32_t receiptSeq);
 void beginVoiceRequestUi();

@@ -146,21 +146,40 @@ bool handleVoiceRequestEscape() {
   return true;
 }
 
+void openAssistantConversation() {
+  // Navigation uses the reply already stored locally. Do not fetch history,
+  // play audio, submit a draft or cancel a pending request/TTS preparation.
+  gVoiceNoticeVisible = false;
+  if (!gSubmitting && !gThinking && gVoiceRequestPhase != VoiceRequestPhase::Sending &&
+      gVoiceRequestPhase != VoiceRequestPhase::Processing) gVoiceRequestPhase = VoiceRequestPhase::None;
+  gInboxUnread = false;
+  gChatScrollOffset = 0;
+  setUiMode(UiMode::ChatFull);
+  gUiFramePolicy.invalidate();
+  gLastRenderMs = 0;
+  logf("[VOICE_UI] open-chat local pending=%d", static_cast<int>(gVoiceReplyPending));
+}
+
+bool handleUnreadAssistantKey(char key, const Keyboard_Class::KeysState& keys) {
+  if (!gInboxUnread || !isAssistantUi() || gLauncherVisible || gChatCommandsVisible ||
+      keys.ctrl || keys.alt || keys.fn || !(keys.enter || key == '\r' || key == '\n') ||
+      gRecording || gG0VoicePending || gVoiceCapturePreparing || gRealtimeActive || gRealtimeExclusiveMode)
+    return false;
+  if ((gUiMode == UiMode::ChatFull || gUiMode == UiMode::ChatFace) && !gInputBuffer.isEmpty()) return false;
+  openAssistantConversation();
+  return true;
+}
+
 bool handleVoiceNoticeKey(char key, const Keyboard_Class::KeysState& keys) {
   if (!gVoiceNoticeVisible || !isAssistantUi()) return false;
   if(gVoiceRequestPhase==VoiceRequestPhase::Recording && keys.ctrl &&
       (key=='v'||key=='V')) return false;
+  if (!gRecording && !gVoiceCapturePreparing && (keys.enter || key == '\r' || key == '\n')) {
+    openAssistantConversation();
+    return true;
+  }
   if(gVoiceRequestPhase==VoiceRequestPhase::Recording || gVoiceRequestPhase==VoiceRequestPhase::Sending ||
      gVoiceRequestPhase==VoiceRequestPhase::Processing || gSubmitting || gThinking) return true;
-  if (keys.enter || key == '\r' || key == '\n') {
-    // Opening the conversation does not cancel speech already preparing.
-    gVoiceNoticeVisible = false;
-    gVoiceRequestPhase=VoiceRequestPhase::None;
-    gAssistantPendingVisible=false;
-    gInboxUnread = false;
-    setUiMode(UiMode::ChatFull);
-    logf("[VOICE_UI] sheet=open-chat");
-  }
   return true;
 }
 
