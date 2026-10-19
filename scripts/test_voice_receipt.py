@@ -147,6 +147,15 @@ int main(){
   reset();assert(!finishVoiceSubmission(false,-1,"","saved.wav",749568));
   assert(gVoiceRequestPhase==VoiceRequestPhase::Error&&!gVoiceReplyPending&&tones==0);
   assert(gVoiceNoticeText.find("No delivery receipt")!=std::string::npos);
+  reset();gLastHttpDiag="voice_post: bridge connection unavailable";
+  assert(!finishVoiceSubmission(false,-1,"","saved.wav",749568));
+  assert(gVoiceNoticeText.find("Bridge unavailable. Check Wi-Fi.")!=std::string::npos);
+  assert(gVoiceNoticeText.find("Recording kept in Voice Notes.")!=std::string::npos);
+  assert(tones==0 && gVoiceRequestPhase==VoiceRequestPhase::Error);
+  reset();gLastHttpDiag="voice_post: wifi/hub unavailable";
+  assert(!finishVoiceSubmission(false,-1,"","",749568));
+  assert(gVoiceNoticeText.find("Bridge unavailable. Check Wi-Fi.")!=std::string::npos);
+  assert(gVoiceNoticeText.find("Recording kept")==std::string::npos);
   }
  // Text acceptance keeps the body and ends THINK. Generic receipts stay silent.
  for(auto mode:{UiMode::Home,UiMode::Clock,UiMode::ChatFull,UiMode::ChatFace}) {

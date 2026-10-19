@@ -46,7 +46,10 @@ bool finishVoiceSubmission(bool transportOk, int statusCode, const String& respo
       transportError = statusCode <= 0 ? HTTPClient::errorToString(statusCode) : String("unknown");
     }
     pushError("Voice transport failed: " + transportError);
-    showVoiceRequestError("No delivery receipt. Open chat before retrying." +
+    const bool unavailable = transportError == "voice_post: bridge connection unavailable" ||
+                             transportError == "voice_post: wifi/hub unavailable";
+    showVoiceRequestError(String(unavailable ? "Bridge unavailable. Check Wi-Fi." :
+        "No delivery receipt. Open chat before retrying.") +
         String(pcmUploadPath.isEmpty()?"":" Recording kept in Voice Notes."));
     if (!pcmUploadPath.isEmpty()) pushSystem("Recording kept in Voice Notes.");
     setFaceMode(FaceMode::Error);

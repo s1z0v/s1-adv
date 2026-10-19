@@ -77,30 +77,18 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   setStatus("Connecting voice...");
   render();
 
-  struct CanvasGuard {
-    bool released = false;
-    ~CanvasGuard() { if (released) restoreUiCanvasAfterNetwork(); }
-  } canvas;
   clearEmojiCache();
-  WiFiClient plainClient;
-  WiFiClientSecure secureClient;
   beginVoicePreconnect(); // Fresh connection, immediately followed by HTTP headers/body.
   std::unique_ptr<WiFiClient> prepared = takeVoicePreconnect();
   if (gVoiceDialBusy) { setHttpDiag("voice_post: connection still preparing"); return false; }
-  if (!prepared && hubUsesTls())
-    canvas.released = releaseUiCanvasForNetwork("voice TLS");
-  WiFiClient* client = nullptr;
-  if (prepared) {
-    client = prepared.get();
-  } else if (hubUsesTls()) {
-    configureSecureClient(secureClient);
-    secureClient.setTimeout((kTurnHttpTimeoutMs + 999) / 1000);
-    client = &secureClient;
-  } else {
-    plainClient.setTimeout((kTurnHttpTimeoutMs + 999) / 1000);
-    plainClient.setNoDelay(true);
-    client = &plainClient;
+  if (!prepared || !prepared->connected()) {
+    // The worker already attempted the dial with a bounded TCP/TLS timeout.
+    // A second synchronous connect inherits the long reply timeout and can
+    // freeze input for tens of seconds while the same server is unreachable.
+    setHttpDiag("voice_post: bridge connection unavailable");
+    return false;
   }
+  WiFiClient* client = prepared.get();
 
   logf("[VOICE] raw post preconnect free=%u largest=%u host=%s port=%u",
        static_cast<unsigned>(ESP.getFreeHeap()),
@@ -110,24 +98,8 @@ bool postRawVoiceTurn(const uint8_t* ramPayload, const String& filePath, size_t 
   if (hubUsesTls()) {
     logf("[VOICE] raw post tls_verify=%s", tlsVerifyMode());
   }
-  setHttpDiag("voice_post: connect");
-  const uint32_t connectStartedMs = millis();
-  if (!client->connected() && !client->connect(gHubHost.c_str(), gHubPort)) {
-    setHttpDiag("voice_post: connect failed largest=" +
-                String(static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT))));
-    logf("[VOICE] raw post connect failed host=%s port=%u free=%u largest=%u",
-         gHubHost.c_str(),
-         gHubPort,
-         static_cast<unsigned>(ESP.getFreeHeap()),
-         static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
-    return false;
-  }
-  logf("[VOICE] connected reused=%d ms=%u", static_cast<int>(prepared != nullptr), static_cast<unsigned>(millis() - connectStartedMs));
+  logf("[VOICE] connected via_worker=1");
   logf("[VOICE][LAT] tls_ready t=%u", static_cast<unsigned>(millis()));
-  if (canvas.released) {
-    restoreUiCanvasAfterNetwork();
-    canvas.released=!gCanvasSpriteActive;
-  }
 
   String hostHeader = gHubHost;
   client->setNoDelay(true); // The connected socket must exist before TCP_NODELAY is set.
