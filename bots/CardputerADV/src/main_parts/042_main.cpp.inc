@@ -58,6 +58,25 @@ uint32_t readRealtimeLe32(const uint8_t* data) {
          (static_cast<uint32_t>(data[3]) << 24);
 }
 
+bool ensureRealtimePlaybackRing() {
+  if (gRealtimePlaybackBlocks[0]) return true;
+  // TLS/Wi-Fi and the speaker can leave enough total RAM for PCM without a
+  // contiguous 16 KiB region. Keep the same capacity in independent 2 KiB
+  // blocks, allocated only while replying and rolled back on any failure.
+  for (size_t i = 0; i < kRealtimePlaybackBlockCount; ++i) {
+    gRealtimePlaybackBlocks[i].reset(new (std::nothrow) uint8_t[kRealtimePlaybackBlockBytes]);
+    if (!gRealtimePlaybackBlocks[i]) {
+      logf("[RT] reply buffer allocation failed block=%u bytes=%u free=%u largest=%u",
+           static_cast<unsigned>(i), static_cast<unsigned>(kRealtimePlaybackBlockBytes),
+           static_cast<unsigned>(ESP.getFreeHeap()),
+           static_cast<unsigned>(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT)));
+      for (auto& block : gRealtimePlaybackBlocks) block.reset();
+      return false;
+    }
+  }
+  return true;
+}
+
 bool acceptRealtimePcmBytes(const uint8_t* pcm, size_t pcmBytes) {
   if (!pcm || pcmBytes == 0 || (pcmBytes & 1U) != 0) {
     return false;
@@ -69,12 +88,9 @@ bool acceptRealtimePcmBytes(const uint8_t* pcm, size_t pcmBytes) {
     stopRealtimeRecordingForVad();
     if (!gRealtimeActive) return false;
   }
-  if (!gRealtimePlaybackRing) {
-    gRealtimePlaybackRing.reset(new (std::nothrow) uint8_t[kRealtimePlaybackRingBytes]);
-    if (!gRealtimePlaybackRing) {
-      failRealtimeSession("Not enough memory for reply audio");
-      return false;
-    }
+  if (!ensureRealtimePlaybackRing()) {
+    failRealtimeSession("Not enough memory for reply audio");
+    return false;
   }
   const uint32_t now = millis();
   const bool firstAudio = gRealtimeFirstAudioDeltaMs == 0;

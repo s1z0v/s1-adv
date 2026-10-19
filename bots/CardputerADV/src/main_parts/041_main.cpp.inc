@@ -88,7 +88,7 @@ void resetRealtimePlaybackState(bool stopSpeaker) {
   // Mic capture and reply playback are half duplex. Do not permanently take
   // 16 KB away from the Wi-Fi driver while it is sending microphone frames.
   // Speaker DMA owns separate copied chunks, so it never references this ring.
-  gRealtimePlaybackRing.reset();
+  for (auto& block : gRealtimePlaybackBlocks) block.reset();
   gRealtimePlaybackDroppedBytes = 0;
   gRealtimePlaybackNextBuffer = 0;
   gRealtimeReplyBytes = 0;
@@ -109,14 +109,18 @@ void markRealtimeLatencyOrigin(const char* source) {
 }
 
 size_t writeRealtimePlaybackRing(const uint8_t* data, size_t length) {
-  if (!data || length == 0) {
+  if (!data || length == 0 || !gRealtimePlaybackBlocks[0]) {
     return 0;
   }
   const size_t writable = min(length, kRealtimePlaybackRingBytes - gRealtimePlaybackBufferedBytes);
-  const size_t first = min(writable, kRealtimePlaybackRingBytes - gRealtimePlaybackWrite);
-  memcpy(gRealtimePlaybackRing.get() + gRealtimePlaybackWrite, data, first);
-  if (writable > first) {
-    memcpy(gRealtimePlaybackRing.get(), data + first, writable - first);
+  size_t copied = 0;
+  while (copied < writable) {
+    const size_t position = (gRealtimePlaybackWrite + copied) % kRealtimePlaybackRingBytes;
+    const size_t inBlock = position % kRealtimePlaybackBlockBytes;
+    const size_t count = min(writable - copied, kRealtimePlaybackBlockBytes - inBlock);
+    memcpy(gRealtimePlaybackBlocks[position / kRealtimePlaybackBlockBytes].get() + inBlock,
+           data + copied, count);
+    copied += count;
   }
   gRealtimePlaybackWrite = (gRealtimePlaybackWrite + writable) % kRealtimePlaybackRingBytes;
   gRealtimePlaybackBufferedBytes += writable;
@@ -127,11 +131,16 @@ size_t writeRealtimePlaybackRing(const uint8_t* data, size_t length) {
 }
 
 size_t readRealtimePlaybackRing(uint8_t* data, size_t length) {
+  if (!data || length == 0 || !gRealtimePlaybackBlocks[0]) return 0;
   const size_t readable = min(length, gRealtimePlaybackBufferedBytes);
-  const size_t first = min(readable, kRealtimePlaybackRingBytes - gRealtimePlaybackRead);
-  memcpy(data, gRealtimePlaybackRing.get() + gRealtimePlaybackRead, first);
-  if (readable > first) {
-    memcpy(data + first, gRealtimePlaybackRing.get(), readable - first);
+  size_t copied = 0;
+  while (copied < readable) {
+    const size_t position = (gRealtimePlaybackRead + copied) % kRealtimePlaybackRingBytes;
+    const size_t inBlock = position % kRealtimePlaybackBlockBytes;
+    const size_t count = min(readable - copied, kRealtimePlaybackBlockBytes - inBlock);
+    memcpy(data + copied,
+           gRealtimePlaybackBlocks[position / kRealtimePlaybackBlockBytes].get() + inBlock, count);
+    copied += count;
   }
   gRealtimePlaybackRead = (gRealtimePlaybackRead + readable) % kRealtimePlaybackRingBytes;
   gRealtimePlaybackBufferedBytes -= readable;

@@ -253,7 +253,7 @@ size_t gRealtimePlaybackRead = 0;
 size_t gRealtimePlaybackWrite = 0;
 size_t gRealtimePlaybackBufferedBytes = 0;
 uint8_t gRealtimePlaybackNextBuffer = 0;
-std::unique_ptr<uint8_t[]> gRealtimePlaybackRing;
+std::unique_ptr<uint8_t[]> gRealtimePlaybackBlocks[kRealtimePlaybackBlockCount];
 uint32_t gRealtimeStartedMs = 0;
 RealtimeChunkQueue gRealtimeInflightChunks;
 uint8_t gRealtimeNextChunkIndex = 0;

@@ -3,8 +3,8 @@
 
 The PCM storage declaration, constants and tested functions are extracted from
 the firmware. Speaker/Mic, time, queue refill and cancellation are controlled
-fixtures. This checks byte ownership, bounds and half-duplex ordering, not ESP32
-heap fragmentation, asynchronous DMA lifetime, Wi-Fi or physical acceptance.
+fixtures. This checks byte ownership, bounds, constrained allocation sizes and half-duplex
+ordering; physical ESP32 heap, asynchronous DMA and Wi-Fi need device checks.
 """
 import argparse
 import os
@@ -87,22 +87,27 @@ void pulseButtonPress(){ }
 '''
 
 FIXTURES = r'''
-size_t attempts=0,frees=0,liveBytes=0;
+// Logical ring lifetimes and individual block allocations are tracked separately.
+size_t attempts=0,frees=0,liveBytes=0,blockAttempts=0;
 void* liveRing=nullptr;
+std::array<void*,kRealtimePlaybackBlockCount> allocatedBlocks{};
 bool denyNextArray=false;
+size_t denyAtBlockCall=0,maxAllocationBytes=std::numeric_limits<size_t>::max();
 void* operator new[](std::size_t bytes,const std::nothrow_t&)noexcept{
- ++attempts;event(Event::Attempt);
- assert(bytes==kRealtimePlaybackRingBytes && !liveRing && liveBytes==0);
+ ++blockAttempts;if(liveBytes==0)++attempts;event(Event::Attempt);
  assert(!gRealtimeRecording && "PCM allocation must follow Mic stop");
- if(denyNextArray){denyNextArray=false;return nullptr;}
+ if(denyNextArray || blockAttempts==denyAtBlockCall || bytes>maxAllocationBytes){denyNextArray=false;return nullptr;}
+ assert(bytes==kRealtimePlaybackBlockBytes);
+ auto slot=std::find(allocatedBlocks.begin(),allocatedBlocks.end(),nullptr);assert(slot!=allocatedBlocks.end());
  void* p=std::malloc(bytes);
- if(p){liveRing=p;liveBytes=bytes;event(Event::Allocated);}
+ if(p){*slot=p;liveRing=p;liveBytes+=bytes;event(Event::Allocated);}
  return p;
 }
 void operator delete[](void* p)noexcept{
  if(!p)return;
- assert(p==liveRing && liveBytes==kRealtimePlaybackRingBytes);
- ++frees;event(Event::Freed);liveRing=nullptr;liveBytes=0;std::free(p);
+ auto slot=std::find(allocatedBlocks.begin(),allocatedBlocks.end(),p);assert(slot!=allocatedBlocks.end());
+ *slot=nullptr;liveBytes-=kRealtimePlaybackBlockBytes;event(Event::Freed);std::free(p);
+ if(liveBytes==0){++frees;liveRing=nullptr;}
 }
 void operator delete[](void* p,std::size_t)noexcept{::operator delete[](p);}
 void operator delete[](void* p,const std::nothrow_t&)noexcept{::operator delete[](p);}
@@ -128,7 +133,7 @@ void serviceRealtimePlayback(){
   gRealtimeActive=false;resetRealtimePlaybackState(true);return;
  }
  if(drainBytes && gRealtimePlaybackBufferedBytes){
-  assert(gRealtimePlaybackRing);
+  assert(gRealtimePlaybackBlocks[0]);
   std::array<uint8_t,1024> out{};
   const size_t length=min({drainBytes,out.size(),gRealtimePlaybackBufferedBytes});
   const size_t read=readRealtimePlaybackRing(out.data(),length);
@@ -137,7 +142,7 @@ void serviceRealtimePlayback(){
 }
 void serviceRealtimeRecording(bool refill){
  if(!refill){
-  assert(!gRealtimeRecording && !gRealtimePlaybackRing && liveBytes==0);
+  assert(!gRealtimeRecording && !gRealtimePlaybackBlocks[0] && liveBytes==0);
   assert(!gRealtimeVadStopPending);
   if(cancelDuringMicDrain)gRealtimeActive=false;
   return;
@@ -145,7 +150,7 @@ void serviceRealtimeRecording(bool refill){
  if(!failMicQueue)gRealtimeInflightChunks.count=2;
 }
 void startRealtimeMic(){
- assert(gRealtimeRecording && !gRealtimePlaybackRing && liveBytes==0);
+ assert(gRealtimeRecording && !gRealtimePlaybackBlocks[0] && liveBytes==0);
  ++micStarts;event(Event::MicStart);
 }
 void startRealtimeSession(bool automatic){assert(automatic);++sessionStarts;}
@@ -159,8 +164,9 @@ std::vector<uint8_t> bytes(size_t count,unsigned salt=0){
 }
 void clean(){
  resetRealtimePlaybackState(false);
- assert(!gRealtimePlaybackRing && !liveRing && liveBytes==0);
- eventCount=0;attempts=frees=0;denyNextArray=false;
+ assert(!gRealtimePlaybackBlocks[0] && !liveRing && liveBytes==0);
+ eventCount=0;attempts=frees=blockAttempts=0;denyNextArray=false;denyAtBlockCall=0;
+ maxAllocationBytes=std::numeric_limits<size_t>::max();
  clockMs=100;delayCalls=0;serviceCalls=cancelAtService=maxBuffered=drainBytes=0;
  failures=micStarts=sessionStarts=0;failMicQueue=cancelDuringMicDrain=false;
  failureReason.clear();played.clear();speakingFaces=0;
@@ -172,7 +178,7 @@ void clean(){
  gRealtimeInflightChunks.clear();gRealtimeText.clear();
 }
 void checkReset(){
- assert(!gRealtimePlaybackRing && !liveRing && liveBytes==0);
+ assert(!gRealtimePlaybackBlocks[0] && !liveRing && liveBytes==0);
  assert(!gRealtimePlaybackActive && !gRealtimePlaybackFeeding && !gRealtimePlaybackEverStarted);
  assert(!gRealtimeAudioComplete && !gRealtimeResponseComplete);
  assert(gRealtimePlaybackRead==0 && gRealtimePlaybackWrite==0 && gRealtimePlaybackBufferedBytes==0);
@@ -181,24 +187,24 @@ void checkReset(){
  assert(gRealtimePlaybackStartMs==0 && gRealtimePlaybackProgressMs==0 && gRealtimeAudioDoneMs==0);
 }
 void lazyAndInvalid(){
- assert(!gRealtimePlaybackRing && attempts==0 && liveBytes==0);
+ assert(!gRealtimePlaybackBlocks[0] && attempts==0 && liveBytes==0);
  clean();const auto input=bytes(64);
  gRealtimeRecording=true;gRealtimeVadStopPending=true;
  for(const auto length:{size_t(0),size_t(1),size_t(3)}){
   assert(!acceptRealtimePcmBytes(input.data(),length));
  }
  assert(!acceptRealtimePcmBytes(nullptr,2));
- assert(attempts==0 && !gRealtimePlaybackRing && !gRealtimeGotAudio);
+ assert(attempts==0 && !gRealtimePlaybackBlocks[0] && !gRealtimeGotAudio);
  assert(gRealtimeRecording && gRealtimeVadStopPending && M5Cardputer.Mic.ends==0);
  gRealtimeRecording=false;gRealtimeVadStopPending=false;
  assert(acceptRealtimePcmBytes(input.data(),input.size()));
- auto* const address=gRealtimePlaybackRing.get();
+ auto* const address=gRealtimePlaybackBlocks[0].get();
  assert(address && attempts==1 && liveBytes==kRealtimePlaybackRingBytes);
  assert(gRealtimeReplyBytes==input.size() && gRealtimePlaybackBufferedBytes==input.size());
  assert(gRealtimeGotAudio && gRealtimeFirstAudioDeltaMs==100 && speakingFaces==1);
  clockMs=123;
  assert(acceptRealtimePcmBytes(input.data(),input.size()));
- assert(attempts==1 && gRealtimePlaybackRing.get()==address && speakingFaces==1);
+ assert(attempts==1 && gRealtimePlaybackBlocks[0].get()==address && speakingFaces==1);
  assert(gRealtimeLastAudioDeltaMs==123 && gRealtimeReplyBytes==2*input.size());
  std::array<uint8_t,256> output{};
  assert(readRealtimePlaybackRing(output.data(),output.size())==2*input.size());
@@ -289,12 +295,39 @@ void allocationAndCancellation(){
  assert(!acceptRealtimePcmBytes(input.data(),2));
  assert(!gRealtimeActive && !gRealtimeRecording && !gRealtimeVadStopPending);
  assert(M5Cardputer.Mic.ends==1 && attempts==0 && failures==0);
- assert(!gRealtimePlaybackRing && liveBytes==0 && gRealtimePlaybackBufferedBytes==0);
+ assert(!gRealtimePlaybackBlocks[0] && liveBytes==0 && gRealtimePlaybackBufferedBytes==0);
  assert(gRealtimeReplyBytes==0 && gRealtimeFirstAudioDeltaMs==0);
  // The actual VAD stop still stamps its latency origin after the controlled
  // cancellation; only buffer ownership is promised by the entry-point guard.
  resetRealtimePlaybackState(false);checkReset();
  std::puts("PASS failed allocation and cancellation before/after partial copy leave no live ring or subsequent writes");
+}
+void fragmentationAndPartialFailure(){
+ clean();maxAllocationBytes=13300;
+ // Same free-block ceiling as the recorded failure: a contiguous 16 KiB
+ // allocation is impossible, although several small allocations still fit.
+ void* contiguous=::operator new[](kRealtimePlaybackRingBytes,std::nothrow);assert(contiguous==nullptr);
+ attempts=blockAttempts=eventCount=0;
+ const auto input=bytes(kRealtimePlaybackRingBytes,31);
+ assert(acceptRealtimePcmBytes(input.data(),input.size()));
+ assert(attempts==1 && blockAttempts==kRealtimePlaybackBlockCount && liveBytes==input.size());
+ std::vector<uint8_t> copy(input.size());assert(readRealtimePlaybackRing(copy.data(),copy.size())==copy.size());
+ assert(copy==input && failures==0);resetRealtimePlaybackState(false);checkReset();
+ for(size_t failure=1;failure<=kRealtimePlaybackBlockCount;++failure){
+  clean();denyAtBlockCall=failure;
+  assert(!acceptRealtimePcmBytes(input.data(),2));
+  assert(blockAttempts==failure && failures==1 && liveBytes==0);
+  for(const auto& block:gRealtimePlaybackBlocks)assert(!block);
+  assert(frees==size_t(failure>1));checkReset();
+ }
+ for(unsigned turn=0;turn<25;++turn){
+  clean();maxAllocationBytes=kRealtimePlaybackBlockBytes;
+  assert(acceptRealtimePcmBytes(input.data(),input.size()));
+  assert(blockAttempts==kRealtimePlaybackBlockCount && liveBytes==kRealtimePlaybackRingBytes);
+  resetRealtimePlaybackState(false);assert(frees==1);checkReset();
+ }
+ std::puts("PASS fragmented heap rejecting 16 KiB still plays byte-exact PCM with 2 KiB allocations");
+ std::puts("PASS allocation failure at every block rolls back all partial storage; 25 constrained-heap lifetimes release every block");
 }
 void resetOwnership(){
  const auto input=bytes(4);
@@ -346,7 +379,7 @@ void recordingIntegration(){
   if(gate==4)gPlaybackActive=true;
   if(gate==5)gRealtimeConnected=false;
   startRealtimeRecording();
-  assert(attempts==1 && frees==0 && micStarts==0 && gRealtimePlaybackRing);
+  assert(attempts==1 && frees==0 && micStarts==0 && gRealtimePlaybackBlocks[0]);
   assert(sessionStarts==unsigned(gate==5));
  }
  clean();assert(acceptRealtimePcmBytes(input.data(),input.size()));
@@ -358,7 +391,7 @@ void recordingIntegration(){
 int main(){
  static_assert(kRealtimePlaybackRingBytes==16*1024,"Review PCM memory contract if capacity changes");
  lazyAndInvalid();wrapAndCapacity();burstAndBackpressure();allocationAndCancellation();
- resetOwnership();recordingIntegration();clean();
+ fragmentationAndPartialFailure();resetOwnership();recordingIntegration();clean();
  std::puts("Scope: actual production functions with controlled audio/clock/queue/cancel fixtures; physical Wi-Fi, heap and DMA need device checks.");
 }
 '''
@@ -377,7 +410,7 @@ def main():
         "void resetRealtimeTurnState(",
     )]
     bodies += [function(realtime, signature) for signature in (
-        "void startRealtimeRecording(", "bool acceptRealtimePcmBytes(",
+        "bool ensureRealtimePlaybackRing(", "void startRealtimeRecording(", "bool acceptRealtimePcmBytes(",
     )]
     declarations = (PARTS / "005_main.cpp.inc").read_text()
     globals_needed = set(re.findall(r"\bgRealtime\w+", "\n".join(bodies)))
@@ -389,7 +422,8 @@ def main():
             raise SystemExit(f"Expected one production declaration for {name}, got {len(matches)}")
         globals_source.append(matches[0])
     constants = (PARTS / "001_main.cpp.inc").read_text()
-    constants_needed = ("kRealtimePlaybackRingBytes", "kRealtimeStreamStallTimeoutMs",
+    constants_needed = ("kRealtimePlaybackRingBytes", "kRealtimePlaybackBlockBytes",
+                        "kRealtimePlaybackBlockCount", "kRealtimeStreamStallTimeoutMs",
                         "kRealtimeInputSampleRate", "kRealtimeInputChunkSamples")
     constant_source = []
     for name in constants_needed:

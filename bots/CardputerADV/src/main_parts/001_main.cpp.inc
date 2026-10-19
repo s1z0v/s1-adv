@@ -334,6 +334,9 @@ constexpr uint8_t kRealtimeBinaryVersion = 1;
 // Realtime playback is fixed-memory and half-duplex on CardPuter ADV.
 // 4 KiB is ~85 ms of 24 kHz mono PCM16; the ring absorbs ~341 ms.
 constexpr size_t kRealtimePlaybackRingBytes = 16 * 1024;
+constexpr size_t kRealtimePlaybackBlockBytes = 2 * 1024;
+constexpr size_t kRealtimePlaybackBlockCount = kRealtimePlaybackRingBytes / kRealtimePlaybackBlockBytes;
+static_assert(kRealtimePlaybackRingBytes % kRealtimePlaybackBlockBytes == 0, "Whole playback blocks required");
 constexpr size_t kRealtimePlaybackPrebufferBytes = 4 * 1024;
 constexpr size_t kRealtimePlaybackChunkBytes = 2 * 1024;
 constexpr uint32_t kRealtimeListenRestartDelayMs = 120;
