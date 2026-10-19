@@ -35,8 +35,9 @@ int main() {
    Canvas d;
    const uint16_t clockPanel=0x0324;
 '''
-code = '#include <initializer_list>\n' + code + red.group() + match.group() + r'''
-   assert(d.foreground==(state==AssistantPulseState::Ready ? rgb565_local(255,63,85) : fg));
+code = '#include <initializer_list>\n' + code + match.group() + r'''
+   (void)state;
+   assert(d.foreground==fg);
    assert(d.background==clockPanel);
   }
  }
@@ -48,4 +49,4 @@ with tempfile.TemporaryDirectory(prefix='s1-home-clock-') as directory:
     subprocess.run([os.environ.get('CXX', 'c++'), '-std=c++17', '-Wall', '-Wextra',
                     '-Werror', str(path / 'test.cpp'), '-o', str(path / 'test')], check=True)
     subprocess.run([str(path / 'test')], check=True)
-print('PASS Home clock: red idle digits; recording/thinking/playback/realtime colors and background preserved')
+print('PASS Home clock: white idle digits; recording/thinking/playback/realtime colors and background preserved')
