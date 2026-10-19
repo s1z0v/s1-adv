@@ -591,16 +591,18 @@ void renderKeyRushUi() {
     topRight = "BEST " + String(gKeyRush.bestScore);
     topColor = gKeyRush.finished ? amber : muted;
   }
+  d.setFont(gKeyRush.running ? &fonts::Font2 : &fonts::Font0);
+  topRight = fitCurrentFontToWidth(topRight, 110);
   d.setTextColor(topColor, panel);
   d.setCursor(224 - d.textWidth(topRight), 13);
   d.print(topRight);
   d.drawFastHLine(15, 29, 210, line);
 
-  d.fillRoundRect(15, 36, 210, 51, 8, targetBg);
-  d.drawRoundRect(15, 36, 210, 51, 8, frame);
+  d.fillRoundRect(15, 34, 210, 50, 8, targetBg);
+  d.drawRoundRect(15, 34, 210, 50, 8, frame);
   d.setFont(&fonts::Font0);
   d.setTextColor(muted, targetBg);
-  d.setCursor(24, 42);
+  d.setCursor(24, 39);
   d.print(gKeyRush.running ? "TYPE" : (gKeyRush.finished ? "RESULT" : "30 SECOND SPRINT"));
 
   if (gKeyRush.running) {
@@ -621,21 +623,21 @@ void renderKeyRushUi() {
       int glyphWidth = d.textWidth(glyph);
       bool typed = i < gKeyRush.typedCount;
       d.setTextColor(typed ? green : TFT_WHITE, targetBg);
-      d.setCursor(cursorX, 50);
+      d.setCursor(cursorX, 49);
       d.print(glyph);
-      d.drawFastHLine(cursorX, 79, glyphWidth, typed ? green : line);
+      d.drawFastHLine(cursorX, 78, glyphWidth, typed ? green : line);
       cursorX += glyphWidth + 5;
     }
   } else {
     d.setFont(&fonts::Font4);
     String prompt = gKeyRush.finished ? "TIME!" : "READY";
     d.setTextColor(gKeyRush.finished ? amber : TFT_WHITE, targetBg);
-    d.setCursor((240 - d.textWidth(prompt)) / 2, 51);
+    d.setCursor((240 - d.textWidth(prompt)) / 2, 47);
     d.print(prompt);
     d.setFont(&fonts::Font0);
     d.setTextColor(muted, targetBg);
     String action = gKeyRush.finished ? "Enter to race again" : "Enter to start";
-    d.setCursor((240 - d.textWidth(action)) / 2, 77);
+    d.setCursor((240 - d.textWidth(action)) / 2, 74);
     d.print(action);
   }
 
@@ -652,18 +654,19 @@ void renderKeyRushUi() {
   d.setFont(&fonts::Font0);
   for (uint8_t i = 0; i < 3; ++i) {
     d.setTextColor(muted, panel);
-    d.setCursor(statX[i], 96);
+    d.setCursor(statX[i], 88);
     d.print(labels[i]);
     d.setFont(&fonts::Font2);
+    if (d.textWidth(values[i]) > 60) d.setFont(&fonts::Font0);
     d.setTextColor(colors[i], panel);
-    d.setCursor(statX[i], 105);
-    d.print(values[i]);
+    d.setCursor(statX[i], 98);
+    d.print(fitCurrentFontToWidth(values[i], 60));
     d.setFont(&fonts::Font0);
   }
   drawTinyFooter(panel, muted,
                  gKeyRush.running ? "Type letters   Del skip   Enter restart"
                                   : "Enter start   Esc home   Tab menu",
-                 15, 121, 210);
+                 15, 118, 210);
   d.setFont(&fonts::Font2);
   renderLauncherOverlay();
   renderDebugOverlay();

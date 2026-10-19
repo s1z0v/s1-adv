@@ -70,8 +70,9 @@ struct Canvas {
  template<class...T>void drawRoundRect(T...){}
  void setFont(const int*f){font=f;}template<class...T>void setTextColor(T...){}
  int textWidth(const String&s){return int(s.size())*(font==&fonts::Font7?18:font==&fonts::Font0?6:8);}
+ int fontHeight(){return font==&fonts::Font0?8:font==&fonts::Font7?48:font==&fonts::Font4?26:16;}
  void setCursor(int xx,int yy){x=xx;y=yy;}
- void print(const String&s){assert(x>=0&&y>=0&&x+textWidth(s)<=240&&y<135);printed.push_back(s);}
+ void print(const String&s){assert(x>=0&&y>=0&&x+textWidth(s)<=240&&y<135);if(s=="REC"){assert(font==&fonts::Font2&&x>=154&&x+textWidth(s)<=216&&y>=105&&y+fontHeight()<=126);}printed.push_back(s);}
 }gCanvas;
 int badges=0,batteries=0;
 void drawHomeReadyStatus(bool,bool){++badges;}
@@ -110,14 +111,14 @@ int main(){
  for(bool pending:{false,true}){
   gVoiceCapturePreparing=!pending;gG0VoicePending=pending;gInputBuffer="saved draft";
   reset();renderAssistantPulseUi();
-  assert(printed("Loading voice...")&&!printed("RECORDING")&&!printed("00:12"));
+  assert(printed("Loading voice...")&&!printed("REC")&&!printed("00:12"));
   assert(gCanvas.clockRects==1&&gInputBuffer=="saved draft");
  }
  gVoiceCapturePreparing=gG0VoicePending=false;
  gRecording=true;gInputBuffer="saved draft";reset();renderAssistantPulseUi();
  assert(gCanvas.clockRects==1&&gCanvas.chatRects==0&&batteries==0&&badges==0&&printed("00:12"));
  assert(!printed("saved draft")&&!printed("> type to chat"));
- assert(printed("RECORDING")&&!printed("Loading voice..."));
+ assert(printed("REC")&&!printed("RECORDING")&&!printed("Loading voice..."));
  nowMs=gRecordStartMs+6000000;reset();renderAssistantPulseUi();assert(printed("99:00"));nowMs=13000;
  for(uint16_t color:{rgb565_local(255,63,85),rgb565_local(255,111,128)})
   assert(std::find(gCanvas.arcs.begin(),gCanvas.arcs.end(),color)!=gCanvas.arcs.end());
