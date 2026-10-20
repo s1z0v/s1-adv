@@ -1,5 +1,6 @@
 const char* uiModeName(UiMode mode) {
   switch (mode) {
+    case UiMode::Mesh: return "Mesh";
     case UiMode::Files: return "Files";
     case UiMode::Chess: return "Chess";
     case UiMode::Checkers: return "Checkers";

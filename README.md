@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/assets/s1-adv-hero.jpg" alt="S1-ADV for Cardputer ADV: voice, AI and firmware" width="100%"></p>
 
 <p align="center">
-<a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-a7f3d0?style=flat-square"></a>
+<a href="docs/MESH.md#source-and-licensing"><img alt="Firmware GPL-3.0; original source MIT" src="https://img.shields.io/badge/firmware-GPL--3.0-a7f3d0?style=flat-square"></a>
 <img alt="Hardware M5Stack Cardputer ADV" src="https://img.shields.io/badge/hardware-Cardputer_ADV-67e8f9?style=flat-square">
 <img alt="ESP32-S3 8MB" src="https://img.shields.io/badge/ESP32--S3-8MB_flash-c4b5fd?style=flat-square">
 <img alt="Status experimental" src="https://img.shields.io/badge/status-experimental-fde68a?style=flat-square">
@@ -34,6 +34,7 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
 | Optional Focus audio | English cues delivered to SD; [Russian audio is a separate download](extras/focus-audio/README.md). [Setup](docs/FOCUS-AUDIO.md) |
 | NES game library on SD | Nofrendo, mapper 0/4; your own ROM files |
+| Optional Meshtastic public-channel text and nodes heard | [Cap LoRa-1262, foreground leaf mode](docs/MESH.md); SD pauses while active |
 
 The interface and assistant replies default to English. Russian input and
 Cyrillic rendering are supported; ask explicitly for a Russian reply.
@@ -148,4 +149,5 @@ S1-ADV is maintained by **Sergey Sizov**.
 Originally based on [nazirlouis/OmniBot](https://github.com/nazirlouis/OmniBot).
 Thanks to its authors, [M5Stack](https://github.com/m5stack/M5Cardputer),
 [OpenClaw](https://github.com/openclaw/openclaw) and the other dependency authors.
-See [Credits](CREDITS.md) and [MIT license](LICENSE) for attribution.
+See [Credits](CREDITS.md), the retained [MIT license](LICENSE), and
+[Mesh firmware licensing](docs/MESH.md#source-and-licensing) for attribution.

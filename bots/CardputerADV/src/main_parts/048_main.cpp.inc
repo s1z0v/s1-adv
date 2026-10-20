@@ -24,6 +24,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
+  if (gUiMode == UiMode::Mesh && !gLauncherVisible && !keys.tab && handleMeshKey(key,keys)) return;
   if (handleFocusShortcut(lowerKey,keys)) return;
   if (handleUnreadAssistantKey(key,keys)) return;
   if (handleHomeLinkRetryKey(key,keys)) return;

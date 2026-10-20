@@ -33,7 +33,8 @@ struct String:std::string {
 };
 uint32_t now=100, micReadyAt=0;
 bool micAvailable=true,queueAvailable=true;
-bool gVoiceCapturePreparing=false;
+bool gVoiceCapturePreparing=false,gMeshBusOwned=false;
+String gMeshNotice;uint32_t gMeshNoticeUntilMs=0;
 uint32_t millis(){return now;}
 bool gRealtimeDialBusy=false,gVoiceReplySpeechBusy=false,gInboxHttpBusy=false;
 bool gVoiceDialBusy=false;std::shared_ptr<int> gVoiceCaptureUpload;
@@ -57,7 +58,7 @@ namespace fs {struct FS {File open(const String&,const char*){now+=50;return {};
 fs::FS storage;
 struct {void reset(){}} gMicInputMeter;
 struct {struct {bool record(int16_t*,size_t,uint32_t){return queueAvailable;}} Mic;
- struct {bool pressed=false;bool isPressed(){return pressed;}} BtnA;} M5Cardputer;
+ struct {bool pressed=false;bool isPressed(){return pressed;}bool wasPressed(){return pressed;}} BtnA;} M5Cardputer;
 auto& M5=M5Cardputer;
 int starts=0,stops=0,networkCalls=0,frames=0,queued=0,wakes=0,captureUis=0,startErrors=0;bool sleeping=false;
 String status;std::vector<String> frameLabels;
@@ -120,6 +121,11 @@ int main(){
  gInboxHttpBusy=true;M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();
  M5Cardputer.BtnA.pressed=false;updateG0VoiceTrigger();assert(!gG0VoicePending&&!gRecording);
  gInboxHttpBusy=false;updateG0VoiceTrigger();assert(starts==prior+1);
+ // The Mesh mode cannot start capture, an upload, or preconnect from G0.
+ gMeshBusOwned=true;gRecording=false;int meshBefore=starts,meshFrames=captureUis;
+ M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();startRecording();
+ assert(!gRecording&&!gG0VoicePending&&starts==meshBefore&&captureUis==meshFrames);
+ gMeshBusOwned=false;M5Cardputer.BtnA.pressed=false;
  // Neither a failed mic nor a rejected first buffer may publish REC.
  for(bool sd:{false,true})for(bool mic:{false,true}){
   gStorageReady=sd;micAvailable=mic;queueAvailable=false;

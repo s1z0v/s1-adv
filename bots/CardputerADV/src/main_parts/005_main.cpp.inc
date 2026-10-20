@@ -443,6 +443,15 @@ void servicePet();
 bool handlePetKey(char key, const Keyboard_Class::KeysState& keys);
 bool applyPetCare(PetCareAction action);
 void setUiMode(UiMode mode);
+bool stopMeshMode(bool goHome = false);
+bool handleMeshEscape();
+void startMeshMode();
+void serviceMeshMode();
+bool meshBlocksMode(UiMode mode);
+bool handleMeshKey(char key, const Keyboard_Class::KeysState& keys);
+void renderMeshUi();
+bool handleMeshHostCommand(const String& command);
+
 bool focusStateRuns(FocusState state);
 void focusStartOrResume();
 void focusReset();

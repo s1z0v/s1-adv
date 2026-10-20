@@ -12,6 +12,7 @@ void drainRecordingToFile() {
 }
 
 void startRecording() {
+  if (gMeshBusOwned) { setStatus("Esc exits Mesh for voice",1600); return; }
   const uint32_t captureRequestedMs = millis();
   serviceVoicePreconnect();
   if (gVoiceDialBusy) { setStatus("Connection finishing; try voice again", 1200); return; }

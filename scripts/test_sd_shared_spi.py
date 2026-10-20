@@ -36,7 +36,7 @@ struct Sd {
  int cardType(){++typeReads;return card;}
  void end(){++ends;}
 }SD;
-bool gSdReady=false;
+bool gSdReady=false, gMeshBusOwned=false;
 '''
 main = r'''
 void reset(bool attached,int ext,int sd,bool ok,int type) {

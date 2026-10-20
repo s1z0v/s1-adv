@@ -29,6 +29,8 @@
     moveLauncherSelection(-1);
   } else if (gLauncherVisible && downDown) {
     moveLauncherSelection(1);
+  } else if (gUiMode == UiMode::Mesh && (upDown || downDown)) {
+    handleTypingKey(upDown ? char(1) : char(2),keys);
   } else if (gUiMode == UiMode::Files && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey((upDown || leftDown) ? ',' : '.', keys);
   } else if ((gUiMode == UiMode::Chess || gUiMode == UiMode::Checkers) && (upDown || downDown || leftDown || rightDown)) {
@@ -152,6 +154,11 @@ void updateVoiceTrigger() {
 }
 
 void updateG0VoiceTrigger() {
+  if (gMeshBusOwned) {
+    gG0VoicePending=false;
+    if(M5Cardputer.BtnA.wasPressed()) {gMeshNotice="Esc exits Mesh for voice";gMeshNoticeUntilMs=millis()+1500;}
+    return;
+  }
   bool pressed = M5.BtnA.isPressed();
   // G0 is push-to-talk even when the clock/screen saver is asleep. Do not
   // consume the first press solely to wake the display.

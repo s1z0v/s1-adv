@@ -832,6 +832,10 @@ bool handleHostSerialCommand(String line) {
   if (line.isEmpty()) {
     return false;
   }
+  if (handleMeshHostCommand(line)) return true;
+  if (gMeshBusOwned && line != "diag" && line != "logs.dump" && line != "ui.escape" && line != "esc") {
+    logf("[MESH] host command deferred: radio owns SD/EXT"); return true;
+  }
   if(line.startsWith("nes.put.chunk ")) return handleNesHostCommand(line);
   logf("[HOST] cmd=%s", line.c_str());
   if(handleNesHostCommand(line)) return true;

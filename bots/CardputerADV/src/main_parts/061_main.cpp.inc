@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Mesh:
+        renderMeshUi();
+        break;
       case UiMode::Checkers:
         renderCheckersDemoUi();
         break;
@@ -347,6 +350,19 @@ void loop() {
   }
   updateG0VoiceTrigger();
   pollTyping();
+  if (gMeshBusOwned) {
+    serviceMeshMode();
+    if (gMeshBusOwned) {
+      updateBatterySnapshot();
+      serviceSmartLamp();
+      serviceFocusLamp();
+      serviceAlarm();
+      serviceMemoryGuard();
+      if (millis()-gLastRenderMs>=kRenderIntervalMs) { render(); gLastRenderMs=millis(); }
+      delay(1);
+      return;
+    }
+  }
   traceUiService("serviceInboxNetworkCompletion", [] { serviceInboxNetworkCompletion(); });
   traceUiService("serviceVoicePreconnect", [] { serviceVoicePreconnect(); });
   traceUiService("serviceVoiceReplySpeech", [] { serviceVoiceReplySpeech(); });

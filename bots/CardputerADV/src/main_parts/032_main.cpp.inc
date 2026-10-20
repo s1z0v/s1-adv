@@ -102,6 +102,7 @@ void migrateLittleFsVoiceNotesToSd() {
 }
 
 bool mountSdCardOnSharedSpi() {
+  if (gMeshBusOwned) return false;
   // EXT G5 is NSS for both the Cap LoRa-1262 and an external RC522.
   // Keep that other slave deselected before the SD driver clocks this bus.
   // Preload the output latches to avoid a low chip-select pulse on enable.

@@ -54,6 +54,10 @@ jobs:
       - run: python scripts/test_unified_home.py
       - run: python scripts/test_sd_file_manager.py
       - run: python scripts/test_sd_shared_spi.py
+      - run: python scripts/test_mesh_leaf_state.py
+      - run: python scripts/test_mesh_lifecycle.py
+      - run: python scripts/test_mesh_radio.py
+      - run: python scripts/test_mesh_ui.py
       - run: python scripts/test_chess_demo.py
       - run: python scripts/test_checkers_demo.py
       - run: python scripts/test_pulse_chat_geometry.py

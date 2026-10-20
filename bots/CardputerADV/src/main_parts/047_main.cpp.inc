@@ -2061,6 +2061,8 @@ bool handleKeyRushKey(char key, const Keyboard_Class::KeysState& keys) {
 }
 
 bool handleGlobalEscape() {
+  if (handleMeshEscape()) return true;
+
   if (gUiMode == UiMode::Files && !gLauncherVisible) {
     return handleFileManagerKey(27, gKeyboardState);
   }

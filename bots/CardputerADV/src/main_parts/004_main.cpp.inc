@@ -154,9 +154,9 @@ constexpr LauncherGroup kLauncherGroups[kLauncherGroupCount] = {
     {"Focus", "25", "Time and attention", rgb565_local(255,136,64), 4,
      {{"Pomodoro", UiMode::Focus}, {"Alarm", UiMode::Alarm},
       {"Stopwatch", UiMode::Stopwatch}, {"Calendar", UiMode::Calendar}}},
-    {"Tools", "UTIL", "Local hardware tools", rgb565_local(255, 150, 80), 5,
+    {"Tools", "UTIL", "Local hardware tools", rgb565_local(255, 150, 80), 6,
      {{"Calculator", UiMode::Calculator}, {"RFID Lab", UiMode::RfidLab},
-      {"IR Remote", UiMode::IrRemote}, {"smartLamp", UiMode::SmartLamp}, {"Sonar", UiMode::Sonar}}},
+      {"IR Remote", UiMode::IrRemote}, {"smartLamp", UiMode::SmartLamp}, {"Sonar", UiMode::Sonar}, {"Mesh", UiMode::Mesh}}},
     {"Games", "PLAY", "Keyboard and board games", rgb565_local(157, 102, 255), 6,
      {{"KeyRush", UiMode::KeyRush}, {"Tetris", UiMode::Tetris}, {"BrainFlow", UiMode::BrainFlow}, {"NES", UiMode::Nes}, {"Chess", UiMode::Chess}, {"Checkers", UiMode::Checkers}}},
     {"Settings", "SET", "All device settings", rgb565_local(203, 216, 226), 3,
@@ -180,6 +180,14 @@ lgfx::LGFXBase& uiCanvas();
 // backing sprite explicitly. The network worker never accesses either surface.
 #define gCanvas uiCanvas()
 SPIClass gSdSpi(FSPI);
+std::unique_ptr<s1_mesh::RadioSession> gMeshSession;
+bool gMeshBusOwned = false, gMeshCancelStart = false, gMeshExitAfterStop = false;
+m5::I2C_Class* gMeshCapBus = nullptr;
+uint8_t gMeshCapBits[3] = {};
+bool gMeshCapBitsSaved = false;
+String gMeshNotice;
+uint32_t gMeshNoticeUntilMs=0;
+
 MFRC522 gRfidReader(kRfidCsPin, kRfidResetPin);
 
 String gDeviceId;

@@ -269,6 +269,11 @@ bool uiModeInterruptsRealtime(UiMode mode) {
 }
 
 void setUiMode(UiMode mode) {
+  if (gMeshBusOwned && mode != UiMode::Mesh) {
+    if (meshBlocksMode(mode)) { setStatus("Exit Mesh first: SD / EXT busy",1800); return; }
+    if (!stopMeshMode(false)) return;
+  }
+
   if (mode != UiMode::Face) gRealtimeScreenVisible=false;
   if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
   if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
@@ -362,6 +367,7 @@ void applyLauncherSelection() {
   gLauncherLastSub[gLauncherSelection] = gLauncherSubSelection;
   const LauncherSubItem& item = kLauncherGroups[gLauncherSelection].items[gLauncherSubSelection];
   UiMode target = item.mode;
+  if (gMeshBusOwned && item.startRealtime) {setStatus("Esc exits Mesh for voice",1600);return;}
   if (gRecording) cancelRecordingDiscard();
   if (!item.startRealtime) {
     gPendingRealtimeStart = false;
