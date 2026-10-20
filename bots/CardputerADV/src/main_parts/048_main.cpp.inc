@@ -138,6 +138,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     return;
   }
   if (gUiMode == UiMode::Files && handleFileManagerKey(key, keys)) return;
+  if (gUiMode == UiMode::Chess && handleChessDemoKey(key, keys)) return;
   if (gUiMode == UiMode::KeyRush && handleKeyRushKey(key, keys)) {
     return;
   }

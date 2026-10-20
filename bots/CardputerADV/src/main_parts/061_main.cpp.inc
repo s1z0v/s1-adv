@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Chess:
+        renderChessDemoUi();
+        break;
       case UiMode::Files:
         renderFileManagerUi();
         break;
@@ -379,6 +382,7 @@ void loop() {
   serviceFocusMetronome();
   serviceAlarm();
   serviceKeyRush();
+  serviceChessDemo();
   serviceBrainFlow();
   serviceTetris();
   serviceSmartLamp();

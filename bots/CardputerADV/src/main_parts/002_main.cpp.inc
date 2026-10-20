@@ -182,6 +182,7 @@ enum class UiMode : uint8_t {
   BrainFlow,
   Nes,
   Files,
+  Chess,
 };
 
 enum class FocusState : uint8_t {
