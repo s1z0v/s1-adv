@@ -128,6 +128,8 @@ for signature in ['bool handleMeshEscape(', 'bool meshBlocksMode(','bool meshSta
     code+=function('068_main.cpp.inc',signature)+'\n'
 actual=function('024_main.cpp.inc','void setUiMode(')
 code+=actual[:actual.index('  if (mode != UiMode::Face)')]+ 'gUiMode=mode;\n}\n'
+realtime=function('042_main.cpp.inc','void startRealtimeSession(')
+code+='int realtimeStarts=0;\n'+realtime[:realtime.index('  handleScreensaverWake();')]+ '(void)startAfterReady;++realtimeStarts;\n}\n'
 code+=r'''
 void reset() {
  assert(!gMeshBusOwned&&!workerPending&&live==0);
@@ -159,7 +161,9 @@ int main() {
  assert(activeVoiceFs()==nullptr&&activeNotesFs()==nullptr);
  assert(!stopMeshMode(true)&&workerPending&&live==1&&sdBegins==0);
  completeWorker();serviceMeshMode();restored();assert(gUiMode==UiMode::Home);
- active();Keyboard_Class::KeysState key;
+ active();startRealtimeSession(true);startRealtimeSession(false);assert(realtimeStarts==0);
+ gLauncherVisible=true;startRealtimeSession(true);assert(realtimeStarts==0);gLauncherVisible=false;
+ Keyboard_Class::KeysState key;
  assert(handleMeshKey('h',key)&&handleMeshKey('i',key)&&std::string(gMeshSession->state.input)=="hi");
  key.ctrl=true;assert(handleMeshKey('n',key)&&gMeshSession->state.nodeView);
  assert(handleMeshKey('o',key)&&gMeshSession->state.detailView&&!gMeshSession->state.nodeView);
@@ -167,6 +171,7 @@ int main() {
  assert(handleMeshKey('\b',key)&&std::string(gMeshSession->state.input)=="h");key.del=false;key.enter=true;
  assert(handleMeshKey('\n',key)&&gMeshSession->state.messageCount==1&&!gMeshSession->state.input[0]);
  stopMeshMode(false);restored();
+ startRealtimeSession(false);assert(realtimeStarts==1);
  reset();taskSucceeds=false;startMeshMode();restored();
  reset();initError=-19;startMeshMode();completeWorker();serviceMeshMode();restored();assert(gMeshNotice.find("-19")!=std::string::npos);
  for(UiMode mode:{UiMode::Voice,UiMode::Library,UiMode::AudioFolders,UiMode::Notes,UiMode::Assets,UiMode::Files,UiMode::Nes,UiMode::RfidLab,UiMode::Sonar}) {
