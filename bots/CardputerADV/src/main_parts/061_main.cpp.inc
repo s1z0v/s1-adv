@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Checkers:
+        renderCheckersDemoUi();
+        break;
       case UiMode::Chess:
         renderChessDemoUi();
         break;
@@ -383,6 +386,7 @@ void loop() {
   serviceAlarm();
   serviceKeyRush();
   serviceChessDemo();
+  serviceCheckersDemo();
   serviceBrainFlow();
   serviceTetris();
   serviceSmartLamp();

@@ -183,6 +183,7 @@ enum class UiMode : uint8_t {
   Nes,
   Files,
   Chess,
+  Checkers,
 };
 
 enum class FocusState : uint8_t {

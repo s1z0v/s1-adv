@@ -31,7 +31,7 @@
     moveLauncherSelection(1);
   } else if (gUiMode == UiMode::Files && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey((upDown || leftDown) ? ',' : '.', keys);
-  } else if (gUiMode == UiMode::Chess && (upDown || downDown || leftDown || rightDown)) {
+  } else if ((gUiMode == UiMode::Chess || gUiMode == UiMode::Checkers) && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey(upDown ? 'w' : downDown ? 's' : leftDown ? 'a' : 'd', keys);
   } else if (gUiMode == UiMode::SmartLamp && upDown) {
     handleTypingKey('w', keys);

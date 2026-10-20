@@ -227,6 +227,8 @@ bool mapActionUiMode(String mode, UiMode& out) {
     out = UiMode::Files;
   } else if (mode == "chess") {
     out = UiMode::Chess;
+  } else if (mode == "checkers" || mode == "draughts") {
+    out = UiMode::Checkers;
   } else if (mode == "folders") {
     out = UiMode::AudioFolders;
   } else if (mode == "notes" || mode == "note" || mode == "notepad") {
