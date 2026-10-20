@@ -101,6 +101,23 @@ void migrateLittleFsVoiceNotesToSd() {
   }
 }
 
+bool mountSdCardOnSharedSpi() {
+  // EXT G5 is NSS for both the Cap LoRa-1262 and an external RC522.
+  // Keep that other slave deselected before the SD driver clocks this bus.
+  // Preload the output latches to avoid a low chip-select pulse on enable.
+  digitalWrite(kRfidCsPin, HIGH);
+  pinMode(kRfidCsPin, OUTPUT);
+  digitalWrite(kSdCsPin, HIGH);
+  pinMode(kSdCsPin, OUTPUT);
+  gSdSpi.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+  bool mounted = SD.begin(kSdCsPin, gSdSpi, kSdFrequencyHz);
+  if (mounted && SD.cardType() == CARD_NONE) {
+    SD.end();
+    mounted = false;
+  }
+  return mounted;
+}
+
 void initStorage() {
   Serial.println("[BOOT] storage: LittleFS begin");
   gLittleFsReady = LittleFS.begin(true);
@@ -109,12 +126,7 @@ void initStorage() {
   }
 
   Serial.println("[BOOT] storage: SD begin");
-  gSdSpi.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
-  gSdReady = SD.begin(kSdCsPin, gSdSpi, kSdFrequencyHz);
-  if (gSdReady && SD.cardType() == CARD_NONE) {
-    SD.end();
-    gSdReady = false;
-  }
+  gSdReady = mountSdCardOnSharedSpi();
   if (gSdReady) {
     ensureVoiceStorageOn(SD);
     ensurePomodoroStorageOn(SD);
@@ -164,12 +176,7 @@ bool remountSdStorage(const char* reason) {
   logf("[SD] remount reason=%s", reason ? reason : "-");
   SD.end();
   delay(120);
-  gSdSpi.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
-  gSdReady = SD.begin(kSdCsPin, gSdSpi, kSdFrequencyHz);
-  if (gSdReady && SD.cardType() == CARD_NONE) {
-    SD.end();
-    gSdReady = false;
-  }
+  gSdReady = mountSdCardOnSharedSpi();
   if (gSdReady) {
     ensureVoiceStorageOn(SD);
     ensurePomodoroStorageOn(SD);
