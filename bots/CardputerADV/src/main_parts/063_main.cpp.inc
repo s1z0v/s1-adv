@@ -16,6 +16,7 @@ bool appAllowsBackgroundNetwork() {
     case UiMode::Files: // Keep background SD writes out of file-management transactions.
     case UiMode::Chess: // Offline demo: keep the keyboard/UI responsive.
     case UiMode::Checkers:
+    case UiMode::Minesweeper:
     case UiMode::Nes: // The emulator owns RAM, audio and Wi-Fi until it exits.
     case UiMode::Sonar:
     case UiMode::RfidLab:

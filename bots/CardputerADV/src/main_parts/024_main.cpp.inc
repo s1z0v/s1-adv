@@ -299,6 +299,7 @@ void setUiMode(UiMode mode) {
   if (modeChanged && mode == UiMode::Files) refreshFileManager();
   if (modeChanged && mode == UiMode::Chess) beginChessDemo();
   if (modeChanged && mode == UiMode::Checkers) beginCheckersDemo();
+  if (modeChanged && mode == UiMode::Minesweeper) beginMinesweeper();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.
     gPendingOtaCheckAction = true;

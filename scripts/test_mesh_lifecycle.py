@@ -105,7 +105,8 @@ struct RadioSession {
 std::unique_ptr<s1_mesh::RadioSession>gMeshSession;
 int xTaskCreate(void(*fn)(void*),const char*,int stack,void*arg,int priority,void*) {
  assert(stack==8192&&priority==1&&gMeshBusOwned&&!gSdReady);++taskCreates;
- if(!taskSucceeds)return 0;workerFunction=fn;workerArg=arg;workerPending=true;return pdPASS;
+ if(!taskSucceeds){return 0;}
+ workerFunction=fn;workerArg=arg;workerPending=true;return pdPASS;
 }
 void vTaskDelete(void*p){assert(p==nullptr);workerPending=false;}
 void render(){++renders;}
@@ -188,7 +189,8 @@ int main() {
  completeWorker();serviceMeshMode();restored();assert(gUiMode==UiMode::Home);
  active();assert(gMeshSession->state.append("hello"));nextSendId=0;assert(!meshSendInput());assert(gMeshSession->state.messageCount==0&&std::string(gMeshSession->state.input)=="hello");
  nextSendId=77;assert(meshSendInput());assert(gMeshSession->state.messageCount==1&&gMeshSession->state.messages[0].outgoing&&!gMeshSession->state.input[0]);
- for(int i=0;i<50;++i)serviceMeshMode();assert(sdBegins==0);stopMeshMode(false);restored();
+ for(int i=0;i<50;++i){serviceMeshMode();}
+ assert(sdBegins==0);stopMeshMode(false);restored();
  active();sdSucceeds=false;stopMeshMode(false);assert(!gMeshBusOwned&&!gSdReady&&gStorageReady&&!live);assert(activeVoiceFs()==&LittleFS);assert(activeNotesFs()==&LittleFS);
 }
 '''

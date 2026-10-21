@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Minesweeper:
+        renderMinesweeperUi();
+        break;
       case UiMode::Mesh:
         renderMeshUi();
         break;
@@ -403,6 +406,7 @@ void loop() {
   serviceKeyRush();
   serviceChessDemo();
   serviceCheckersDemo();
+  serviceMinesweeper();
   serviceBrainFlow();
   serviceTetris();
   serviceSmartLamp();

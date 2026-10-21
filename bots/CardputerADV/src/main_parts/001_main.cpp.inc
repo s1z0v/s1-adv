@@ -48,6 +48,7 @@
 #include "sd_file_manager.h"
 #include "chess_demo.h"
 #include "checkers_demo.h"
+#include "minesweeper.h"
 #include "mesh_cap_radio.h"
 #include <pb_decode.h>
 #include <generated/meshtastic/leafdata.pb.h>
@@ -82,7 +83,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.198-dev"
+#define APP_VERSION "0.2.199-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
