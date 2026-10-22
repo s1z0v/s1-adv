@@ -68,9 +68,8 @@ available for rebuilding; see LICENSE, CREDITS.md and docs/MESH.md.
 
 The current video description's six project/source/credit links resolved. The
 linked getting-started, flash and OpenClaw setup guides have no missing local
-relative targets. The catalog route is explicitly pinned to bridge 0.3.6;
-the repository contains newer reviewed source, not a claim of a newer catalog
-publication. The native installer's preview/apply, identity preservation and
+relative targets. The original audit used catalog bridge 0.3.6. The current guide now pins
+0.3.10, published after the [security follow-up](SECURITY-REVIEW-2026-10-23.md). The native installer's preview/apply, identity preservation and
 archive allowlist checks passed. No personal configuration is bundled.
 
 The HTTP bridge defaults to loopback. Users provide a TLS reverse proxy and keep

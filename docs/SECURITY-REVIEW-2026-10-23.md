@@ -54,3 +54,22 @@ artifact you install. Do not dismiss a new finding merely because tests pass.
 These fixes change bridge diagnostics and conversation context only. They do
 not change the published credential-free 0.2.201-dev firmware bytes, install
 anything on a device or restart the maintainer's Gateway.
+
+## Published artifact readback
+
+ClawHub 0.3.10 links source `72d15f97add49968893d597e6403fb0551bd58c5`,
+tag `bridge-v0.3.10`, package path `bridge`, in `s1z0v/s1-adv`. All 39 files
+in the anonymously downloaded catalog artifact match the reviewed package
+bytes (after normalizing the registry's `package/` container prefix). No old
+GitHub-owner links remain in those files. The ClawHub account handle remains
+`srg0`, a separate service identity.
+
+A private comparison at that source checked all 188 publicly fetched commits,
+1,694 blobs, 1,121 trees and nine annotated tag objects against nine current
+server credential/ingress values, finding no matches. The server address was
+also absent. Seven current local private values were compared with the plugin,
+public firmware assets and unpacked dependency sources, with no matches.
+The public video description matched none of the nine server values. The
+public cover contains only color-space/dimension EXIF fields, no GPS metadata
+or visible access credentials. Public attribution/work-email metadata remains
+as documented in the history audit.
