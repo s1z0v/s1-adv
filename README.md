@@ -137,6 +137,12 @@ npm run smoke
 The smoke test uses a local mock gateway and generated tone fixtures. Install
 FFmpeg first. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).
 
+## Support the project
+
+S1-ADV is free and open source. If you'd like to support continued development
+and follow progress updates, [join S1-ADV on Patreon](https://www.patreon.com/s1adv).
+Patreon memberships are optional and billed monthly.
+
 ## Creator and credits
 
 S1-ADV is maintained by **Sergey Sizov**.
