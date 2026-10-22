@@ -1,5 +1,6 @@
 bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, size_t audioLen,
                                      const String& diag, fs::FS* storage = nullptr) {
+  if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry playback",1500); return false; }
   fs::FS* fs = storage ? storage : activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {
     setStatus("Voice file missing", 1200);
@@ -32,6 +33,7 @@ bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, 
 }
 
 bool startPlaybackStreamFromWavFile(const String& path, const String& diag) {
+  if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry playback",1500); return false; }
   fs::FS* fs = activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {
     setStatus("Voice file missing", 1200);
@@ -225,6 +227,14 @@ bool mapActionUiMode(String mode, UiMode& out) {
     out = UiMode::Library;
   } else if (mode == "files" || mode == "file_manager") {
     out = UiMode::Files;
+  } else if (mode == "chess") {
+    out = UiMode::Chess;
+  } else if (mode == "checkers" || mode == "draughts") {
+    out = UiMode::Checkers;
+  } else if (mode == "radio" || mode == "internet_radio") {
+    out = UiMode::Radio;
+  } else if (mode == "minesweeper" || mode == "mines") {
+    out = UiMode::Minesweeper;
   } else if (mode == "folders") {
     out = UiMode::AudioFolders;
   } else if (mode == "notes" || mode == "note" || mode == "notepad") {

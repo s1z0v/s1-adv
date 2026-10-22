@@ -1,4 +1,19 @@
   switch (gUiMode) {
+      case UiMode::Radio:
+        renderInternetRadioUi();
+        break;
+      case UiMode::Minesweeper:
+        renderMinesweeperUi();
+        break;
+      case UiMode::Mesh:
+        renderMeshUi();
+        break;
+      case UiMode::Checkers:
+        renderCheckersDemoUi();
+        break;
+      case UiMode::Chess:
+        renderChessDemoUi();
+        break;
       case UiMode::Files:
         renderFileManagerUi();
         break;
@@ -341,6 +356,28 @@ void loop() {
   }
   updateG0VoiceTrigger();
   pollTyping();
+  serviceInternetRadio();
+  if (radioBusy()) {
+    // Streaming owns one audio channel and its heap. Keep navigation alive,
+    // but never let background TLS/capture/OTA borrow or reinitialize it.
+    updateBatterySnapshot();
+    serviceSmartLamp(); serviceFocusLamp(); serviceAlarm();
+    if (millis()-gLastRenderMs>=kRenderIntervalMs) { render(); gLastRenderMs=millis(); }
+    delay(1); return;
+  }
+  if (gMeshBusOwned) {
+    serviceMeshMode();
+    if (gMeshBusOwned) {
+      updateBatterySnapshot();
+      serviceSmartLamp();
+      serviceFocusLamp();
+      serviceAlarm();
+      serviceMemoryGuard();
+      if (millis()-gLastRenderMs>=kRenderIntervalMs) { render(); gLastRenderMs=millis(); }
+      delay(1);
+      return;
+    }
+  }
   traceUiService("serviceInboxNetworkCompletion", [] { serviceInboxNetworkCompletion(); });
   traceUiService("serviceVoicePreconnect", [] { serviceVoicePreconnect(); });
   traceUiService("serviceVoiceReplySpeech", [] { serviceVoiceReplySpeech(); });
@@ -379,6 +416,9 @@ void loop() {
   serviceFocusMetronome();
   serviceAlarm();
   serviceKeyRush();
+  serviceChessDemo();
+  serviceCheckersDemo();
+  serviceMinesweeper();
   serviceBrainFlow();
   serviceTetris();
   serviceSmartLamp();

@@ -111,6 +111,7 @@ void scrollChatBy(int delta) {
 }
 
 fs::FS* activeVoiceFs() {
+  if (gMeshBusOwned) return nullptr;
   if (gSdReady) {
     return &SD;
   }
@@ -192,6 +193,7 @@ bool ensureVoiceStorage() {
 }
 
 fs::FS* activeNotesFs() {
+  if (gMeshBusOwned) return nullptr;
   if (gSdReady) {
     return &SD;
   }

@@ -29,6 +29,12 @@ The original `Copyright (c) 2026 Omnibot contributors` notice remains in
 - ArduinoJson, arduinoWebSockets, Arduino-IRremote and MFRC522: device libraries.
 - ws and Busboy: bridge WebSocket and upload handling.
 - The firmware's `third_party/` directory retains applicable protocol notices.
+- [libmeshtastic-leaf](https://github.com/Meshtastic-Solutions/libmeshtastic-leaf),
+  Thomas Göttgens / Meshtastic Solutions, GPL-3.0-only, supplies the optional
+  foreground Meshtastic leaf client. The dependency is pinned to
+  `bd542d6e77aa7b9507dcc8d153f6dad0c35a8c17`.
+  RadioLib (MIT), Nanopb (zlib) and Meshtastic Crypto retain their own notices.
+  See [Mesh source and licensing](docs/MESH.md#source-and-licensing).
 
 Dependencies keep their own licenses. The S1-ADV license does not replace them.
 The project-local `bots/CardputerADV/lib/WebServer` is derived from Espressif

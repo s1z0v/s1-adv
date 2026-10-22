@@ -1,7 +1,7 @@
 <p align="center"><img src="docs/assets/s1-adv-hero.jpg" alt="S1-ADV for Cardputer ADV: voice, AI and firmware" width="100%"></p>
 
 <p align="center">
-<a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/license-MIT-a7f3d0?style=flat-square"></a>
+<a href="docs/MESH.md#source-and-licensing"><img alt="Firmware GPL-3.0; original source MIT" src="https://img.shields.io/badge/firmware-GPL--3.0-a7f3d0?style=flat-square"></a>
 <img alt="Hardware M5Stack Cardputer ADV" src="https://img.shields.io/badge/hardware-Cardputer_ADV-67e8f9?style=flat-square">
 <img alt="ESP32-S3 8MB" src="https://img.shields.io/badge/ESP32--S3-8MB_flash-c4b5fd?style=flat-square">
 <img alt="Status experimental" src="https://img.shields.io/badge/status-experimental-fde68a?style=flat-square">
@@ -23,6 +23,12 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 
 [Install the OpenClaw plugin on ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv) · [Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
 
+**Current firmware: [0.2.201-dev](https://github.com/s1z0v/s1-adv/releases/tag/v0.2.201-dev)**
+includes Internet Radio, Mesh, Chess, Checkers, Minesweeper and direct Focus
+lamp presets. [Release notes](docs/RELEASE-0.2.201.md) ·
+[Internet Radio and controls](docs/RELEASE-0.2.200.md).
+Use a credential-free release image or build with your own settings.
+
 ## What you can do
 
 | On the Cardputer | What powers it |
@@ -31,9 +37,11 @@ OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover deta
 | One configured conversation and its history | Authenticated HTTP and WebSocket feed |
 | Spoken replies and an SD audio library | Server-side STT/TTS and device audio playback |
 | Firmware updates over Wi-Fi | Your bridge's authenticated OTA manifest |
+| Internet Radio with genre and language filters | Public MP3 streams over Wi-Fi; no AI account required |
 | Focus timer, notes, calculator, clocks, pet and games | Local firmware, with no model required |
 | Optional Focus audio | English cues delivered to SD; [Russian audio is a separate download](extras/focus-audio/README.md). [Setup](docs/FOCUS-AUDIO.md) |
 | NES game library on SD | Nofrendo, mapper 0/4; your own ROM files |
+| Optional Meshtastic public-channel text and nodes heard | [Cap LoRa-1262, foreground leaf mode](docs/MESH.md); SD pauses while active |
 
 The interface and assistant replies default to English. Russian input and
 Cyrillic rendering are supported; ask explicitly for a Russian reply.
@@ -79,7 +87,7 @@ The community bridge is published in
 [ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv). On a current OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.3
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.6
 ```
 
 Review its native security/capability report, then follow the
@@ -161,4 +169,5 @@ S1-ADV is maintained by **Sergey Sizov**.
 Originally based on [nazirlouis/OmniBot](https://github.com/nazirlouis/OmniBot).
 Thanks to its authors, [M5Stack](https://github.com/m5stack/M5Cardputer),
 [OpenClaw](https://github.com/openclaw/openclaw) and the other dependency authors.
-See [Credits](CREDITS.md) and [MIT license](LICENSE) for attribution.
+See [Credits](CREDITS.md), the retained [MIT license](LICENSE), and
+[Mesh firmware licensing](docs/MESH.md#source-and-licensing) for attribution.

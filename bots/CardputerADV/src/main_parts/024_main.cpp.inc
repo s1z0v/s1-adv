@@ -269,6 +269,12 @@ bool uiModeInterruptsRealtime(UiMode mode) {
 }
 
 void setUiMode(UiMode mode) {
+  if (gMeshBusOwned && mode != UiMode::Mesh) {
+    if (meshBlocksMode(mode)) { setStatus("Exit Mesh first: SD / EXT busy",1800); return; }
+    if (!stopMeshMode(false)) return;
+  }
+
+  if (deferInternetRadioMode(mode)) return;
   if (mode != UiMode::Face) gRealtimeScreenVisible=false;
   if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
   if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
@@ -292,6 +298,10 @@ void setUiMode(UiMode mode) {
   }
   gUiMode = mode;
   if (modeChanged && mode == UiMode::Files) refreshFileManager();
+  if (modeChanged && mode == UiMode::Chess) beginChessDemo();
+  if (modeChanged && mode == UiMode::Checkers) beginCheckersDemo();
+  if (modeChanged && mode == UiMode::Minesweeper) beginMinesweeper();
+  if (modeChanged && mode == UiMode::Radio) beginInternetRadio();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.
     gPendingOtaCheckAction = true;
@@ -360,6 +370,7 @@ void applyLauncherSelection() {
   gLauncherLastSub[gLauncherSelection] = gLauncherSubSelection;
   const LauncherSubItem& item = kLauncherGroups[gLauncherSelection].items[gLauncherSubSelection];
   UiMode target = item.mode;
+  if (gMeshBusOwned && item.startRealtime) {setStatus("Esc exits Mesh for voice",1600);return;}
   if (gRecording) cancelRecordingDiscard();
   if (!item.startRealtime) {
     gPendingRealtimeStart = false;

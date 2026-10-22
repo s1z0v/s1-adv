@@ -2,8 +2,10 @@
 #include <cstdint>
 namespace focus_lamp {
 enum class Phase : uint8_t { Idle, Focus, Break };
-// Existing lamp presets remain intact. Navigate with bounded, acknowledged
-// next/previous controls; opcode 6 in stock GL2 aliases preset and weekday.
+// Internal action, NOT a GL2 control opcode. The adapter sends an unchanged
+// preset bank with only its selected index changed. Stock control opcode 6
+// aliases preset and weekday and must never be used for this action.
+constexpr int kSelectPresetBank = 256;
 struct Link {
   bool active=false, suspended=false, waiting=false, restoring=false;
   int current=-1, original=-1, target=-1, expected=-1;
@@ -33,7 +35,7 @@ struct Link {
     if(active && next!=Phase::Idle){
       target=next==Phase::Focus?focus:rest;restoring=false;
       // Stock GL2 ignores preset controls while off. ON is idempotent;
-      // repeat it once to tolerate a dropped UDP packet, before navigation.
+      // repeat it once to tolerate a dropped UDP packet, before selection.
       powerOnRemaining=2;
     }
   }
@@ -43,8 +45,8 @@ struct Link {
     if(waiting || busy || now-lastCommand<520U)return -1;
     if(powerOnRemaining){--powerOnRemaining;lastCommand=now;return 1;}
     if(current==target)return -1;
-    expected=current+(target>current?1:-1);waiting=true;sentAt=now;lastCommand=now;
-    return target>current?5:4;
+    expected=target;waiting=true;sentAt=now;lastCommand=now;
+    return kSelectPresetBank;
   }
 };
 } // namespace focus_lamp

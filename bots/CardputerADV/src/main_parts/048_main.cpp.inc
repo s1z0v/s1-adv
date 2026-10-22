@@ -24,6 +24,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     handleGlobalEscape();
     return;
   }
+  if (gUiMode == UiMode::Mesh && !gLauncherVisible && !keys.tab && handleMeshKey(key,keys)) return;
   if (handleFocusShortcut(lowerKey,keys)) return;
   if (handleUnreadAssistantKey(key,keys)) return;
   if (handleHomeLinkRetryKey(key,keys)) return;
@@ -138,6 +139,10 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
     return;
   }
   if (gUiMode == UiMode::Files && handleFileManagerKey(key, keys)) return;
+  if (gUiMode == UiMode::Chess && handleChessDemoKey(key, keys)) return;
+  if (gUiMode == UiMode::Checkers && handleCheckersDemoKey(key, keys)) return;
+  if (gUiMode == UiMode::Minesweeper && handleMinesweeperKey(key, keys)) return;
+  if (gUiMode == UiMode::Radio && handleInternetRadioKey(key, keys)) return;
   if (gUiMode == UiMode::KeyRush && handleKeyRushKey(key, keys)) {
     return;
   }

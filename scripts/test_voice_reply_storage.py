@@ -21,6 +21,9 @@ def function(file, signature):
 
 code = r'''
 #include <cassert>
+bool radioBusy(){return false;}
+void stopInternetRadio(){}
+template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
 #include <cstdlib>
 #include <algorithm>

@@ -13,6 +13,8 @@ def function(file, signature):
     return source[start:end]
 code=r'''
 #include <cassert>
+bool radioBusy(){return false;}
+void stopInternetRadio(){}
 #include <cstdint>
 #include <deque>
 #include <string>
@@ -24,6 +26,7 @@ struct String:std::string {
  bool isEmpty() const {return empty();}
  void trim(){auto a=find_first_not_of(" \t\n\r"); if(a==npos){clear();return;} *this=substr(a,find_last_not_of(" \t\n\r")-a+1);}
 };
+bool handleMeshEscape(){return false;}
 enum class UiMode {Home,Clock,Face,Hero,ChatFull,ChatFace,Nes,Files};
 UiMode gUiMode=UiMode::Home;
 String gInputBuffer,gActiveTextTurn,gStatusText,lastUser;

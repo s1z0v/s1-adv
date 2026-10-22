@@ -18,6 +18,11 @@ For a blank public build, use the Wi-Fi setup portal shown on the device or
 `/setup`. The portal accepts the Wi-Fi network, bridge URL and device token.
 The build wrapper also supports an ignored local `.env` file.
 
+[Download the generic firmware](https://github.com/s1z0v/s1-adv/releases/tag/v0.2.201-dev)
+or build from source. The generic image has no personal credentials and uses
+the installer's default device ID/routing key; see the flashing guide before
+writing it. The current firmware includes [Internet Radio](RELEASE-0.2.200.md).
+
 Use a dedicated agent/session for initial tests. OpenClaw actions remain subject
 to the permissions you grant that agent. Your device token grants access to the
 conversation configured for that device in the bridge config. Telegram forum

@@ -1,0 +1,16 @@
+title = "S1-ADV public source secret checks"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "RFC 6455 public example nonce, not an authentication key"
+regexTarget = "secret"
+regexes = ['''dGhlIHNhbXBsZSBub25jZQ==''']
+
+[[allowlists]]
+description = "Literal dummy build token used only by the isolated firmware test"
+regexTarget = "secret"
+regexes = ['''abcdef0123456789abcdef0123456789''']
+paths = ['''^bridge/src/firmware-automation\.test\.mjs$''']
+condition = "AND"

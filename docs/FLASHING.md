@@ -3,6 +3,45 @@
 Target: **M5Stack Cardputer ADV**, ESP32-S3, **8 MB flash**.
 Do not substitute an old 2 MB Plai partition layout or a generic ESP32 target.
 
+## Download a public image
+
+[0.2.201-dev release](https://github.com/s1z0v/s1-adv/releases/tag/v0.2.201-dev)
+contains a generic first-install image, a matching app image and `SHA256SUMS`.
+These are development builds. They contain no maintainer Wi-Fi password,
+bridge address, device token or provider account. Physical acceptance of this
+generic build on a freshly configured device remains unverified.
+
+For a first install, download `s1-adv-0.2.201-dev-full.bin` and `SHA256SUMS` into
+the same folder. Install Python and `python -m pip install esptool==4.5.1` in a
+virtual environment. Check the downloaded file before flashing:
+
+```bash
+shasum -a 256 -c SHA256SUMS
+python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 \
+  write_flash 0x0 s1-adv-0.2.201-dev-full.bin
+```
+
+Use `sha256sum -c SHA256SUMS` on Linux. PowerShell can calculate a hash with
+`Get-FileHash -Algorithm SHA256 .\s1-adv-0.2.201-dev-full.bin`; compare it with
+the entry in `SHA256SUMS`. Download every file listed there before checking the
+whole manifest, or check the entry for just your downloaded file.
+
+Replace `YOUR_PORT` with your actual port, for example `/dev/cu.usbmodem1101`,
+`/dev/ttyACM0` or `COM3`. Try automatic USB connection first; if it cannot connect,
+hold G0, press Reset, release G0 and retry. This full image writes the bootloader,
+partition table and application and may reset saved settings. Keep your own
+configuration backed up; the microSD is separate.
+
+After boot, connect to the setup Wi-Fi using the random password on screen,
+open `http://192.168.4.1/`, and enter **your** Wi-Fi, HTTPS bridge URL and device
+token. The generic image uses device ID `cardputer-adv-01` and internal routing
+key `cardputer:main`, matching the default bridge installer. A custom device ID
+or routing key requires a source build configured below. Never upload the maintainer's personal OTA image.
+
+The release app image is for the matching S1-ADV OTA layout, **not address 0x0**.
+Existing devices should retain their own provisioning and normal bridge update
+workflow. Source builds remain available below.
+
 ## Install the tools
 
 Install Python 3, Git and [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html).

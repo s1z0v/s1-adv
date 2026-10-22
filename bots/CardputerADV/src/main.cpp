@@ -64,3 +64,8 @@
 #include "main_parts/063_main.cpp.inc"
 #include "main_parts/064_main.cpp.inc"
 #include "main_parts/065_main.cpp.inc"
+#include "main_parts/066_main.cpp.inc"
+#include "main_parts/067_main.cpp.inc"
+#include "main_parts/068_main.cpp.inc"
+#include "main_parts/069_main.cpp.inc"
+#include "main_parts/070_main.cpp.inc"

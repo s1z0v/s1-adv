@@ -12,8 +12,13 @@ bool gBrainStartSoundPending = false;
 uint32_t gBrainStartSoundAtMs = 0;
 
 bool appAllowsBackgroundNetwork() {
+  if (radioBusy()) return false;
   switch(gUiMode) {
     case UiMode::Files: // Keep background SD writes out of file-management transactions.
+    case UiMode::Chess: // Offline demo: keep the keyboard/UI responsive.
+    case UiMode::Checkers:
+    case UiMode::Minesweeper:
+    case UiMode::Radio:
     case UiMode::Nes: // The emulator owns RAM, audio and Wi-Fi until it exits.
     case UiMode::Sonar:
     case UiMode::RfidLab:
