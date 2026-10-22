@@ -60,6 +60,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install generated-audio fixture dependency
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: python -m pip install platformio==6.1.19
       - run: g++ -std=c++17 -Wall -Wextra -pedantic bots/CardputerADV/tests/transport_security_test.cpp -o /tmp/transport-security-test && /tmp/transport-security-test
       - run: python bots/CardputerADV/scripts/ui_feature_smoke.py
