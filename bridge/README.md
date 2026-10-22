@@ -13,9 +13,9 @@ text/voice chat, device events and optional firmware build/OTA workflows with
 subscription is included. Full guide:
 [OpenClaw setup](https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW.md).
 
-**Video walkthrough coming soon:** [YouTube @s1z0v](https://www.youtube.com/@s1z0v).
+**Video walkthrough:** [I Built an AI OS That Evolves on Demand](https://www.youtube.com/watch?v=_0f9UTwefmo).
 [Project repository](https://github.com/s1z0v/s1-adv) ·
-[Security review](https://github.com/s1z0v/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-18.md).
+[Security review](https://github.com/s1z0v/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-22.md).
 
 One device identity per instance is enforced. Use separate private storage for
 other devices. Ordinary chat can use an agent with all host tools denied;
@@ -64,15 +64,15 @@ install with `--accept-capabilities`; local archives/paths can also require
 Install the published plugin on your intended OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.6
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.9
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.6` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.9` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.6.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.9.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply
