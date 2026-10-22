@@ -11,6 +11,9 @@ namespace cardputer_smartlamp {
 constexpr std::size_t kPresetSize = 13;
 constexpr std::size_t kMaxPresets = 40;
 constexpr std::size_t kMaxPacketBytes = 2304;
+// ESP32 Arduino WiFiUDP silently sends another datagram after 1460 bytes.
+// Never let a full-bank update split into separately parsed partial banks.
+constexpr std::size_t kMaxSafeDatagramBytes = 1460;
 constexpr std::size_t kPresetSpeedIndex = 7;
 constexpr std::size_t kPresetScaleIndex = 9;
 
@@ -116,6 +119,21 @@ inline std::size_t buildPresetPacket(const PresetBank& bank, uint8_t weekday,
     return 0;
   }
   return used;
+}
+
+// Stock GL2 type 2 applies the complete bank and then selects exactly one
+// preset, with independent correct clock fields. Preserve every effect byte
+// and the caller's live cache; only the transmitted selected index differs.
+inline std::size_t buildPresetSelectionPacket(const PresetBank& bank, uint8_t selected,
+                                              uint8_t weekday, uint8_t hour,
+                                              uint8_t minute, uint8_t second,
+                                              char* output, std::size_t capacity) {
+  if (bank.count == 0 || bank.count > kMaxPresets || selected >= bank.count ||
+      weekday > 6 || hour > 23 || minute > 59 || second > 59) return 0;
+  PresetBank selection = bank;
+  selection.selected = selected;
+  const std::size_t length = buildPresetPacket(selection, weekday, hour, minute, second, output, capacity);
+  return length <= kMaxSafeDatagramBytes ? length : 0;
 }
 
 }  // namespace cardputer_smartlamp

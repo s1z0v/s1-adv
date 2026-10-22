@@ -90,6 +90,11 @@ bool ensureSmartLampUdp() {
 }
 
 bool smartLampSendPacket(const String& packet) {
+  if (packet.length() > cardputer_smartlamp::kMaxSafeDatagramBytes) {
+    gSmartLamp.status = "BANK TOO LARGE";
+    setStatus("Lamp bank exceeds safe UDP size",1800);
+    return false;
+  }
   if (!ensureSmartLampUdp()) {
     setStatus("smartLamp: Wi-Fi unavailable", 1000);
     return false;
@@ -363,6 +368,15 @@ void serviceFocusLamp() {
   const bool before=gFocusLampLink.active;
   gFocusLampLink.setPhase(phase,gFocusSettings.lampSync,gFocusSettings.lampFocusPreset,
     gFocusSettings.lampBreakPreset,fresh,millis());
+  if (gFocusLampLink.active && gFocusLampLink.current != gFocusLampLink.target &&
+      (!gSmartLamp.presetsLearned || gSmartLamp.presets.count == 0 ||
+       gSmartLamp.presets.count > cardputer_smartlamp::kMaxPresets ||
+       gFocusLampLink.current < 0 || gFocusLampLink.current >= gSmartLamp.presets.count ||
+       gFocusLampLink.target < 0 || gFocusLampLink.target >= gSmartLamp.presets.count)) {
+    gFocusLampLink.cancel();
+    setStatus("Sync lamp presets with phone first",2200);
+    return; // Never substitute scrolling or the clock-aliased opcode 6.
+  }
   if (!before && gFocusLampLink.active) {
     gFocusLampIp=gSmartLamp.ip;
     logf("[FOCUS_LAMP] lease focus=%d break=%d restore=%d",gFocusSettings.lampFocusPreset+1,
@@ -370,9 +384,22 @@ void serviceFocusLamp() {
   }
   const bool same=fresh && gSmartLamp.ip==gFocusLampIp;
   const int command=gFocusLampLink.command(millis(),same,
-    !gTimeValid || gTransferUiActive || gRecording || gSubmitting || gRealtimeActive);
+    !gTimeValid || gTransferUiActive || gRecording || gSubmitting || gRealtimeActive ||
+    gSmartLamp.presetSendDueMs != 0 || millis()-gSmartLamp.lastCommandMs<kSmartLampMinCommandGapMs);
   if(command<0)return;
-  const String packet=smartLampControlPacket(static_cast<uint8_t>(command));
+  String packet;
+  if (command == focus_lamp::kSelectPresetBank) {
+    uint8_t weekday=0,hour=0,minute=0,second=0;
+    smartLampClockFields(weekday,hour,minute,second);
+    static char bytes[cardputer_smartlamp::kMaxSafeDatagramBytes + 1] = {};
+    const size_t length=cardputer_smartlamp::buildPresetSelectionPacket(gSmartLamp.presets,
+      static_cast<uint8_t>(gFocusLampLink.expected),weekday,hour,minute,second,bytes,sizeof(bytes));
+    if (!length) {
+      gFocusLampLink.cancel();setStatus("Focus lamp: bank too large / invalid",1800);return;
+    }
+    packet=String(bytes,length);
+  } else if (command == 1) packet=smartLampControlPacket(1);
+  else {gFocusLampLink.cancel();return;}
   bool sent=gSmartLampUdp.beginPacket(gFocusLampIp,kSmartLampUdpPort)==1;
   if(sent){gSmartLampUdp.write(reinterpret_cast<const uint8_t*>(packet.c_str()),packet.length());sent=gSmartLampUdp.endPacket()==1;}
   if(!sent){gFocusLampLink.cancel();setStatus("Focus lamp: link lost",1200);return;}
@@ -380,7 +407,7 @@ void serviceFocusLamp() {
   if(command==1) {
     gSmartLamp.power=true; // Commanded state; GL_ONL does not report power.
     logf("[FOCUS_LAMP] power_on sent target=%d",gFocusLampLink.target+1);
-  } else logf("[FOCUS_LAMP] step command=%d expected=%d target=%d",command,gFocusLampLink.expected+1,gFocusLampLink.target+1);
+  } else logf("[FOCUS_LAMP] direct preset=%d awaiting presence",gFocusLampLink.expected+1);
 }
 
 void submitInput() {

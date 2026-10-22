@@ -67,10 +67,10 @@ int main(){
  using focus_lamp::Phase;focus_lamp::Link lamp;lamp.observe(5,1000);
  lamp.setPhase(Phase::Focus,true,1,5,true,1000);assert(lamp.original==5&&lamp.target==1);
  for(int i=0;i<2;++i){tick+=600;assert(lamp.command(tick,true,false)==1);}
- for(int current=5;current>1;--current){tick+=600;assert(lamp.command(tick,true,false)==4);assert(lamp.command(tick,true,false)==-1);lamp.observe(current-1,tick+100);}
+ tick+=600;assert(lamp.command(tick,true,false)==focus_lamp::kSelectPresetBank&&lamp.expected==1);assert(lamp.command(tick,true,false)==-1);lamp.observe(1,tick+100);
  lamp.setPhase(Phase::Break,true,1,5,true,tick);assert(lamp.target==5);
  for(int i=0;i<2;++i){tick+=600;assert(lamp.command(tick,true,false)==1);}
- for(int current=1;current<5;++current){tick+=600;assert(lamp.command(tick,true,false)==5);lamp.observe(current+1,tick+100);}
+ tick+=600;assert(lamp.command(tick,true,false)==focus_lamp::kSelectPresetBank&&lamp.expected==5);lamp.observe(5,tick+100);
  lamp.setPhase(Phase::Idle,true,1,5,true,tick);lamp.observe(5,tick);assert(!lamp.active);
  lamp.setPhase(Phase::Focus,true,1,5,true,tick);assert(lamp.active);assert(lamp.command(tick+600,false,false)==-1&&lamp.suspended);
  lamp.setPhase(Phase::Focus,true,1,5,true,tick+1000);assert(!lamp.active);lamp.allow();lamp.setPhase(Phase::Focus,true,1,5,true,tick+1200);assert(lamp.active);
@@ -79,9 +79,9 @@ int main(){
  offline.setPhase(Phase::Focus,true,1,5,true,tick+1000);assert(!offline.active); // No reconnect surprise.
  focus_lamp::Link timeout;timeout.observe(5,tick);timeout.setPhase(Phase::Focus,true,1,5,true,tick);
  assert(timeout.command(tick+600,true,false)==1);assert(timeout.command(tick+1200,true,false)==1);
- assert(timeout.command(tick+1800,true,false)==4);
+ assert(timeout.command(tick+1800,true,false)==focus_lamp::kSelectPresetBank);
  assert(timeout.command(tick+4400,true,false)==-1&&!timeout.active&&timeout.suspended);
- // Model stock GL2: preset steps are ignored while powered off. Drop the
+ // Model stock GL2: power-on precedes direct bank selection. Drop the
  // first ON datagram, including when the desired preset is already selected.
  for(bool alreadySelected:{false,true}) {
   focus_lamp::Link off;int preset=alreadySelected?1:5;bool powered=false;int onPackets=0;
@@ -89,7 +89,7 @@ int main(){
   for(uint32_t t=1000;t<=10000;t+=100){
    const int cmd=off.command(t,true,false);
    if(cmd==1){if(++onPackets>1)powered=true;}
-   else if(powered&&cmd==4)--preset;else if(powered&&cmd==5)++preset;
+   else if(cmd==focus_lamp::kSelectPresetBank)preset=off.expected;
    off.observe(preset,t);
   }
   assert(powered&&preset==1&&onPackets==2);
@@ -98,7 +98,7 @@ int main(){
   off.setPhase(Phase::Break,true,1,5,true,12000);
   for(uint32_t t=12000;t<=20000;t+=100){
    const int cmd=off.command(t,true,false);
-   if(cmd==1)powered=true;else if(powered&&cmd==4)--preset;else if(powered&&cmd==5)++preset;
+   if(cmd==1)powered=true;else if(cmd==focus_lamp::kSelectPresetBank)preset=off.expected;
    off.observe(preset,t);
   }
   assert(powered&&preset==5);
@@ -117,7 +117,7 @@ int main(){
   pausedLamp.setPhase(focusLampPhase(),true,1,5,true,start);
   for(uint32_t t=start;t<start+10000;t+=100){
    int command=pausedLamp.command(t,true,false);
-   if(command==4)--actualPreset;else if(command==5)++actualPreset;
+   if(command==focus_lamp::kSelectPresetBank)actualPreset=pausedLamp.expected;
    pausedLamp.observe(actualPreset,t);
   }
  };
@@ -134,6 +134,6 @@ int main(){
 '''
 with tempfile.TemporaryDirectory(prefix='s1-focus-link-') as d:
  p=Path(d);(p/'test.cpp').write_text(code)
- subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra','-Werror','-I',str(root/'bots/CardputerADV/src'),str(p/'test.cpp'),'-o',str(p/'test')],check=True)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++17','-Wall','-Wextra','-Werror','-fsanitize=address,undefined','-fno-omit-frame-pointer','-I',str(root/'bots/CardputerADV/src'),str(p/'test.cpp'),'-o',str(p/'test')],check=True)
  subprocess.run([str(p/'test')],check=True)
-print('PASS actual focus/shortcut: minute cycle on Home, pause, no duplicate reset; strict lamp IDs, two presets, restore, loss/override/no resend; DMA-loan frame policy')
+print('PASS actual focus/shortcut: minute cycle on Home, pause, no duplicate reset; strict lamp IDs, two direct presets, restore, loss/override/no resend; DMA-loan frame policy')
