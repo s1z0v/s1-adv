@@ -11,6 +11,10 @@ That code supplied the starting firmware and device/hub communication foundation
 S1-ADV continues the Cardputer ADV direction with its handheld interface,
 offline applications, OpenClaw bridge and device update workflow.
 
+Huge thanks to **[Naz Louis (@NazLouis)](https://www.youtube.com/@NazLouis)**
+and the OmniBot contributors for the open-source foundation this project
+started from.
+
 The standalone S1-ADV repository starts with a fresh public source snapshot.
 This does not erase the upstream origin or change the rights in inherited code.
 The original `Copyright (c) 2026 Omnibot contributors` notice remains in
