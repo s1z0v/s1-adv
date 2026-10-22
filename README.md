@@ -139,9 +139,16 @@ FFmpeg first. See [contributing](CONTRIBUTING.md) and [security](SECURITY.md).
 
 ## Support the project
 
-S1-ADV is free and open source. If you'd like to support continued development
-and follow progress updates, [join S1-ADV on Patreon](https://www.patreon.com/s1adv).
-Patreon memberships are optional and billed monthly.
+S1-ADV is free and open source. You can support continued development with a
+[one-time donation on Ko-fi](https://ko-fi.com/s1adv) or an
+[optional monthly Patreon membership](https://www.patreon.com/s1adv).
+
+## AI and automation consultations
+
+For help planning AI workflows, development pipelines or business process
+automation, [book a 90-minute session with Sergey Sizov](https://cal.com/s1z0v/automation-strategy)
+for **US$150**. Bring a specific task to work through a technical direction
+and a practical starting plan.
 
 ## Creator and credits
 
