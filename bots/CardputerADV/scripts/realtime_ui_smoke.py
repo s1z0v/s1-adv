@@ -40,6 +40,7 @@ source=f'''#include <cassert>
 #include <cstddef>
 #include <algorithm>
 #include <cstdio>
+#include <cstring>
 #include "{root}/src/mic_input_meter.h"
 using std::min;
 constexpr uint8_t kLauncherGroupCount=7,kLauncherMaxSubItems=7;
@@ -48,12 +49,13 @@ constexpr uint16_t rgb565_local(int,int,int) {{ return 0; }}
 int gLauncherSelection=0,gLauncherSubSelection=0,gLauncherLastSub[7]={{}};
 bool gRealtimeActive=false,gRecording=false,gRealtimeRecording=false,allowStart=true;
 bool gRealtimeScreenVisible=false,gPendingRealtimeStart=false,gRealtimeExclusiveMode=false;
-int starts=0,closes=0; uint32_t clockMs=100;
+int starts=0,closes=0,statuses=0; bool gMeshBusOwned=false; uint32_t clockMs=100;
 uint8_t gVoiceLevel8=0; mic_input_meter::State gMicInputMeter;
 uint32_t millis(){{return clockMs;}}
 template<typename T>T clampValue(T x,T lo,T hi){{return std::max(lo,std::min(x,hi));}}
 UiMode current=UiMode::Home;
 void setUiMode(UiMode mode){{current=mode;}}
+void setStatus(const char* message,int duration){{++statuses;assert(std::strcmp(message,"Esc exits Mesh for voice")==0 && duration==1600);}}
 void closeRealtimeSession(const char*){{++closes;gRealtimeActive=false;}}
 void cancelRecordingDiscard(){{gRecording=false;}}
 void startRealtimeSession(bool listen){{assert(listen);++starts;gRealtimeActive=allowStart;}}
@@ -62,6 +64,8 @@ void startRealtimeSession(bool listen){{assert(listen);++starts;gRealtimeActive=
 int main() {{
  assert(kLauncherGroups[0].count==6 && kLauncherGroups[0].items[0].startRealtime);
  assert(kLauncherGroups[0].items[5].mode==UiMode::Hero);
+ gMeshBusOwned=true;applyLauncherSelection();assert(starts==0 && closes==0 && statuses==1 && current==UiMode::Home);
+ gMeshBusOwned=false;
  applyLauncherSelection();assert(starts==1 && closes==0 && gLauncherSubSelection==0);
  applyLauncherSelection();assert(starts==1 && closes==0 && current==UiMode::Face && gRealtimeScreenVisible);
  gLauncherSubSelection=1;applyLauncherSelection();assert(!gRealtimeActive && closes==1 && gLauncherSubSelection==1);
