@@ -9,7 +9,7 @@
 
 # S1-ADV for Cardputer ADV
 
-Security: [bridge/plugin review and fixes](docs/SECURITY-REVIEW-2026-10-18.md).
+Security: [public history and release audit](docs/SECURITY-REVIEW-2026-10-22.md).
 
 **S1-ADV** turns a M5Stack Cardputer ADV into a pocket workspace for your
 **OpenClaw** agent: keyboard, voice, local tools and firmware you can extend.
