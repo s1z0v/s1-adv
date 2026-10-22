@@ -16,12 +16,12 @@ the same folder. Install Python and `python -m pip install esptool==4.5.1` in a
 virtual environment. Check the downloaded file before flashing:
 
 ```bash
-shasum -a 256 -c SHA256SUMS
+awk '$2=="s1-adv-0.2.201-dev-full.bin"' SHA256SUMS | shasum -a 256 -c -
 python -m esptool --chip esp32s3 --port YOUR_PORT --baud 460800 \
   write_flash 0x0 s1-adv-0.2.201-dev-full.bin
 ```
 
-Use `sha256sum -c SHA256SUMS` on Linux. PowerShell can calculate a hash with
+On Linux, replace `shasum -a 256` with `sha256sum` in the checksum command. PowerShell can calculate a hash with
 `Get-FileHash -Algorithm SHA256 .\s1-adv-0.2.201-dev-full.bin`; compare it with
 the entry in `SHA256SUMS`. Download every file listed there before checking the
 whole manifest, or check the entry for just your downloaded file.

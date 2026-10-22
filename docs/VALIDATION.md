@@ -1,3 +1,27 @@
+# Validation record
+
+## Public Internet Radio firmware, 2026-10-22
+
+The public firmware release `v0.2.201-dev` is built from source
+`89f07e45ab8cb6d51379afe43dc4b4513703a15a`, integrating server source
+`cf6d7bcf538f9777e59419aa0682bdb2d34f43fb` into public main. It includes
+Internet Radio from 0.2.200-dev and the 0.2.201-dev lamp changes. The personal
+server OTA image is not a public release asset.
+
+A clean worktree and explicit empty Wi-Fi/bridge credentials were used with
+PlatformIO 6.1.19 and espressif32 6.6.0. Compilation passed: app flash usage
+2,162,605 / 3,145,728 bytes (68.7%), static RAM 111,652 / 327,680 bytes (34.1%).
+All 54 standalone host regression scripts and the bridge security, installer,
+package, boundaries, upstream and smoke groups passed. The radio thread test
+retains ASan/UBSan on macOS, where LeakSanitizer is unavailable; Linux CI keeps
+leak detection. `npm audit` reported zero dependency vulnerabilities at review.
+
+These checks do not establish a fresh physical first-install, Wi-Fi provisioning,
+Internet Radio playback or a new user's provider account. A new user must still
+verify a visible text reply on the device before adding voice and automation.
+See the [public-history security audit](SECURITY-REVIEW-2026-10-22.md) and
+[flashing instructions](FLASHING.md).
+
 # Public source validation
 
 ## Unavailable voice connection, firmware 0.2.182, 2026-10-19
