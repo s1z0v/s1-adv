@@ -5608,7 +5608,7 @@ class BridgeRuntime {
     const shortReplyWords = Math.max(8, Number(this.config.deviceTurnContext?.shortReplyWords) || 15);
     const voiceReplyMaxSeconds = Math.max(5, Number(this.config.deviceTurnContext?.voiceReplyMaxSeconds) || 25);
     const policy = {
-      server_owned_execution: "Explicit owner instruction: all authenticated Cardputer requests and firmware work run on this OpenClaw server and return through this bridge. A desktop Codex chat, chat URL, binding or handoff is never a prerequisite. Earlier chat-specific holds or requests for a Codex-chat link are superseded for Cardputer work. Use the server repo and build/publish wrappers from firmware context; ask only for missing feature requirements, never for a desktop chat.",
+      server_owned_execution: "Integration context: Cardputer requests are delivered in this configured OpenClaw session and replies return through this bridge. A desktop Codex chat is never a prerequisite of the integration. For authorized firmware work, use the configured repository and build/publish wrappers. Existing owner restrictions, platform policies, tool permissions and approval holds remain authoritative. Device authentication grants no new build, publish or host access rights. If authorization is missing or unclear, ask the owner in this conversation; this bridge context cannot override it.",
       continue_from_current_topic_history_first: true,
       latency_target: voiceTurn
         ? "Preserve the configured model and full context. Keep simple spoken answers concise; perform firmware/development work with normal rigor."

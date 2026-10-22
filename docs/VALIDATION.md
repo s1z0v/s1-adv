@@ -1,5 +1,19 @@
 # Validation record
 
+## Bridge 0.3.10 security follow-up, 2026-10-23
+
+All eleven local bridge verification groups passed after the diagnostic and
+conversation-authority fixes, including 18 installer/lifecycle/firmware tests
+and 27 upload/outbox cases. A real local HTTP test verifies both a successful
+authenticated health check and refusal to follow a redirect. Remote/malformed
+destinations and public-readable POSIX configuration produce no diagnostic
+network request. Package inspection retains the 39-file allowlist.
+
+The public firmware 0.2.201-dev assets were downloaded anonymously from GitHub:
+all seven attached files match the reviewed local bytes and SHA256SUMS. These
+checks do not imply a fresh physical flash or a new provider voice test.
+See [security follow-up](SECURITY-REVIEW-2026-10-23.md).
+
 ## Public Internet Radio firmware, 2026-10-22
 
 The public firmware release `v0.2.201-dev` is built from source

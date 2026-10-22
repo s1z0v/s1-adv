@@ -15,7 +15,7 @@ subscription is included. Full guide:
 
 **Video walkthrough:** [I Built an AI OS That Evolves on Demand](https://www.youtube.com/watch?v=_0f9UTwefmo).
 [Project repository](https://github.com/s1z0v/s1-adv) ·
-[Security review](https://github.com/s1z0v/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-22.md).
+[Security review](https://github.com/s1z0v/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-23.md).
 
 One device identity per instance is enforced. Use separate private storage for
 other devices. Ordinary chat can use an agent with all host tools denied;
@@ -43,6 +43,10 @@ Works with **M5Stack Cardputer ADV, ESP32-S3, 8 MB flash**. Other ESP32 boards
 need a compatible firmware port; installing this plugin alone does not add one.
 Realtime voice needs separate provider setup and remains experimental.
 
+Diagnostics send the device token only to an exact numeric loopback destination,
+never to a configured remote host or through redirects. Integration context
+does not override the owner's restrictions or approval holds.
+
 ## Plugin setup
 
 Accepted turns use a durable per-session queue. A pending receipt means the reply
@@ -64,15 +68,15 @@ install with `--accept-capabilities`; local archives/paths can also require
 Install the published plugin on your intended OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.9
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.10
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.9` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.10` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.9.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.10.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply

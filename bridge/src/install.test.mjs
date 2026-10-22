@@ -3,7 +3,81 @@ import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile, stat, access, rm } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import http from "node:http";
 import { planInstall, applyInstall, gatewayToken, doctor, enablePlugin, configuredAgentExists } from "./install.mjs";
+
+test("doctor never sends a device credential to remote or malformed destinations", async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "s1-doctor-boundary-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const gatewayConfig = path.join(root, "openclaw.json");
+  await writeFile(gatewayConfig, JSON.stringify({ gateway: { auth: { token: "fixture-gateway-token-private" } }, agents: { list: [{ id: "cardputer" }] } }));
+  const plan = await planInstall({ gatewayConfig, stateDir: path.join(root, "private") });
+  await applyInstall(plan);
+  const config = JSON.parse(await readFile(plan.configPath, "utf8"));
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return { ok: true, status: 200, json: async () => ({ ok: true, upstream_connected: true, delivery_ready: true }) };
+  };
+  for (const host of ["bridge.example.com", "127.0.0.1.attacker.invalid", "0.0.0.0", "[::1]", "127.1"]) {
+    await writeFile(plan.configPath, JSON.stringify({ ...config, server: { host, port: 31889 } }));
+    const result = await doctor(plan.configPath, { fetchImpl });
+    assert.equal(result.textReady, false);
+    assert.equal(calls.length, 0);
+  }
+  for (const port of [0, -1, 65536, "31889/path", "31889@attacker.invalid"]) {
+    await writeFile(plan.configPath, JSON.stringify({ ...config, server: { host: "127.0.0.1", port } }));
+    await doctor(plan.configPath, { fetchImpl });
+    assert.equal(calls.length, 0);
+  }
+  for (const [host, expectedHost] of [["localhost", "127.0.0.1"], ["127.0.0.1", "127.0.0.1"], ["::1", "[::1]"]]) {
+    await writeFile(plan.configPath, JSON.stringify({ ...config, server: { host, port: 31889 } }));
+    await doctor(plan.configPath, { fetchImpl });
+    assert.equal(calls.at(-1).url, `http://${expectedHost}:31889/healthz`);
+    assert.equal(calls.at(-1).options.redirect, "error");
+  }
+  if (process.platform !== "win32") {
+    const { chmod } = await import("node:fs/promises");
+    await chmod(plan.configPath, 0o644);
+    const before = calls.length;
+    await doctor(plan.configPath, { fetchImpl });
+    assert.equal(calls.length, before);
+  }
+});
+
+test("doctor refuses a live HTTP redirect instead of forwarding its device token", async t => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "s1-doctor-redirect-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const requests = [];
+  let redirect = false;
+  const server = http.createServer((req, res) => {
+    requests.push({ url: req.url, authorization: req.headers.authorization });
+    if (redirect) {
+      res.writeHead(302, { location: "/credential-sink" });
+      res.end();
+    } else {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, upstream_connected: true, delivery_ready: true }));
+    }
+  });
+  await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const gatewayConfig = path.join(root, "openclaw.json");
+  await writeFile(gatewayConfig, JSON.stringify({ gateway: { auth: { token: "fixture-gateway-token-private" } }, agents: { list: [{ id: "cardputer" }] } }));
+  const plan = await planInstall({ gatewayConfig, stateDir: path.join(root, "private") });
+  await applyInstall(plan);
+  const config = JSON.parse(await readFile(plan.configPath, "utf8"));
+  config.server = { host: "127.0.0.1", port: server.address().port };
+  await writeFile(plan.configPath, JSON.stringify(config));
+  const healthy = await doctor(plan.configPath);
+  assert.equal(healthy.textReady, true);
+  assert.equal(requests[0].authorization, `Bearer ${config.devices[0].device_token}`);
+  redirect = true;
+  const result = await doctor(plan.configPath);
+  assert.deepEqual(requests.map(request => request.url), ["/healthz", "/healthz"]);
+  assert.equal(result.checks.find(check => check.name === "bridge-http").ok, false);
+  assert.equal(result.textReady, false);
+});
 
 test("preview writes nothing; apply isolates private configuration and repeat preserves identity", async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), "s1-install-"));

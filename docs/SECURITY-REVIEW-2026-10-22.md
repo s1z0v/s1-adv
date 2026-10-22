@@ -28,6 +28,17 @@ deleted/unreachable hosting objects, previously downloaded copies or private
 server logs. Revoke any credential if an actual exposure is later identified;
 history editing alone is not revocation.
 
+Public attribution remains visible: the maintainer name, approved creator/support
+links, and work-email author/committer addresses in older Git commits. These are
+public identity/contact metadata, not credentials. This audit does not claim that
+the repository is anonymous or contains no personal information. New local
+commits have been configured to use the GitHub noreply identity; historical
+commit objects were preserved.
+
+The final known-private-value comparison on 2026-10-23 checked all 187 fetched
+commits, 1,682 blobs, 1,117 trees and eight annotated tag objects, including
+commit metadata/messages and filenames. No match was found.
+
 CI now scans complete fetched Git history on main pushes and pull requests.
 The scanner archive version and SHA-256 are pinned. Findings fail the job;
 there is no broad exclusion for source, history or configuration templates.

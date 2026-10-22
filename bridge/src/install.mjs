@@ -117,7 +117,7 @@ export async function applyInstall(plan) {
   return { ...plan.summary, applied: true };
 }
 
-export async function doctor(configPath, { probe = true } = {}) {
+export async function doctor(configPath, { probe = true, fetchImpl = fetch } = {}) {
   const absolute = path.resolve(configPath);
   const config = JSON.parse(await readFile(absolute, "utf8"));
   const checks = [];
@@ -153,9 +153,21 @@ export async function doctor(configPath, { probe = true } = {}) {
     }
   }
   if (probe) {
-    try {
-      const response = await fetch(`http://${config.server.host}:${config.server.port}/healthz`, {
-        headers: { Authorization: `Bearer ${config.devices[0].device_token}` }, signal: AbortSignal.timeout(5000) });
+    const host = config.server?.host;
+    const port = Number(config.server?.port);
+    const privateConfig = checks.find(check => check.name === "private-config")?.ok;
+    const token = config.devices?.length === 1 ? config.devices[0]?.device_token : null;
+    const safeProbe = privateConfig && ["127.0.0.1", "::1", "localhost"].includes(host) &&
+      Number.isInteger(port) && port >= 1 && port <= 65535 &&
+      typeof token === "string" && token.length >= 32 && !/[\r\n]/.test(token);
+    if (!safeProbe) {
+      add("bridge-http", false, "Authenticated diagnostics require private configuration, one device token and an exact loopback host/port. No request sent.");
+    } else try {
+      // Pin localhost to a numeric loopback address; never resolve an arbitrary
+      // configured hostname or follow redirects while carrying a device token.
+      const endpointHost = host === "::1" ? "[::1]" : "127.0.0.1";
+      const response = await fetchImpl(`http://${endpointHost}:${port}/healthz`, {
+        redirect: "error", headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) });
       const body = await response.json();
       add("bridge-http", response.ok && body.ok === true, `HTTP ${response.status}`);
       add("upstream", body.upstream_connected === true, "Checks the real gateway connection, not a model answer.");
