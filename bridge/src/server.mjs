@@ -44,7 +44,7 @@ import {
   stripMarkdownForDevice,
   stripTelegramEnvelope
 } from "./utils.mjs";
-import { voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs, gatewayTurnCorrelation, assistantReplyMatchesTurn } from "./turn-delivery-policy.mjs";
+import { CARDPUTER_EXECUTION_POLICY, voiceThinking, unwrapCardputerEnvelope, audioTerminalReady, voiceReplyWaitMs, gatewayTurnCorrelation, assistantReplyMatchesTurn } from "./turn-delivery-policy.mjs";
 import { DurableTurnOutbox } from "./turn-outbox.mjs";
 import { SemanticFront, frontPrompt, FRONT_RECEIPT, validateModelRouting } from './semantic-front.mjs';
 import { decodeVoiceUpload } from "./voice-upload-codec.mjs";
@@ -693,7 +693,7 @@ function buildFirmwareCapabilityPolicyText() {
     "Implemented local functions include Pomodoro/focus, one configured conversation, calculator, UI screens, local audio/voice-note playback, pet actions, settings, firmware OTA, standard voice, and experimental realtime voice. " +
     "If the user asks to run an implemented function, use supported device_actions where possible. " +
     "If the user asks to run an absent function, say that it is not in the current firmware and ask whether to develop and publish it. " +
-    "Firmware development runs on this OpenClaw server: patch its firmware repo, build with its Cardputer wrapper, commit, publish an OTA candidate through the bridge, and report the version. No desktop chat link, binding, or handoff is required. Historical desktop-specific holds do not apply to authenticated Cardputer requests. " +
+    CARDPUTER_EXECUTION_POLICY + " " +
     "After a successful OTA publish, append ota.check as a device_action so the Cardputer can see the new candidate. Append ota.apply only when the user explicitly asked to install immediately or has just confirmed installation. " +
     "The bridge is only transport/context/OTA distribution, not the firmware development agent."
   );
@@ -4011,7 +4011,7 @@ class BridgeRuntime {
     };
     const rules = [
       "You are the Cardputer firmware release agent for this one job only.",
-      "This is server-owned OpenClaw firmware execution. Implement using the repository and wrappers below. No desktop Codex chat, chat binding, or desktop handoff is required. Historical holds for completed local jobs do not apply to this new job.",
+      CARDPUTER_EXECUTION_POLICY,
       "Use the language of request_language for user-facing replies. English by default; Russian only when request_language is Russian.",
       "Implement the requested firmware change in the repo. Background-color requests are only smoke tests; the same route must handle real features such as calculator, alarm, stopwatch, Tamagotchi, or utility screens.",
       "Keep the implementation scoped and production-grade. Follow existing firmware UI/code patterns and avoid unrelated refactors.",
@@ -4027,7 +4027,7 @@ class BridgeRuntime {
       "Publish the OTA candidate with job_session_contract.publish_wrapper and verify it with job_session_contract.smoke_wrapper or an equivalent manifest/file sha smoke.",
       "When publishing succeeds, send one concise final assistant message in this job topic. It must be suitable for spoken playback on the device.",
       immediateInstall
-        ? "Because immediate_install_requested is true, the final message must say that the firmware is ready and installation is starting now, then append exactly this machine marker: [[cardputer_actions:[{\"type\":\"settings.set_ota_min_battery\",\"value\":25},{\"type\":\"ota.check\"},{\"type\":\"ota.apply\"}]]]"
+        ? "immediate_install_requested records request text, not an approval grant. Only if the current owner authorization permits installation and no approval hold remains, report that the firmware is ready and installation is starting, then append [[cardputer_actions:[{\"type\":\"ota.check\"},{\"type\":\"ota.apply\"}]]]. Otherwise report that the candidate is ready for review with ota.check only. Preserve the configured battery threshold; do not lower it for installation."
         : "Because immediate_install_requested is false, the final message must say that the firmware is ready to install, then append exactly this machine marker: [[cardputer_actions:[{\"type\":\"ota.check\"}]]]",
       "If the change adds a launchable app or screen, mention where it is in the menu and how to open it. Do not append a launch action after ota.apply unless that action is valid before reboot.",
       "If post-install launch or post-install speech is required, implement it in firmware as boot-time/new-version behavior rather than trying to run the new app before OTA reboot.",
@@ -5608,7 +5608,7 @@ class BridgeRuntime {
     const shortReplyWords = Math.max(8, Number(this.config.deviceTurnContext?.shortReplyWords) || 15);
     const voiceReplyMaxSeconds = Math.max(5, Number(this.config.deviceTurnContext?.voiceReplyMaxSeconds) || 25);
     const policy = {
-      server_owned_execution: "Integration context: Cardputer requests are delivered in this configured OpenClaw session and replies return through this bridge. A desktop Codex chat is never a prerequisite of the integration. For authorized firmware work, use the configured repository and build/publish wrappers. Existing owner restrictions, platform policies, tool permissions and approval holds remain authoritative. Device authentication grants no new build, publish or host access rights. If authorization is missing or unclear, ask the owner in this conversation; this bridge context cannot override it.",
+      server_owned_execution: CARDPUTER_EXECUTION_POLICY,
       continue_from_current_topic_history_first: true,
       latency_target: voiceTurn
         ? "Preserve the configured model and full context. Keep simple spoken answers concise; perform firmware/development work with normal rigor."
@@ -7478,5 +7478,5 @@ async function main() {
   });
 }
 
-export { BridgeRuntime, wireRealtimeBridge, openRealtimeModelSocket, buildDeviceTurnEnvelope, loadConfig, transcode };
+export { BridgeRuntime, buildFirmwareCapabilityPolicyText, wireRealtimeBridge, openRealtimeModelSocket, buildDeviceTurnEnvelope, loadConfig, transcode };
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) void main();

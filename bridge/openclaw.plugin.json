@@ -2,7 +2,7 @@
   "id": "s1-adv",
   "name": "ESP32 S1-ADV",
   "description": "Self-hosted ESP32-S3 AI agent bridge for Cardputer ADV: OpenClaw text/voice chat, device status, and optional self-updating firmware through reviewed builds and OTA delivery.",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "categories": [
     "channels"
   ],

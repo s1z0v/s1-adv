@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
+import { CARDPUTER_EXECUTION_POLICY, voiceReplyWaitMs, audioTerminalReady } from './turn-delivery-policy.mjs';
 import { requestedReplyLanguage } from './reply-language.mjs';
 import { RealtimePacingBudget } from './realtime-pacing-budget.mjs';
-import { BridgeRuntime } from './server.mjs';
+import { BridgeRuntime, buildFirmwareCapabilityPolicyText } from './server.mjs';
 
 test('every text and voice turn stays in the persistent agent session without keyword routing',async()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
@@ -30,10 +30,12 @@ test('actual STT form keeps multilingual input independent of English replies',a
 
 test('Cardputer execution context never needs a desktop chat or Mac checkout',()=>{
  const source=readFileSync(new URL('./server.mjs',import.meta.url),'utf8');
- assert.match(source,/server_owned_execution:.*desktop Codex chat.*never a prerequisite/u);
- const executionPolicy = source.match(/server_owned_execution: "([^"\n]+)"/u)[1];
- assert.match(executionPolicy,/Existing owner restrictions, platform policies, tool permissions and approval holds remain authoritative/u);
- assert.doesNotMatch(executionPolicy,/Explicit owner instruction|superseded|override earlier/u);
+ assert.match(source,/server_owned_execution: CARDPUTER_EXECUTION_POLICY/u);
+ const capabilityText = buildFirmwareCapabilityPolicyText();
+ assert(capabilityText.includes(CARDPUTER_EXECUTION_POLICY));
+ assert.match(CARDPUTER_EXECUTION_POLICY,/desktop Codex chat.*never a prerequisite/u);
+ assert.match(CARDPUTER_EXECUTION_POLICY,/Existing owner restrictions, platform policies, tool permissions and approval holds remain authoritative/u);
+ assert.doesNotMatch(source,/Historical.*holds.*do not apply|Earlier chat-specific holds.*superseded/u);
  const capabilities=source.slice(source.indexOf('const CARDPUTER_FIRMWARE_CAPABILITIES'),source.indexOf('const DEVICE_ACTION_TYPES'));
  assert.match(capabilities,/firmware_repo: CARDPUTER_FIRMWARE_REPO/);
  assert.doesNotMatch(capabilities,/\/Users\//);

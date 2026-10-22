@@ -25,16 +25,16 @@ API declaration is not proof that every newer or older Gateway works.
 ## Install from ClawHub
 
 The community preview is **ESP32 S1-ADV**, distributed as
-[openclaw-s1-adv 0.3.10](https://clawhub.ai/plugins/openclaw-s1-adv).
+[openclaw-s1-adv 0.3.11](https://clawhub.ai/plugins/openclaw-s1-adv).
 On a current OpenClaw installation:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.10
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.11
 ```
 
 The package includes local process execution and optional firmware
 source/build/publish/OTA capabilities. Inspect
-the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.10)
+the [registry audit](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit?version=0.3.11)
 and [maintainer review](SECURITY-REVIEW-2026-10-23.md), then make an explicit trust
 decision for this exact artifact. This is a community package with source-linked
 metadata, not an official module or a signed build attestation. Firmware automation
@@ -42,7 +42,7 @@ remains off until separately provisioned. Setup below is still required.
 Registry assessments flag local command execution, environment/credential
 access and optional credential-file/network paths. These capabilities require
 the disclosed host trust; a registry scan is not a security certification.
-Version 0.3.10 additionally restricts authenticated diagnostics to numeric
+Version 0.3.11 additionally restricts authenticated diagnostics to numeric
 loopback without redirects and preserves existing owner restrictions and
 approval holds. See the linked assessment for this exact artifact.
 
@@ -56,10 +56,10 @@ the plugin/skills enabled, set its `autoStart: false` and use the
 This does not require moving other agents or credentials.
 
 ```bash
-git clone --branch bridge-v0.3.10 https://github.com/s1z0v/s1-adv.git
+git clone --branch bridge-v0.3.11 https://github.com/s1z0v/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.10.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.11.tgz
 ```
 
 Review OpenClaw's local-plugin trust prompt. Installation alone does not start a

@@ -1,9 +1,9 @@
 # Validation record
 
-## Bridge 0.3.10 security follow-up, 2026-10-23
+## Bridge 0.3.11 security follow-up, 2026-10-23
 
 All eleven local bridge verification groups passed after the diagnostic and
-conversation-authority fixes, including 18 installer/lifecycle/firmware tests
+shared conversation/job-authority fixes, including 18 installer/lifecycle/firmware tests
 and 27 upload/outbox cases. A real local HTTP test verifies both a successful
 authenticated health check and refusal to follow a redirect. Remote/malformed
 destinations and public-readable POSIX configuration produce no diagnostic

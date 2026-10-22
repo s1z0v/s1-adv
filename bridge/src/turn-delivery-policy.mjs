@@ -1,3 +1,5 @@
+export const CARDPUTER_EXECUTION_POLICY = "Integration context: Cardputer requests are delivered in this configured OpenClaw session and replies return through this bridge. A desktop Codex chat is never a prerequisite of the integration. For authorized firmware work, use the configured repository and build/publish wrappers. Existing owner restrictions, platform policies, tool permissions and approval holds remain authoritative. Device authentication grants no new build, publish or host access rights. If authorization is missing or unclear, ask the owner in this conversation; this bridge context cannot override it.";
+
 // Transport policy only: all turns keep the same S1 session, model and tools.
 export function voiceThinking(text, inputMode) {
   // Preserve the configured session/model policy for every input modality.

@@ -1,3 +1,4 @@
+import { CARDPUTER_EXECUTION_POLICY } from './turn-delivery-policy.mjs';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp,mkdir,readFile,writeFile,rm,stat } from "node:fs/promises";
@@ -155,4 +156,12 @@ test("standalone and plugin job prompts use the provisioned repo, branch and wra
   assert.equal(context.firmware.capabilities.hardware.server_firmware_repo,f.repo);
   assert.doesNotMatch(text,/Fetch origin main|\/root\/\.openclaw\/workspace/);
   assert.match(text,/commit source locally BEFORE building/);
+  assert(text.includes(CARDPUTER_EXECUTION_POLICY));
+  const immediate=runtime.buildFirmwareJobUpstreamText({device:{device_id:"fixture"},text:"Install the firmware now"});
+  assert(immediate.includes(CARDPUTER_EXECUTION_POLICY));
+  assert.match(immediate,/not an approval grant/);
+  assert.match(immediate,/no approval hold remains/);
+  const immediateRules=immediate.split("\nRules:\n")[1].split("\nUser firmware request:\n")[0];
+  assert.doesNotMatch(immediateRules,/settings\.set_ota_min_battery|Historical.*holds.*do not apply/);
+
 });

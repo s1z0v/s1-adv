@@ -1,6 +1,6 @@
 # Bridge security follow-up, 2026-10-23
 
-Version 0.3.10 addresses two concerns identified while reviewing the ClawHub
+Versions 0.3.10 and 0.3.11 address two concerns identified while reviewing the ClawHub
 0.3.9 assessment. This review is distinct from the
 [public-history credential audit](SECURITY-REVIEW-2026-10-22.md). The latter
 found no known private Wi-Fi password, API/device/Gateway token or maintainer
@@ -33,8 +33,10 @@ operator-reviewed ACL; POSIX mode bits are not a Windows ACL guarantee.
 
 The bridge previously described authenticated device work as an explicit owner
 instruction and declared earlier chat-specific holds superseded. That wording
-was too broad for a reusable public integration. Integration context now says
-that existing owner restrictions, platform policies, tool permissions and
+was too broad for a reusable public integration. The normal conversation context was updated in 0.3.10. A subsequent registry
+review identified two legacy firmware-context/bootstrap strings that still
+contradicted it. Version 0.3.11 now uses one shared execution policy in all
+three routes. That policy says that existing owner restrictions, platform policies, tool permissions and
 approval holds remain authoritative. Device authentication grants no new host,
 build or publish permissions. Missing authorization is clarified in the same
 OpenClaw conversation. A desktop Codex binding remains unnecessary.
@@ -73,3 +75,22 @@ The public video description matched none of the nine server values. The
 public cover contains only color-space/dimension EXIF fields, no GPS metadata
 or visible access credentials. Public attribution/work-email metadata remains
 as documented in the history audit.
+
+## Consistent firmware authority, 0.3.11
+
+The normal conversation policy, firmware capability context and job bootstrap
+share `CARDPUTER_EXECUTION_POLICY`; none declares historical approval holds
+invalid. Regression tests inspect actual capability/job output and guard all
+three call sites against the old override wording.
+
+An immediate-install text flag is explicitly not an approval grant. Installation
+markers require current owner authorization and no remaining approval hold.
+The job bootstrap no longer silently lowers the device's minimum OTA battery
+threshold to 25 percent; it preserves the user's configured threshold. Normal
+source/build/publish instructions and the separate device confirmation remain.
+
+ClawHub's 0.3.10 assessment explicitly reported the remaining conflict about
+firmware approval holds. The 0.3.11 shared-policy change addresses that actual
+conflict; it does not suppress scanner findings or remove disclosed host
+capabilities to obtain a different badge. All eleven local verification groups
+passed for the 0.3.11 candidate, including the job-output regression.

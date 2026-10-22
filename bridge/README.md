@@ -68,15 +68,15 @@ install with `--accept-capabilities`; local archives/paths can also require
 Install the published plugin on your intended OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.10
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.11
 ```
 
-Or install a reviewed source archive (tag `bridge-v0.3.10` for this release):
+Or install a reviewed source archive (tag `bridge-v0.3.11` for this release):
 
 ```bash
 cd bridge
 npm pack --ignore-scripts
-openclaw plugins install ./openclaw-s1-adv-0.3.10.tgz
+openclaw plugins install ./openclaw-s1-adv-0.3.11.tgz
 # Prefer a dedicated restricted agent; create/configure it in OpenClaw first.
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE
 openclaw s1-adv init --agent cardputer --public-url https://YOUR_BRIDGE --apply

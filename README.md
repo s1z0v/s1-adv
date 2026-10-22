@@ -87,7 +87,7 @@ The community bridge is published in
 [ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv). On a current OpenClaw host:
 
 ```bash
-openclaw plugins install clawhub:openclaw-s1-adv@0.3.10
+openclaw plugins install clawhub:openclaw-s1-adv@0.3.11
 ```
 
 Review its native security/capability report, then follow the
