@@ -33,7 +33,7 @@
     handleTypingKey(upDown ? char(1) : char(2),keys);
   } else if (gUiMode == UiMode::Files && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey((upDown || leftDown) ? ',' : '.', keys);
-  } else if (gUiMode == UiMode::Minesweeper && (upDown || downDown || leftDown || rightDown)) {
+  } else if ((gUiMode == UiMode::Minesweeper || gUiMode == UiMode::Radio) && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey(upDown ? 'w' : downDown ? 's' : leftDown ? 'a' : 'd', keys);
   } else if ((gUiMode == UiMode::Chess || gUiMode == UiMode::Checkers) && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey(upDown ? 'w' : downDown ? 's' : leftDown ? 'a' : 'd', keys);

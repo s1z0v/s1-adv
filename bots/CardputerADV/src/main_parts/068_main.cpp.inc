@@ -19,7 +19,7 @@ bool meshBlocksMode(UiMode mode) {
 }
 
 bool meshStartIsBusy() {
-  return gBootBackgroundActive || gRecording || gSubmitting || gThinking || gPlaybackActive ||
+  return radioBusy() || gBootBackgroundActive || gRecording || gSubmitting || gThinking || gPlaybackActive ||
     gTransferUiActive || gOtaApplyInProgress || gInboxHttpBusy || gVoiceDialBusy ||
     gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty() ||
     gRealtimeActive || gRealtimeDialBusy || gRealtimeExclusiveMode || gPendingRealtimeStart ||

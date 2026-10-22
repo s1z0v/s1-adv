@@ -13,7 +13,7 @@ for file,text in [
     ('022_main.cpp.inc','mode == "minesweeper" || mode == "mines"'),
     ('024_main.cpp.inc','mode == UiMode::Minesweeper) beginMinesweeper();'),
     ('048_main.cpp.inc','handleMinesweeperKey(key, keys)'),
-    ('049_main.cpp.inc','gUiMode == UiMode::Minesweeper && (upDown || downDown || leftDown || rightDown)'),
+    ('049_main.cpp.inc','gUiMode == UiMode::Minesweeper || gUiMode == UiMode::Radio'),
     ('061_main.cpp.inc','renderMinesweeperUi();'),
     ('061_main.cpp.inc','serviceMinesweeper();'),
     ('063_main.cpp.inc','case UiMode::Minesweeper:')]:

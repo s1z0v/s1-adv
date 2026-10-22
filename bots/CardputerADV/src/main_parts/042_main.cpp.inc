@@ -519,6 +519,7 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 void startRealtimeSession(bool startAfterReady) {
+  if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; press voice again",1600); return; }
   if (gMeshBusOwned) { setStatus("Esc exits Mesh for voice",1600); return; }
   handleScreensaverWake();
   setUiMode(UiMode::Face);

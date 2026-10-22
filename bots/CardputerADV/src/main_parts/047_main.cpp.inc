@@ -2070,6 +2070,7 @@ bool handleGlobalEscape() {
   gPendingOtaCheckAction = gPendingOtaApplyAction = false;
   if (gInboxHttpBusy) gInboxCancelRequested = true;
   if(handleVoiceRequestEscape()) return true;
+  if (radioBusy()) { stopInternetRadio(); setUiMode(UiMode::Home); return true; }
   if(returnToSettingsHub()) return true;
   if (gChatCommandsVisible) { gChatCommandsVisible=false; return true; }
   if (gVoiceReplySpeechBusy || !gQueuedVoiceReplySpeech.isEmpty()) dismissVoiceNotice();

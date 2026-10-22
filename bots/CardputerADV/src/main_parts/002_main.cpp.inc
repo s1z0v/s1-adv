@@ -186,6 +186,7 @@ enum class UiMode : uint8_t {
   Checkers,
   Mesh,
   Minesweeper,
+  Radio,
 };
 
 enum class FocusState : uint8_t {

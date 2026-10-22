@@ -9,6 +9,9 @@ def fn(file,name):
  return s[a:i]
 code=r'''
 #include <cassert>
+bool radioBusy(){return false;}
+void stopInternetRadio(){}
+template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
 #include <set>
 #include <string>

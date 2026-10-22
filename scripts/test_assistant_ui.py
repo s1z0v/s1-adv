@@ -13,6 +13,8 @@ def function(file, signature):
     return source[start:end]
 code=r'''
 #include <cassert>
+bool radioBusy(){return false;}
+void stopInternetRadio(){}
 #include <cstdint>
 #include <deque>
 #include <string>

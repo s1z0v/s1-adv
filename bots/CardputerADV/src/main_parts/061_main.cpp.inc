@@ -1,4 +1,7 @@
   switch (gUiMode) {
+      case UiMode::Radio:
+        renderInternetRadioUi();
+        break;
       case UiMode::Minesweeper:
         renderMinesweeperUi();
         break;
@@ -353,6 +356,15 @@ void loop() {
   }
   updateG0VoiceTrigger();
   pollTyping();
+  serviceInternetRadio();
+  if (radioBusy()) {
+    // Streaming owns one audio channel and its heap. Keep navigation alive,
+    // but never let background TLS/capture/OTA borrow or reinitialize it.
+    updateBatterySnapshot();
+    serviceSmartLamp(); serviceFocusLamp(); serviceAlarm();
+    if (millis()-gLastRenderMs>=kRenderIntervalMs) { render(); gLastRenderMs=millis(); }
+    delay(1); return;
+  }
   if (gMeshBusOwned) {
     serviceMeshMode();
     if (gMeshBusOwned) {

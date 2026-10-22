@@ -142,6 +142,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
   if (gUiMode == UiMode::Chess && handleChessDemoKey(key, keys)) return;
   if (gUiMode == UiMode::Checkers && handleCheckersDemoKey(key, keys)) return;
   if (gUiMode == UiMode::Minesweeper && handleMinesweeperKey(key, keys)) return;
+  if (gUiMode == UiMode::Radio && handleInternetRadioKey(key, keys)) return;
   if (gUiMode == UiMode::KeyRush && handleKeyRushKey(key, keys)) {
     return;
   }

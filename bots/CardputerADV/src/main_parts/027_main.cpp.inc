@@ -212,7 +212,7 @@ bool playUpdateChime() {
 }
 
 void focusTone(uint16_t freq, uint16_t durationMs) {
-  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
+  if (radioBusy() || gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
     return;
   }
   M5Cardputer.Speaker.tone(freq, durationMs);
@@ -220,7 +220,7 @@ void focusTone(uint16_t freq, uint16_t durationMs) {
 
 bool playFocusCue(FocusState state) {
   if (!gFocusSettings.guidedAudio) return false;
-  if (gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
+  if (radioBusy() || gRecording || gSubmitting || gThinking || gPlaybackActive || gRealtimeActive || gRealtimeExclusiveMode) {
     return false;
   }
   const char* cue = nullptr;

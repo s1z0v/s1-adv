@@ -68,3 +68,4 @@
 #include "main_parts/067_main.cpp.inc"
 #include "main_parts/068_main.cpp.inc"
 #include "main_parts/069_main.cpp.inc"
+#include "main_parts/070_main.cpp.inc"

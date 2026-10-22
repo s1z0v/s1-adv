@@ -17,6 +17,9 @@ enum=(PARTS/'002_main.cpp.inc').read_text().split('enum class UiMode',1)[1].spli
 code=r'''
 #include "mesh_leaf_state.h"
 #include <cassert>
+bool radioBusy(){return false;}
+void stopInternetRadio(){}
+template<class T>bool deferInternetRadioMode(T){return false;}
 #include <atomic>
 #include <algorithm>
 #include <memory>
