@@ -139,7 +139,7 @@ This only installs documentation for the agent; install/start the bridge above.
 
 ```text
 Help me set up S1-ADV on my M5Stack Cardputer ADV from this repository:
-https://github.com/srg0/s1-adv
+https://github.com/s1z0v/s1-adv
 
 Read README.md, docs/OPENCLAW.md and docs/FLASHING.md from the checked-out source.
 Use the bridge/ service in this repository and my existing OpenClaw gateway.

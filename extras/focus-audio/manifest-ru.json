@@ -10,7 +10,7 @@
       "size": 1061138,
       "sha256": "7f40aad5790ecf3a84b802352accc5c5d9feddc55273ced5db0fc8e749513b70",
       "duration_sec": 33.158,
-      "download_url": "https://raw.githubusercontent.com/srg0/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/break.wav"
+      "download_url": "https://raw.githubusercontent.com/s1z0v/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/break.wav"
     },
     {
       "path": "/pomodoro/audio/ru/reflection.wav",
@@ -19,7 +19,7 @@
       "size": 2015374,
       "sha256": "b63e2ee005ae1bb71f8c13e5eed7d30621eac9be03979be06a5eb2f37152b4a4",
       "duration_sec": 62.978,
-      "download_url": "https://raw.githubusercontent.com/srg0/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/reflection.wav"
+      "download_url": "https://raw.githubusercontent.com/s1z0v/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/reflection.wav"
     },
     {
       "path": "/pomodoro/audio/ru/start.wav",
@@ -28,7 +28,7 @@
       "size": 1746218,
       "sha256": "c2c84339a3489bdc082f62b0af79d4e2f55f0494151f29bd99a116c0f1f31fde",
       "duration_sec": 54.567,
-      "download_url": "https://raw.githubusercontent.com/srg0/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/start.wav"
+      "download_url": "https://raw.githubusercontent.com/s1z0v/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/start.wav"
     }
   ]
 }

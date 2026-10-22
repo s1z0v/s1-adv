@@ -21,7 +21,7 @@ The agent runs on your computer or server; the Cardputer runs this firmware.
 S1-ADV is experimental firmware built on Arduino/FreeRTOS, with an included
 OpenClaw bridge. See [Credits](CREDITS.md) for the project origin and cover details.
 
-[Install the OpenClaw plugin on ClawHub](https://clawhub.ai/srg0/plugins/openclaw-s1-adv) · [Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+[Install the OpenClaw plugin on ClawHub](https://clawhub.ai/plugins/openclaw-s1-adv) · [Get started](docs/GETTING-STARTED.md) · [Flash firmware](docs/FLASHING.md) · [Connect OpenClaw](docs/OPENCLAW.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## What you can do
 
@@ -90,7 +90,7 @@ server or a completed device setup.
 For firmware source and the manual installation route:
 
 ```bash
-git clone https://github.com/srg0/s1-adv.git
+git clone https://github.com/s1z0v/s1-adv.git
 cd s1-adv
 ```
 
@@ -149,7 +149,7 @@ S1-ADV is maintained by **Sergey Sizov**.
 
 [Instagram @s1z0v](https://www.instagram.com/s1z0v/) ·
 [YouTube @s1z0v](https://www.youtube.com/@s1z0v) ·
-[GitHub srg0](https://github.com/srg0)
+[GitHub s1z0v](https://github.com/s1z0v)
 
 Originally based on [nazirlouis/OmniBot](https://github.com/nazirlouis/OmniBot).
 Thanks to its authors, [M5Stack](https://github.com/m5stack/M5Cardputer),

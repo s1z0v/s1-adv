@@ -2,20 +2,20 @@
 
 Text and G0 voice replies continue the same OpenClaw session. The agent sets
 NEEDS INPUT / WORKING / BUILDING explicitly; ordinary questions do not start
-firmware builds. See [contextual replies and task status](https://github.com/srg0/s1-adv/blob/main/docs/AGENT-STATUS.md).
+firmware builds. See [contextual replies and task status](https://github.com/s1z0v/s1-adv/blob/main/docs/AGENT-STATUS.md).
 
-![S1-ADV: voice, AI and firmware on a real M5Stack Cardputer ADV](https://raw.githubusercontent.com/srg0/s1-adv/d13d260a6da91636924c2a0286bf1f8955701709/docs/assets/s1-adv-hero.jpg)
+![S1-ADV: voice, AI and firmware on a real M5Stack Cardputer ADV](https://raw.githubusercontent.com/s1z0v/s1-adv/d13d260a6da91636924c2a0286bf1f8955701709/docs/assets/s1-adv-hero.jpg)
 
 A community OpenClaw plugin and standalone Node.js bridge for the ESP32-S3 based
 M5Stack Cardputer ADV. Connect the handheld to your own AI agent for authenticated
 text/voice chat, device events and optional firmware build/OTA workflows with
-[your S1-ADV firmware](https://github.com/srg0/s1-adv). No hosted account or model
+[your S1-ADV firmware](https://github.com/s1z0v/s1-adv). No hosted account or model
 subscription is included. Full guide:
-[OpenClaw setup](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md).
+[OpenClaw setup](https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW.md).
 
 **Video walkthrough coming soon:** [YouTube @s1z0v](https://www.youtube.com/@s1z0v).
-[Project repository](https://github.com/srg0/s1-adv) ·
-[Security review](https://github.com/srg0/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-18.md).
+[Project repository](https://github.com/s1z0v/s1-adv) ·
+[Security review](https://github.com/s1z0v/s1-adv/blob/main/docs/SECURITY-REVIEW-2026-10-18.md).
 
 One device identity per instance is enforced. Use separate private storage for
 other devices. Ordinary chat can use an agent with all host tools denied;
@@ -48,7 +48,7 @@ Realtime voice needs separate provider setup and remains experimental.
 Accepted turns use a durable per-session queue. A pending receipt means the reply
 will continue through Inbox; it is not the final agent answer. Upgrading old
 bridge state can require a delivery audit before new work is allowed. Read the
-[delivery and upgrade guide](https://github.com/srg0/s1-adv/blob/main/bridge/TURN-OUTBOX.md).
+[delivery and upgrade guide](https://github.com/s1z0v/s1-adv/blob/main/bridge/TURN-OUTBOX.md).
 
 Requirements: OpenClaw with the Node.js runtime supported by that release, a
 working selected agent and a device-facing HTTPS hostname. Node.js 22 is the
@@ -85,7 +85,7 @@ openclaw s1-adv doctor --config "$HOME/.openclaw/s1-adv/config.json"
 
 Native startup refuses a UID 0 HTTP worker by default. Use an unprivileged
 Gateway, or keep the plugin enabled with `autoStart: false` and run the same
-package in the [isolated service](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW-MANUAL.md#root-gateway-with-an-isolated-http-worker).
+package in the [isolated service](https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW-MANUAL.md#root-gateway-with-an-isolated-http-worker).
 `allowRoot: true` is an explicit trusted-host exception, not the recommended setup.
 
 Installation does not start a service until explicitly enabled. `init` previews
@@ -166,7 +166,7 @@ CARDPUTER_BRIDGE_CONFIG="$HOME/.openclaw/s1-adv/config.json" npm start
 You can instead edit `config.example.json` by hand. Replace token placeholders,
 choose the existing agent/session, set private absolute data paths and preserve
 its identity file. See the
-[service/TLS templates](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW-MANUAL.md).
+[service/TLS templates](https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW-MANUAL.md).
 The setup skill is guidance; it cannot host the endpoints by itself.
 
 ## Optional capabilities
@@ -175,11 +175,11 @@ The setup skill is guidance; it cannot host the endpoints by itself.
   the authenticated asset manifest for download onto SD. Playback is optional
   in matching firmware; nothing is added to the firmware flash. Private files
   at the same path take precedence. Russian cues are separate
-  [optional downloads](https://github.com/srg0/s1-adv/blob/main/extras/focus-audio/README.md)
+  [optional downloads](https://github.com/s1z0v/s1-adv/blob/main/extras/focus-audio/README.md)
   and are never downloaded automatically. See the
-  [Focus audio guide](https://github.com/srg0/s1-adv/blob/main/docs/FOCUS-AUDIO.md).
+  [Focus audio guide](https://github.com/s1z0v/s1-adv/blob/main/docs/FOCUS-AUDIO.md).
 - Ordinary voice needs configured STT/TTS. See the
-  [local speech recipe](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW-VOICE.md).
+  [local speech recipe](https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW-VOICE.md).
   FFmpeg, Whisper/models and eSpeak are installed separately; missing audio
   dependencies are reported without preventing an ordinary text diagnosis.
 - Realtime and direct fast-lane modes default off and require separate provider
@@ -211,7 +211,7 @@ chat: "Use s1-adv-firmware. Add [my feature] to my Cardputer ADV, test it, build
 and publish an OTA update. I will confirm installation on the device."
 The agent uses your private paths and fork. A skill does not grant permissions
 or require any desktop chat binding. See the
-[firmware request guide](https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md#ask-openclaw-for-a-new-firmware-feature).
+[firmware request guide](https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW.md#ask-openclaw-for-a-new-firmware-feature).
 
 ## Review and verification
 
@@ -260,7 +260,7 @@ npm run smoke:realtime-contract
 
 Tests use isolated fixtures/local services and generated audio; they do not
 prove hardware acceptance. The
-[validation record](https://github.com/srg0/s1-adv/blob/main/docs/VALIDATION.md)
+[validation record](https://github.com/s1z0v/s1-adv/blob/main/docs/VALIDATION.md)
 separates source tests, package inspection, native host installation and device
 observations. Issues and maintenance:
-[github.com/srg0/s1-adv](https://github.com/srg0/s1-adv/issues).
+[github.com/s1z0v/s1-adv](https://github.com/s1z0v/s1-adv/issues).

@@ -139,5 +139,5 @@ metadata still says **Review** for version 0.3.6. These are distinct displayed
 signals, so this record retains the detailed findings rather than inferring a
 clean certification from the summary badge.
 The host tests and isolated service do not remove the trusted native plugin's
-OS privileges. Review the [registry report](https://clawhub.ai/srg0/plugins/openclaw-s1-adv/security-audit)
+OS privileges. Review the [registry report](https://clawhub.ai/plugins/openclaw-s1-adv/security-audit)
 before installing this exact executable artifact.

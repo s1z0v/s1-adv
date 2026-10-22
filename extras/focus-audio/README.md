@@ -7,9 +7,9 @@ Save the following original WAV files onto your SD card, keeping their names:
 
 | Download | SD path | Bytes |
 | --- | --- | ---: |
-| [start.wav](https://raw.githubusercontent.com/srg0/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/start.wav) | `/pomodoro/audio/ru/start.wav` | 1,746,218 |
-| [break.wav](https://raw.githubusercontent.com/srg0/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/break.wav) | `/pomodoro/audio/ru/break.wav` | 1,061,138 |
-| [reflection.wav](https://raw.githubusercontent.com/srg0/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/reflection.wav) | `/pomodoro/audio/ru/reflection.wav` | 2,015,374 |
+| [start.wav](https://raw.githubusercontent.com/s1z0v/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/start.wav) | `/pomodoro/audio/ru/start.wav` | 1,746,218 |
+| [break.wav](https://raw.githubusercontent.com/s1z0v/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/break.wav) | `/pomodoro/audio/ru/break.wav` | 1,061,138 |
+| [reflection.wav](https://raw.githubusercontent.com/s1z0v/s1-adv/bridge-v0.3.0/bridge/assets/focus-audio/ru/reflection.wav) | `/pomodoro/audio/ru/reflection.wav` | 2,015,374 |
 
 Total: **4,822,730 bytes** (4.60 MiB), PCM16 mono 16 kHz. SHA-256 values and
 durations are in [manifest-ru.json](manifest-ru.json). The original bytes remain

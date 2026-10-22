@@ -30,7 +30,7 @@ behavior.
 
 ## Keeping an OpenClaw checkout current
 
-Use `https://github.com/srg0/s1-adv.git` or the corresponding SSH URL as the
+Use `https://github.com/s1z0v/s1-adv.git` or the corresponding SSH URL as the
 firmware source. Fetch the current source before starting a device request:
 
 ```bash

@@ -3,7 +3,7 @@
 ## Project origin
 
 **S1-ADV for Cardputer ADV** is an independent firmware and bridge project
-maintained by **Sergey Sizov** ([srg0](https://github.com/srg0)).
+maintained by **Sergey Sizov** ([s1z0v](https://github.com/s1z0v)).
 
 The project originally grew from
 **[OmniBot by nazirlouis and its contributors](https://github.com/nazirlouis/OmniBot)**.
@@ -29,7 +29,7 @@ The original `Copyright (c) 2026 Omnibot contributors` notice remains in
 Dependencies keep their own licenses. The S1-ADV license does not replace them.
 The project-local `bots/CardputerADV/lib/WebServer` is derived from Espressif
 Arduino ESP32 2.0.14 WebServer, LGPL-2.1-or-later. Its source headers, license
-and [security backport notes](https://github.com/srg0/s1-adv/blob/main/bots/CardputerADV/lib/WebServer/S1-ADV-PATCHES.md)
+and [security backport notes](https://github.com/s1z0v/s1-adv/blob/main/bots/CardputerADV/lib/WebServer/S1-ADV-PATCHES.md)
 are retained.
 
 ## NES and bundled homebrew
@@ -38,11 +38,11 @@ are retained.
   Integrated via [arduino-nofrendo](https://github.com/moononournation/arduino-nofrendo)
   and [geo-tp's Cardputer Game Station](https://github.com/geo-tp/Cardputer-Game-Station-Emulators).
   The engine's license differs from its container repository's MIT license.
-  [Complete source, license and local patches](https://github.com/srg0/s1-adv/blob/main/bots/CardputerADV/lib/s1_nes/README.md)
+  [Complete source, license and local patches](https://github.com/s1z0v/s1-adv/blob/main/bots/CardputerADV/lib/s1_nes/README.md)
   are included, with the firmware build scripts for modification and relinking.
 - [HonkeyPong](https://github.com/HonkeyKong/HonkeyPong), copyright 2015 Ryan
   Souders, **MIT**, provides the bundled, freely redistributable NES game.
-  [Game source, assets, notices and rebuild instructions](https://github.com/srg0/s1-adv/blob/main/third_party/honkeypong/S1-ADV.md)
+  [Game source, assets, notices and rebuild instructions](https://github.com/s1z0v/s1-adv/blob/main/third_party/honkeypong/S1-ADV.md)
   are included. BoxyBold/FamiTone retain the upstream public-domain notices.
 
 ## Focus audio
@@ -51,7 +51,7 @@ The three bundled English Focus cues and three optional Russian cues were
 supplied by Sergey Sizov for public redistribution under the project's MIT
 license. Only English WAVs are included in the plugin. The optional Russian
 originals are linked from
-[the audio downloads guide](https://github.com/srg0/s1-adv/blob/main/extras/focus-audio/README.md).
+[the audio downloads guide](https://github.com/s1z0v/s1-adv/blob/main/extras/focus-audio/README.md).
 They are separate from microphone recordings and generated private spoken replies.
 
 ## Cover image

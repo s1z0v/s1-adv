@@ -33,12 +33,12 @@
   "author": "Sergey Sizov",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/srg0/s1-adv.git",
+    "url": "git+https://github.com/s1z0v/s1-adv.git",
     "directory": "bridge"
   },
-  "homepage": "https://github.com/srg0/s1-adv",
+  "homepage": "https://github.com/s1z0v/s1-adv",
   "bugs": {
-    "url": "https://github.com/srg0/s1-adv/issues"
+    "url": "https://github.com/s1z0v/s1-adv/issues"
   },
   "files": [
     "index.mjs",

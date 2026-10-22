@@ -6,7 +6,7 @@ description: Install, configure and diagnose the S1-ADV Cardputer ADV OpenClaw p
 # S1-ADV Cardputer setup
 
 Source and full setup guide:
-https://github.com/srg0/s1-adv/blob/main/docs/OPENCLAW.md
+https://github.com/s1z0v/s1-adv/blob/main/docs/OPENCLAW.md
 Read the packaged README first. Check the installed OpenClaw version, actual
 configuration/profile, selected agent, workspace and device-reachable HTTPS URL.
 

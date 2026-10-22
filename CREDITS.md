@@ -3,7 +3,7 @@
 ## Project origin
 
 **S1-ADV for Cardputer ADV** is an independent firmware and bridge project
-maintained by **Sergey Sizov** ([srg0](https://github.com/srg0)).
+maintained by **Sergey Sizov** ([s1z0v](https://github.com/s1z0v)).
 
 The project originally grew from
 **[OmniBot by nazirlouis and its contributors](https://github.com/nazirlouis/OmniBot)**.
@@ -51,7 +51,7 @@ The three bundled English Focus cues and three optional Russian cues were
 supplied by Sergey Sizov for public redistribution under the project's MIT
 license. Only English WAVs are included in the plugin. The optional Russian
 originals are linked from
-[the audio downloads guide](https://github.com/srg0/s1-adv/blob/main/extras/focus-audio/README.md).
+[the audio downloads guide](https://github.com/s1z0v/s1-adv/blob/main/extras/focus-audio/README.md).
 They are separate from microphone recordings and generated private spoken replies.
 
 ## Cover image

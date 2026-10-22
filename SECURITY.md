@@ -20,6 +20,6 @@ and [earlier review](docs/SECURITY-REVIEW.md) record
 confirmed findings, fixes, verification and remaining trust boundaries.
 See [architecture](docs/ARCHITECTURE.md) and [setup](docs/OPENCLAW.md).
 For a vulnerability, use the private reporting flow on the repository
-[Security tab](https://github.com/srg0/s1-adv/security). Private vulnerability
+[Security tab](https://github.com/s1z0v/s1-adv/security). Private vulnerability
 reporting, dependency analysis and secret push protection are enabled. Do not
 post credentials or exploit details in public.

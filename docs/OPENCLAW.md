@@ -54,7 +54,7 @@ the plugin/skills enabled, set its `autoStart: false` and use the
 This does not require moving other agents or credentials.
 
 ```bash
-git clone --branch bridge-v0.3.6 https://github.com/srg0/s1-adv.git
+git clone --branch bridge-v0.3.6 https://github.com/s1z0v/s1-adv.git
 cd s1-adv/bridge
 npm pack --ignore-scripts
 openclaw plugins install ./openclaw-s1-adv-0.3.6.tgz
@@ -225,7 +225,7 @@ an unconfigured model, missing build tools or unavailable push rights work.
 ## Give this to your OpenClaw agent
 
 ```text
-Set up S1-ADV from https://github.com/srg0/s1-adv for my Cardputer ADV.
+Set up S1-ADV from https://github.com/s1z0v/s1-adv for my Cardputer ADV.
 Read docs/OPENCLAW.md, docs/FLASHING.md and the packaged s1-adv setup skill.
 Inspect my actual OpenClaw version/configuration before changes. Install the
 reviewed bridge/ plugin using the native OpenClaw plugin installer. Use a
