@@ -119,4 +119,8 @@ jobs:
       - run: python scripts/test_nes.py
       - run: python scripts/test_nes_ui.py
       - run: python scripts/cardputer.py build
+      - run: python scripts/test_vlc_provision.py
+      - run: python scripts/test_vlc_remote.py
+      - run: python scripts/test_vlc_worker.py
+      - run: python scripts/test_vlc_ui.py
       - run: python scripts/test_realtime_frame_gate.py --require-upstream

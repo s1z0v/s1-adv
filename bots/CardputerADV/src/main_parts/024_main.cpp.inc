@@ -275,6 +275,7 @@ void setUiMode(UiMode mode) {
   }
 
   if (deferInternetRadioMode(mode)) return;
+  if (deferVlcRemoteMode(mode)) return;
   if (mode != UiMode::Face) gRealtimeScreenVisible=false;
   if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
   if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
@@ -302,6 +303,7 @@ void setUiMode(UiMode mode) {
   if (modeChanged && mode == UiMode::Checkers) beginCheckersDemo();
   if (modeChanged && mode == UiMode::Minesweeper) beginMinesweeper();
   if (modeChanged && mode == UiMode::Radio) beginInternetRadio();
+  if (modeChanged && mode == UiMode::VlcRemote) beginVlcRemote();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.
     gPendingOtaCheckAction = true;

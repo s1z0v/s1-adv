@@ -187,6 +187,7 @@ enum class UiMode : uint8_t {
   Mesh,
   Minesweeper,
   Radio,
+  VlcRemote,
 };
 
 enum class FocusState : uint8_t {

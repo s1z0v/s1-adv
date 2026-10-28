@@ -51,6 +51,7 @@
 #include "minesweeper.h"
 #include "radio_catalog.h"
 #include "internet_radio_transport.h"
+#include "vlc_remote.h"
 #include "mesh_cap_radio.h"
 #include <pb_decode.h>
 #include <generated/meshtastic/leafdata.pb.h>
@@ -85,7 +86,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.201-dev"
+#define APP_VERSION "0.2.202-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"

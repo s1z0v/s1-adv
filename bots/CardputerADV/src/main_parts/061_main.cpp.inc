@@ -2,6 +2,9 @@
       case UiMode::Radio:
         renderInternetRadioUi();
         break;
+      case UiMode::VlcRemote:
+        renderVlcRemoteUi();
+        break;
       case UiMode::Minesweeper:
         renderMinesweeperUi();
         break;
@@ -357,6 +360,13 @@ void loop() {
   updateG0VoiceTrigger();
   pollTyping();
   serviceInternetRadio();
+  serviceVlcRemote();
+  if (vlcBusy()) {
+    // Bounded DNS/TCP owner; keep input/timers alive, defer background TLS/OTA.
+    updateBatterySnapshot();serviceSmartLamp();serviceFocusLamp();serviceAlarm();
+    if(millis()-gLastRenderMs>=kRenderIntervalMs){render();gLastRenderMs=millis();}
+    delay(1);return;
+  }
   if (radioBusy()) {
     // Streaming owns one audio channel and its heap. Keep navigation alive,
     // but never let background TLS/capture/OTA borrow or reinitialize it.

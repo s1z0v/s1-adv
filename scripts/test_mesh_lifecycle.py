@@ -18,8 +18,10 @@ code=r'''
 #include "mesh_leaf_state.h"
 #include <cassert>
 bool radioBusy(){return false;}
+bool vlcBusy(){return false;} namespace vlc_remote{void cancel(){}}
 void stopInternetRadio(){}
 template<class T>bool deferInternetRadioMode(T){return false;}
+template<class T>bool deferVlcRemoteMode(T){return false;}
 #include <atomic>
 #include <algorithm>
 #include <memory>

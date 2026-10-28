@@ -23,6 +23,7 @@ def function(file, signature):
 code = r'''
 #include <cassert>
 bool radioBusy(){return false;}
+bool vlcBusy(){return false;} namespace vlc_remote{void cancel(){}}
 void stopInternetRadio(){}
 template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
