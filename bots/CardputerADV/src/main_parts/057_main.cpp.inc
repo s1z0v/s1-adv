@@ -29,7 +29,8 @@ String settingValue(uint8_t index) {
       case 1:
         return gDeviceSettings.screensaverEnabled ? "on" : "off";
       case 2:
-        return gDeviceSettings.screensaverStyle == 1 ? "Big Eyes" : "C-Matrix";
+        return gDeviceSettings.screensaverStyle == 2 ? "Chess Mind" :
+               gDeviceSettings.screensaverStyle == 1 ? "Big Eyes" : "C-Matrix";
       case 3:
         return eyeSkinName(gDeviceSettings.eyeSkin);
       case 4:

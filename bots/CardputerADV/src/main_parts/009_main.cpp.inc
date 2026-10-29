@@ -237,14 +237,16 @@ void enterScreensaver() {
   gScreenOffActive = false;
   gScreensaverStartedMs = millis();
   gLauncherVisible = false;
-  UiMode screensaverMode = gDeviceSettings.screensaverStyle == 1 ? UiMode::Face : UiMode::CMatrix;
+  UiMode screensaverMode = gDeviceSettings.screensaverStyle == 2 ? UiMode::ChessMind :
+                          gDeviceSettings.screensaverStyle == 1 ? UiMode::Face : UiMode::CMatrix;
   if (screensaverMode == UiMode::CMatrix) {
     gCMatrixInitialized = false;
-  } else {
+  } else if (screensaverMode == UiMode::Face) {
     resetUncannyEyesRenderer();
   }
   setUiMode(screensaverMode);
-  setStatus(gDeviceSettings.screensaverStyle == 1 ? "Screensaver: Big Eyes" : "Screensaver: C-Matrix", 700);
+  setStatus(gDeviceSettings.screensaverStyle == 2 ? "Screensaver: Chess Mind" :
+            gDeviceSettings.screensaverStyle == 1 ? "Screensaver: Big Eyes" : "Screensaver: C-Matrix", 700);
   applyDisplayBrightness();
 }
 

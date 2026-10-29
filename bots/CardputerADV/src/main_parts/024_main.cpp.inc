@@ -304,13 +304,15 @@ void setUiMode(UiMode mode) {
   if (modeChanged && mode == UiMode::Minesweeper) beginMinesweeper();
   if (modeChanged && mode == UiMode::Radio) beginInternetRadio();
   if (modeChanged && mode == UiMode::VlcRemote) beginVlcRemote();
+  if (modeChanged && mode == UiMode::ChessMind) beginChessMind();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.
     gPendingOtaCheckAction = true;
     gPendingOtaActionAfterMs = millis() + 250;
   }
   if (mode == UiMode::ChatFull || mode == UiMode::ChatFace) gInboxUnread = false;
-  bool enteringScreensaverUi = gScreensaverActive && (mode == UiMode::CMatrix || mode == UiMode::Face);
+  bool enteringScreensaverUi = gScreensaverActive &&
+      (mode == UiMode::CMatrix || mode == UiMode::Face || mode == UiMode::ChessMind);
   if (!enteringScreensaverUi && mode != UiMode::CMatrix &&
       (gScreensaverActive || gScreensaverDimmed || gScreenOffActive)) {
     gScreensaverActive = false;

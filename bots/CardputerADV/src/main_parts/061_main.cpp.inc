@@ -5,6 +5,9 @@
       case UiMode::VlcRemote:
         renderVlcRemoteUi();
         break;
+      case UiMode::ChessMind:
+        renderChessMindUi();
+        break;
       case UiMode::Minesweeper:
         renderMinesweeperUi();
         break;
