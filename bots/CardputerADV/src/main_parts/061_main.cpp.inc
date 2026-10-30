@@ -382,9 +382,9 @@ void loop() {
     delay(1); return;
   }
   servicePocketSynth();
-  if (synthForegroundAllowed()) {
-    // Local PCM needs short input/service gaps, not SD/TLS background work.
-    // Voice/OTA/network owners above disable this path before taking audio.
+  if (synthAudioBusy() || synthForegroundAllowed()) {
+    // The ADV PCM producer runs independently; keep heavy background owners paused.
+    // An unacknowledged producer/drain also fences background audio/TLS owners.
     updateBatterySnapshot(); serviceOtaBootGuard(); serviceAlarm();
     updateVoiceTrigger(); serviceIdleScreensaver();
     if (millis()-gLastRenderMs>=33U) { render(); gLastRenderMs=millis(); }

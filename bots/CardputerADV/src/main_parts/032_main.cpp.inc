@@ -206,7 +206,7 @@ bool startMic() {
 }
 
 void startRealtimeMic() {
-  stopPocketSynth();
+  if(!stopPocketSynth())return;
   M5Cardputer.Speaker.end();
   auto micCfg = M5Cardputer.Mic.config();
   micCfg.sample_rate = kRealtimeInputSampleRate;

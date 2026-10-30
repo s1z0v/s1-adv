@@ -82,6 +82,7 @@ jobs:
       - run: python scripts/test_chess_mind_ui.py
       - run: python scripts/test_pocket_synth.py
       - run: python scripts/test_pocket_synth_ui.py
+      - run: python scripts/test_pocket_synth_audio.py
       - run: python scripts/test_checkers_demo.py
       - run: python scripts/test_minesweeper.py
       - run: python scripts/test_internet_radio.py

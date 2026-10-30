@@ -277,7 +277,9 @@ void setUiMode(UiMode mode) {
   if (deferInternetRadioMode(mode)) return;
   if (deferVlcRemoteMode(mode)) return;
   if (mode != UiMode::Face) gRealtimeScreenVisible=false;
-  if (gUiMode == UiMode::PocketSynth && mode != UiMode::PocketSynth) stopPocketSynth();
+  if (gUiMode == UiMode::PocketSynth && mode != UiMode::PocketSynth && !stopPocketSynth()) {
+    setStatus("Synth stopping; retry mode",1200);return;
+  }
   if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
   if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
   if (mode != gUiMode) gChatCommandsVisible = false;

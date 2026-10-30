@@ -488,7 +488,7 @@ void renderMinesweeperUi();
 bool radioBusy();
 void beginChessMind();
 void beginPocketSynth();
-void stopPocketSynth();
+bool stopPocketSynth();
 bool synthAudioBusy();
 bool synthForegroundAllowed();
 void servicePocketSynth();

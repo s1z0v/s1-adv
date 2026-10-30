@@ -25,7 +25,7 @@ code = r'''
 bool radioBusy(){return false;}
 bool vlcBusy(){return false;} namespace vlc_remote{void cancel(){}}
 void stopInternetRadio(){}
-bool synthOwned=true;int synthStops=0;void stopPocketSynth(){synthOwned=false;++synthStops;}
+bool synthOwned=true;int synthStops=0;bool synthStopOk=true;bool stopPocketSynth(){++synthStops;if(!synthStopOk)return false;synthOwned=false;return true;}
 template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
 #include <cstddef>
@@ -117,6 +117,9 @@ int main(){
   M5Cardputer.BtnA.pressed=false;updateG0VoiceTrigger();
   assert(!gRecording&&!gG0VoiceHeld&&stops==before+1);
  }
+ // A synth producer that has not acknowledged stop cannot lose its I2S owner.
+ int blockedStarts=starts;synthOwned=true;synthStopOk=false;startRecording();
+ assert(synthOwned&&starts==blockedStarts&&!gRecording);synthStopOk=true;
  // The first frame appears while the existing poll drains. Keep holding to
  // capture automatically, and release cancels a queued start without a send.
  gUiMode=UiMode::Home;gInboxHttpBusy=true;gG0VoiceHeld=false;gRecording=false;

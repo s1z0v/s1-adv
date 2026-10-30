@@ -1,6 +1,6 @@
 bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, size_t audioLen,
                                      const String& diag, fs::FS* storage = nullptr) {
-  stopPocketSynth();
+  if(!stopPocketSynth()){setStatus("Synth stopping; retry playback",1200);return false;}
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry playback",1500); return false; }
   fs::FS* fs = storage ? storage : activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {
@@ -34,7 +34,7 @@ bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, 
 }
 
 bool startPlaybackStreamFromWavFile(const String& path, const String& diag) {
-  stopPocketSynth();
+  if(!stopPocketSynth()){setStatus("Synth stopping; retry playback",1200);return false;}
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry playback",1500); return false; }
   fs::FS* fs = activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {

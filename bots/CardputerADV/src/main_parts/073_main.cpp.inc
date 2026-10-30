@@ -1,21 +1,17 @@
-// Pocket Synth: main-loop PCM producer. Only the existing M5 audio task plays.
+// Pocket Synth UI/controller: a bounded audio producer feeds the ADV speaker independently of LCD/SD stalls.
 namespace {
 pocket_synth::Synth gPocketSynth;
-constexpr uint8_t kSynthChannel=6;
-constexpr size_t kSynthSamples=256;
-// Three fixed buffers, never rewritten while a queued/current request owns it.
-// No stop/restart between queue writes; on stop wait until this channel drains.
-int16_t gSynthPcm[3][kSynthSamples]={};
-uint8_t gSynthSlot=0;
 bool gSynthOwned=false,gSynthDraining=false,gSynthRequireRelease=true;
 uint16_t gSynthPreviousControls=0;
 uint32_t gSynthPreviousMask=0,gSynthLastPaint=0;
 
 void synthInvalidate(){gLastRenderMs=0;gUiFramePolicy.invalidate();}
-bool synthAudioBusy(){return gSynthOwned||gSynthDraining;}
-void stopPocketSynth(){
-  if(gSynthOwned){M5Cardputer.Speaker.stop(kSynthChannel);gSynthDraining=true;}
-  gSynthOwned=false;gPocketSynth.panic();gSynthRequireRelease=true;
+bool synthAudioBusy(){return synth_audio::busy();}
+bool stopPocketSynth(){
+  const bool stopped=synth_audio::stop();
+  gSynthOwned=synth_audio::busy();gSynthDraining=!stopped;
+  gPocketSynth.panic();gSynthRequireRelease=true;
+  return stopped;
 }
 void beginPocketSynth(){stopPocketSynth();gSynthPreviousControls=0;gSynthPreviousMask=0;synthInvalidate();}
 bool synthForegroundAllowed(){
@@ -44,8 +40,11 @@ bool handlePocketSynthKey(char,const Keyboard_Class::KeysState&){
   return true;
 }
 void servicePocketSynth(){
-  if(gSynthDraining){if(M5Cardputer.Speaker.isPlaying(kSynthChannel))return;gSynthDraining=false;gSynthSlot=0;}
-  if(gUiMode!=UiMode::PocketSynth){if(gSynthOwned)stopPocketSynth();return;}
+  if(gSynthDraining){if(synth_audio::busy())return;gSynthDraining=false;gSynthOwned=false;}
+  if(gUiMode!=UiMode::PocketSynth){if(synth_audio::busy())stopPocketSynth();return;}
+  if(gSynthOwned&&synth_audio::status().fault){
+    stopPocketSynth();setStatus("Synth stopped safely; release keys",1400);return;
+  }
   const auto&keys=gKeyboardState;const uint32_t mask=synthKeyMask(keys);const uint16_t controls=synthControls(keys);
   const bool modifier=keys.ctrl||keys.alt||keys.opt||keys.fn||keys.tab;
   if(!synthForegroundAllowed()||modifier||hasHidKey(keys,kHidKeyEscape)){
@@ -75,19 +74,18 @@ void servicePocketSynth(){
   if(gPocketSynth.sync(mask))changed=true;
   if(mask){gLastUserActivityMs=millis();gLastUserInputMs=millis();}
   if(changed)synthInvalidate();
-  // A finite release tail still needs queued silence before giving up owner.
-  if(!gPocketSynth.active()){
-    if(gSynthOwned&&!M5Cardputer.Speaker.isPlaying(kSynthChannel)){gSynthOwned=false;synthInvalidate();}return;
-  }
-  if(!gSynthOwned){gSynthOwned=true;}
-  // Exactly two bounded writes at most, with a spare buffer for task handoff.
-  for(int work=0;work<2&&gPocketSynth.active()&&M5Cardputer.Speaker.isPlaying(kSynthChannel)<2;++work){
-    gPocketSynth.render(gSynthPcm[gSynthSlot],kSynthSamples);
-    if(!M5Cardputer.Speaker.playRaw(gSynthPcm[gSynthSlot],kSynthSamples,pocket_synth::kRate,false,1,kSynthChannel,false)){
-      stopPocketSynth();setStatus("Synth audio busy; release keys",1000);return;
+  synth_audio::Control control;
+  control.mask=mask;control.octave=gPocketSynth.octave;control.gain=gPocketSynth.gain;
+  control.patch=gPocketSynth.patch;control.sustain=gPocketSynth.sustain;
+  if(synth_audio::busy())synth_audio::update(control);
+  else if(mask){
+    if(!synth_audio::start(control)){
+      stopPocketSynth();setStatus("ADV audio unavailable; release keys",1400);return;
     }
-    gSynthSlot=(gSynthSlot+1)%3;
   }
+  gSynthOwned=synth_audio::busy();
+  if(synth_audio::status().fault){stopPocketSynth();setStatus("Synth stopped safely; release keys",1400);return;}
+
   if(millis()-gSynthLastPaint>=80){gSynthLastPaint=millis();synthInvalidate();}
 }
 
@@ -101,7 +99,7 @@ void renderPocketSynthUi(){
   snprintf(text,sizeof(text),"C%d-C%d  %s",gPocketSynth.octave,gPocketSynth.octave+2,gPocketSynth.sustain?"SUSTAIN":"KEY HOLD");
   d.setCursor(6,15);d.setTextColor(muted,bg);d.print(text);
   char note[8];pocket_synth::noteName(gPocketSynth.lastMidi,note,sizeof(note));
-  snprintf(text,sizeof(text),"%s %d/6",note,gPocketSynth.activeCount());d.setCursor(176,15);d.print(text);
+  snprintf(text,sizeof(text),"%s %d/6",note,synth_audio::status().voices);d.setCursor(176,15);d.print(text);
   d.fillRoundRect(5,27,230,16,3,panel);d.setTextColor(amber,panel);d.setCursor(9,31);
   if(gPocketSynth.lesson==pocket_synth::Lesson::Free)d.print("FREE PLAY  / Enter: scale coach");
   else{

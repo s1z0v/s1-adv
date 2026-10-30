@@ -12,7 +12,7 @@ void drainRecordingToFile() {
 }
 
 void startRecording() {
-  stopPocketSynth(); // Release local instrument before mic/speaker handoff.
+  if(!stopPocketSynth()){setStatus("Synth stopping; try voice again",1200);return;}
   if (vlcBusy()) { vlc_remote::cancel(); setStatus("VLC closing; press voice again",1600); return; }
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; press voice again",1600); return; }
   if (gMeshBusOwned) { setStatus("Esc exits Mesh for voice",1600); return; }

@@ -23,7 +23,7 @@ code = r'''
 #include <cassert>
 bool radioBusy(){return false;}
 void stopInternetRadio(){}
-bool synthOwned=true;void stopPocketSynth(){synthOwned=false;}
+bool synthOwned=true;bool synthStopOk=true;bool stopPocketSynth(){if(!synthStopOk)return false;synthOwned=false;return true;}
 template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
 #include <cstdlib>
@@ -71,6 +71,8 @@ int main(){
  LittleFS.used=LittleFS.total-65536;assert(voiceReplyStorage(capacity)==&SD);
  LittleFS.used=0;gLittleFsReady=false;assert(voiceReplyStorage(capacity)==&SD);
  gLittleFsReady=true;storageReady=false;assert(voiceReplyStorage(capacity)==&SD);storageReady=true;
+ synthOwned=true;synthStopOk=false;
+ assert(!startPlaybackStreamFromRawPcmFile("/voice/missing.pcm",24000,80000,"blocked"));assert(synthOwned);synthStopOk=true;
  const String reply="/voice/__reply_1.pcm",original="/voice/u_record.wav";
  LittleFS.files[reply]=80000;SD.files[reply]=123;SD.files[original]=749612;
  assert(startPlaybackStreamFromRawPcmFile(reply,24000,80000,"reply",&LittleFS));

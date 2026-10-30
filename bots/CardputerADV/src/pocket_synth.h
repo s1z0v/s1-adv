@@ -5,7 +5,9 @@
 #include <cstdio>
 
 namespace pocket_synth {
-constexpr uint32_t kRate=22050;
+constexpr uint32_t kRate=48000;
+constexpr uint32_t kAttackSamples=kRate/200; // 5 ms, not a sample-rate-dependent click
+constexpr uint32_t kToneCeilingHz=6000; // ADV small-speaker voicing
 constexpr int kVoices=6,kKeys=25;
 constexpr char kKeyMap[]="zsxdcvgbhnjmq2w3er5t6y7ui";
 // Generated equal-tempered A4=440 Hz phase increments and one sine cycle.
@@ -35,14 +37,18 @@ constexpr int16_t kSine[]={
   -3212,-2410,-1608,-804,
 };
 constexpr uint32_t kSteps[]={
-  12740059,13497623,14300233,15150569,16051469,17005939,18017165,19088521,20223584,21426141,22700205,24050030,
-  25480119,26995246,28600467,30301139,32102938,34011878,36034330,38177043,40447168,42852281,45400411,48100060,
-  50960238,53990491,57200933,60602278,64205876,68023757,72068660,76354085,80894335,85704563,90800821,96200119,
-  101920476,107980983,114401866,121204555,128411753,136047513,144137319,152708170,161788671,171409126,181601643,192400238,
-  203840952,215961966,228803732,242409110,256823506,272095026,288274639,305416341,323577341,342818251,363203285,384800477,
-  407681904,
+  5852465,6200470,6569170,6959793,7373644,7812103,8276635,8768789,9290209,9842633,10427907,11047982,
+  11704930,12400941,13138339,13919586,14747287,15624207,16553270,17537579,18580418,19685267,20855814,22095965,
+  23409859,24801882,26276679,27839171,29494575,31248413,33106541,35075158,37160835,39370534,41711627,44191930,
+  46819719,49603764,52553357,55678342,58989149,62496826,66213081,70150316,74321671,78741067,83423255,88383859,
+  93639437,99207528,105106715,111356685,117978298,124993653,132426162,140300631,148643341,157482134,166846509,176767719,
+  187278874,
 };
 
+inline int sine(uint32_t phase){
+  const uint8_t index=phase>>24;const int a=kSine[index],b=kSine[uint8_t(index+1)];
+  return a+((b-a)*int((phase>>8)&65535))/65536; // interpolation removes 8-bit phase stepping
+}
 inline char normalize(char c) {
   if(c>='A'&&c<='Z')return char(c-'A'+'a');
   switch(c){case '@':return '2';case '#':return '3';case '%':return '5';case '^':return '6';case '&':return '7';default:return c;}
@@ -63,8 +69,8 @@ inline int scaleOffset(Lesson p,int degree){
 struct Voice{uint32_t phase=0,step=0,age=0;int16_t midi=-1;uint16_t env=0;bool held=false,releasing=false;};
 struct Synth {
   Voice voices[kVoices];Patch patch=Patch::Piano;Lesson lesson=Lesson::Free;
-  int octave=3,gain=65,lessonStep=0,lastMidi=-1;bool sustain=false;uint32_t heldMask=0;
-  void panic(){for(auto&v:voices)v=Voice{};heldMask=0;lastMidi=-1;}
+  int octave=3,gain=65,lessonStep=0,lastMidi=-1;int32_t filter=0,smoothGain=65*256;bool sustain=false;uint32_t heldMask=0;
+  void panic(){for(auto&v:voices)v=Voice{};heldMask=0;lastMidi=-1;filter=0;smoothGain=gain*256;}
   int midiFor(int key)const{return 12*(octave+1)+key;}
   int targetKey()const{return scaleOffset(lesson,lessonStep);}
   void nextPatch(int delta){panic();patch=Patch((int(patch)+delta+4)%4);}
@@ -94,8 +100,8 @@ struct Synth {
     else if(patch==Patch::Organ){hs[2]=4;ws[0]=4;}
     else if(patch==Patch::Chip){hs[1]=3;hs[2]=5;ws[0]=5;ws[1]=2;}
     int sum=0,weight=0;
-    for(int h=0;h<3;++h){if(uint64_t(v.step)*hs[h]>=0x80000000ULL)continue;
-      sum+=int(kSine[(v.phase*uint32_t(hs[h]))>>24])*ws[h];weight+=ws[h];}
+    for(int h=0;h<3;++h){if(uint64_t(v.step)*hs[h]>(uint64_t(kToneCeilingHz)<<32)/kRate)continue;
+      sum+=sine(v.phase*uint32_t(hs[h]))*ws[h];weight+=ws[h];}
     return weight?sum/weight:0;
   }
   void render(int16_t* out,size_t count){
@@ -103,14 +109,22 @@ struct Synth {
     for(size_t i=0;i<count;++i){int32_t mixed=0;
       for(auto&v:voices){if(v.midi<0)continue;
         if(v.age>=kRate*10)v.releasing=true;
-        if(v.releasing){const int drop=patch==Patch::Organ?32:8;if(v.env<=drop){v=Voice{};continue;}v.env-=drop;}
-        else if(v.age<64){v.env=uint16_t((v.age+1)*511);}
-        else if(patch!=Patch::Organ){const int drop=patch==Patch::Bell?2:patch==Patch::Piano?1:0;if(v.env<=drop){v=Voice{};continue;}v.env-=drop;}
+        if(v.releasing){const int drop=patch==Patch::Organ?16:4;if(v.env<=drop){v=Voice{};continue;}v.env-=drop;}
+        else if(v.age<kAttackSamples){v.env=uint16_t((v.age+1)*32767/kAttackSamples);}
+        else if(patch==Patch::Piano||patch==Patch::Bell){
+          const uint32_t decay=patch==Patch::Piano?kRate*3/2:kRate*3/4,elapsed=v.age-kAttackSamples;
+          if(elapsed>=decay){v=Voice{};continue;}v.env=uint16_t(32767-elapsed*32767/decay);
+        }
         mixed+=int32_t(int64_t(waveform(v))*v.env/32768);v.phase+=v.step;if(v.age!=UINT32_MAX)++v.age;
       }
       // Six equal shares: even a full chord cannot clip. The device's master
       // volume is unchanged; this app-local gain only scales its own PCM.
-      out[i]=int16_t(int64_t(mixed)*gain/(kVoices*100*2));
+      const int32_t target=gain*256;
+      if(smoothGain<target)smoothGain+=(target-smoothGain<16?target-smoothGain:16);
+      else if(smoothGain>target)smoothGain-=(smoothGain-target<16?smoothGain-target:16);
+      const int32_t sample=int32_t(int64_t(mixed)*smoothGain/(kVoices*100*2*256));
+      filter=(filter+sample)/2; // gentle speaker-band low-pass; zero input reaches exact digital silence
+      out[i]=int16_t(filter);
     }
   }
 };

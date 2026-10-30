@@ -20,6 +20,7 @@ code=r'''
 bool radioBusy(){return false;}
 bool vlcBusy(){return false;} namespace vlc_remote{void cancel(){}}
 void stopInternetRadio(){}
+bool synthStopOk=true;bool stopPocketSynth(){return synthStopOk;}
 template<class T>bool deferInternetRadioMode(T){return false;}
 template<class T>bool deferVlcRemoteMode(T){return false;}
 #include <atomic>
@@ -150,6 +151,7 @@ void completeWorker(){assert(workerPending);workerFunction(workerArg);assert(!wo
 void active(){reset();startMeshMode();assert(gMeshBusOwned&&!gSdReady&&!gStorageReady&&workerPending);completeWorker();serviceMeshMode();assert(updates==1);}
 void restored(){assert(!gMeshBusOwned&&gSdReady&&gStorageReady&&live==0&&sdBegins==1);assert(m5::In_I2C.reg[3]==0xaa&&m5::In_I2C.reg[5]==0x54&&m5::In_I2C.reg[7]==0xff);}
 int main() {
+ synthStopOk=false;startRealtimeSession(true);assert(realtimeStarts==0);synthStopOk=true;
  reset();
  bool* flags[]={&gBootBackgroundActive,&gRecording,&gSubmitting,&gThinking,&gPlaybackActive,&gTransferUiActive,
  &gOtaApplyInProgress,&gInboxHttpBusy,&gVoiceDialBusy,&gVoiceReplySpeechBusy,&gRealtimeActive,

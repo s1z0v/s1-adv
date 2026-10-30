@@ -519,6 +519,7 @@ void realtimeWsEvent(WStype_t type, uint8_t* payload, size_t length) {
 }
 
 void startRealtimeSession(bool startAfterReady) {
+  if(!stopPocketSynth()){setStatus("Synth stopping; retry realtime",1200);return;}
   if (vlcBusy()) { vlc_remote::cancel(); setStatus("VLC closing; press voice again",1600); return; }
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; press voice again",1600); return; }
   if (gMeshBusOwned) { setStatus("Esc exits Mesh for voice",1600); return; }

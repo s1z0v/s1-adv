@@ -5,6 +5,7 @@ import os,subprocess,tempfile
 ROOT=Path(__file__).resolve().parents[1];SRC=ROOT/'bots/CardputerADV/src';PARTS=SRC/'main_parts'
 STUB=r'''
 #include "pocket_synth.h"
+#include "pocket_synth_audio.h"
 #include <cassert>
 #include <cstdint>
 #include <string>
@@ -26,18 +27,17 @@ struct Canvas{int x=0,y=0,primitives=0;std::vector<std::string>text;
  void setFont(const int*){}void setTextColor(int,int){}void setCursor(int a,int b){x=a;y=b;}
  void print(const char*s){if(!*s)return;bounds(x,y,int(strlen(s))*6,8);text.emplace_back(s);}
 }gCanvas;
-struct SpeakerStub{
- struct Item{const int16_t*p;std::vector<int16_t>snapshot;};std::deque<Item>queue;
- int calls=0,stops=0;bool foreign=false,reject=false;
- int isPlaying(int c=255){return c==255?(foreign||!queue.empty()):int(queue.size());}
- bool playRaw(const int16_t*p,size_t n,int rate,bool stereo,int repeat,int channel,bool stop){
-  assert(n==256&&rate==22050&&!stereo&&repeat==1&&channel==6&&!stop&&queue.size()<2);
-  if(reject)return false;for(auto&i:queue){assert(i.p!=p);assert(std::equal(i.snapshot.begin(),i.snapshot.end(),i.p));}
-  queue.push_back({p,std::vector<int16_t>(p,p+n)});++calls;return true;
- }
- void consume(){if(!queue.empty()){auto&i=queue.front();assert(std::equal(i.snapshot.begin(),i.snapshot.end(),i.p));queue.pop_front();}}
- void stop(int c){assert(c==6);++stops;} // intentionally asynchronous; pointer remains in use
-} ;struct{SpeakerStub Speaker;}M5Cardputer;
+struct SpeakerStub{bool foreign=false,reject=false;int calls=0;bool isPlaying(){return foreign;}};
+struct{SpeakerStub Speaker;}M5Cardputer;
+namespace synth_audio {
+Control desired; pocket_synth::Synth engine;bool live=false,blockStop=false,failed=false;
+void update(const Control& c){desired=c;}
+bool start(const Control& c){if(live||M5Cardputer.Speaker.foreign||M5Cardputer.Speaker.reject)return false;desired=c;live=true;failed=false;engine=pocket_synth::Synth{};return true;}
+bool stop(uint32_t){if(blockStop)return false;live=false;engine.panic();return true;}
+bool busy(){return live;}
+Status status(){return {live,false,failed,uint8_t(engine.activeCount()),0,0};}
+void advance(){if(!live)return;if(engine.octave!=desired.octave||engine.patch!=desired.patch){engine.panic();engine.octave=desired.octave;engine.patch=desired.patch;}engine.gain=desired.gain;engine.setSustain(desired.sustain);engine.sync(desired.mask);int16_t pcm[480];engine.render(pcm,480);++M5Cardputer.Speaker.calls;}
+}
 uint32_t now=1000,gLastRenderMs=0;uint32_t millis(){return now;}
 struct{int invalid=0;void invalidate(){++invalid;}}gUiFramePolicy;
 enum class UiMode{Home,PocketSynth};UiMode gUiMode=UiMode::PocketSynth;
@@ -55,24 +55,24 @@ bool hasHidKey(const Keyboard_Class::KeysState&k,uint8_t code){return std::find(
 void setStatus(const char*,int){}
 '''
 TEST=r'''
-void tick(int n=1){for(int i=0;i<n;++i){M5Cardputer.Speaker.consume();now+=11;servicePocketSynth();}}
+void tick(int n=1){for(int i=0;i<n;++i){now+=10;servicePocketSynth();synth_audio::advance();}}
 void clearKeys(){gKeyboardState={};}
-void restart(){stopPocketSynth();gPocketSynth=pocket_synth::Synth{};clearKeys();M5Cardputer.Speaker.queue.clear();gUiMode=UiMode::PocketSynth;servicePocketSynth();servicePocketSynth();}
+void restart(){stopPocketSynth();gPocketSynth=pocket_synth::Synth{};clearKeys();gUiMode=UiMode::PocketSynth;servicePocketSynth();servicePocketSynth();}
 void key(char c){gKeyboardState.word={c};tick();clearKeys();tick();}
 bool printed(const std::string&s){return std::find(gCanvas.text.begin(),gCanvas.text.end(),s)!=gCanvas.text.end();}
 int main(){
  beginPocketSynth();assert(handlePocketSynthKey('z',gKeyboardState));assert(!synthAudioBusy());
  restart();assert(!gSynthRequireRelease);assert(!M5Cardputer.Speaker.calls);gPocketSynth.patch=pocket_synth::Patch::Organ;
- gKeyboardState.word={'z','c','b'};tick();assert(gPocketSynth.heldMask==((1u<<0)|(1u<<4)|(1u<<7))&&gPocketSynth.activeCount()==3&&gSynthOwned);
- auto age=gPocketSynth.voices[0].age;tick(100);assert(gPocketSynth.voices[0].age>age&&gLastUserActivityMs==now);
+ gKeyboardState.word={'z','c','b'};tick();assert(gPocketSynth.heldMask==((1u<<0)|(1u<<4)|(1u<<7))&&synth_audio::status().voices==3&&gSynthOwned);
+ auto age=synth_audio::engine.voices[0].age;tick(100);assert(synth_audio::engine.voices[0].age>age&&gLastUserActivityMs==now);
  // Removing one chord key only releases that voice; no first-character hack.
- gKeyboardState.word={'z','b'};tick(50);assert(gPocketSynth.activeCount()==2);clearKeys();tick(80);assert(!gPocketSynth.active()&&!gSynthOwned&&M5Cardputer.Speaker.queue.empty());
+ gKeyboardState.word={'z','b'};tick(50);assert(synth_audio::status().voices==2);clearKeys();tick(80);assert(synth_audio::status().voices==0&&gSynthOwned);
  restart();
  // Sustain toggles once per key edge, not repeatedly while held.
- gKeyboardState.space=true;tick(8);assert(gPocketSynth.sustain);clearKeys();tick();key('z');assert(gPocketSynth.active());gKeyboardState.space=true;tick();assert(!gPocketSynth.sustain);clearKeys();tick(100);assert(!gSynthOwned);
- // Panic never rewrites an asynchronously stopped pointer; wait for drain.
- gKeyboardState.word={'q'};tick();auto calls=M5Cardputer.Speaker.calls;gKeyboardState.del=true;servicePocketSynth();assert(!gPocketSynth.active()&&gSynthDraining);
- servicePocketSynth();assert(M5Cardputer.Speaker.calls==calls);clearKeys();tick(5);assert(!gSynthDraining&&!gSynthOwned);tick();
+ gKeyboardState.space=true;tick(8);assert(gPocketSynth.sustain);clearKeys();tick();key('z');assert(synth_audio::status().voices>0);gKeyboardState.space=true;tick();assert(!gPocketSynth.sustain);clearKeys();tick(100);assert(synth_audio::status().voices==0);
+ // A timed-out stop must hold ownership and suppress new playback until ack.
+ gKeyboardState.word={'q'};tick();auto calls=M5Cardputer.Speaker.calls;synth_audio::blockStop=true;gKeyboardState.del=true;servicePocketSynth();assert(!gPocketSynth.active()&&gSynthDraining);
+ servicePocketSynth();assert(M5Cardputer.Speaker.calls==calls);synth_audio::blockStop=false;synth_audio::stop(100);clearKeys();tick(5);assert(!gSynthDraining&&!gSynthOwned);tick();
  int octave=gPocketSynth.octave;key('=');assert(gPocketSynth.octave==octave+1);key('-');assert(gPocketSynth.octave==octave);key(']');assert(gPocketSynth.patch==pocket_synth::Patch::Bell);key('[');assert(gPocketSynth.patch==pocket_synth::Patch::Piano);
  key(',');assert(gPocketSynth.gain==55);key('.');assert(gPocketSynth.gain==65);
  gKeyboardState.enter=true;tick(3);assert(gPocketSynth.lesson==pocket_synth::Lesson::Major);clearKeys();tick();key('z');assert(gPocketSynth.lessonStep==1);key('x');assert(gPocketSynth.lessonStep==2);restart();
@@ -85,6 +85,8 @@ int main(){
   restart();gKeyboardState.word={'z'};tick();*p=true;servicePocketSynth();assert(!gSynthOwned&&!gPocketSynth.active());*p=false;
  }
  restart();M5Cardputer.Speaker.foreign=true;gKeyboardState.word={'z'};tick();assert(!gSynthOwned);M5Cardputer.Speaker.foreign=false;tick();assert(!gSynthOwned);clearKeys();tick();key('z');assert(gSynthOwned);
+ restart();gKeyboardState.word={'z'};tick();synth_audio::failed=true;synth_audio::live=false;int callsBeforeFailure=M5Cardputer.Speaker.calls;
+ servicePocketSynth();assert(gSynthRequireRelease&&!gSynthOwned);tick(3);assert(M5Cardputer.Speaker.calls==callsBeforeFailure);clearKeys();tick();gKeyboardState.word={'z'};tick();assert(gSynthOwned);
  restart();M5Cardputer.Speaker.reject=true;gKeyboardState.word={'z'};tick();assert(!gSynthOwned&&!gPocketSynth.active());M5Cardputer.Speaker.reject=false;restart();
  for(auto*p:{&gTextTurnTaskHandle,&gCompletedTextTurn}){*p=reinterpret_cast<void*>(1);assert(!synthForegroundAllowed());*p=nullptr;}
  gPendingTextTurns.push_back(1);assert(!synthForegroundAllowed());gPendingTextTurns.clear();gQueuedVoiceReplySpeech="voice";assert(!synthForegroundAllowed());gQueuedVoiceReplySpeech="";gActiveTextTurn="text";assert(!synthForegroundAllowed());gActiveTextTurn="";
@@ -92,7 +94,7 @@ int main(){
  for(int patch=0;patch<4;++patch)for(int lesson=0;lesson<4;++lesson)for(int oct=2;oct<=5;++oct)for(int key=0;key<25;++key){
   gPocketSynth.patch=pocket_synth::Patch(patch);gPocketSynth.lesson=pocket_synth::Lesson(lesson);gPocketSynth.octave=oct;gPocketSynth.heldMask=1u<<key;gPocketSynth.lastMidi=gPocketSynth.midiFor(key);gPocketSynth.gain=100;renderPocketSynthUi();assert(printed("POCKET SYNTH")&&gCanvas.primitives>40);
  }
- puts("PASS actual Pocket Synth UI/audio: all chord/release keys, sustain/panic/control edges, three-buffer pointer lifetime incl asynchronous stop, guarded voice/OTA/network/menu, no stale autoplay, all 240x135 layouts (ASan/UBSan)");
+ puts("PASS actual Pocket Synth UI/audio: all chord/release keys, sustain/panic/control edges, worker stop acknowledgement, full-snapshot controls, guarded voice/OTA/network/menu, no stale autoplay, all 240x135 layouts (ASan/UBSan)");
 }
 '''
 with tempfile.TemporaryDirectory(prefix='synth-ui-') as tmp:
@@ -101,7 +103,7 @@ with tempfile.TemporaryDirectory(prefix='synth-ui-') as tmp:
  subprocess.run([str(p/'test')],check=True,timeout=50)
 loop=(PARTS/'061_main.cpp.inc').read_text();mode=(PARTS/'024_main.cpp.inc').read_text();capture=(PARTS/'033_main.cpp.inc').read_text()
 assert loop.index('servicePocketSynth();')<loop.index('traceUiService("serviceInboxNetworkCompletion"')
-assert 'if (synthForegroundAllowed())' in loop and 'case UiMode::PocketSynth:' in loop
-assert 'mode != UiMode::PocketSynth) stopPocketSynth();' in mode
-assert capture.index('stopPocketSynth();')<capture.index('const uint32_t captureRequestedMs')
+assert 'if (synthAudioBusy() || synthForegroundAllowed())' in loop and 'case UiMode::PocketSynth:' in loop
+assert 'mode != UiMode::PocketSynth && !stopPocketSynth()' in mode
+assert capture.index('stopPocketSynth()')<capture.index('const uint32_t captureRequestedMs')
 assert 'Pocket Synth' in (PARTS/'004_main.cpp.inc').read_text()
