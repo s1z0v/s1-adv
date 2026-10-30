@@ -10,9 +10,11 @@ def fn(file,name):
 code=r'''
 #include <cassert>
 bool radioBusy(){return false;}
+bool synthOwned=false;bool synthAudioBusy(){return synthOwned;}
 void stopInternetRadio(){}
 template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
+int tones=0;struct{struct{void tone(uint16_t,uint16_t){++tones;}}Speaker;}M5Cardputer;
 #include <set>
 #include <string>
 #include <algorithm>
@@ -41,7 +43,7 @@ const char* focusStateName(FocusState){return "focus";}
 '''
 for name in ['String normalizedPomodoroAudioLanguage(', 'String pomodoroMeditationAssetPath(', 'bool isPomodoroMeditationAssetPath(', 'bool pomodoroMeditationAssetsPresent()']:
  code+=fn('016_main.cpp.inc',name)+'\n'
-code+=fn('027_main.cpp.inc','bool playFocusCue(')+'\n'+fn('028_main.cpp.inc','void toggleFocusGuidedAudio()')
+code+=fn('027_main.cpp.inc','void focusTone(')+'\n'+fn('027_main.cpp.inc','bool playFocusCue(')+'\n'+fn('028_main.cpp.inc','void toggleFocusGuidedAudio()')
 code+=r'''
 int main(){
  assert(!pomodoroMeditationAssetsPresent());
@@ -72,6 +74,9 @@ int main(){
  for(auto c:kPomodoroAudioCues)files.erase(pomodoroMeditationAssetPath("en",c));
  assert(pomodoroMeditationAssetsPresent());gPlaybackActive=false;assert(playFocusCue(FocusState::Reflect));
  assert(gPlaybackStreamPath=="/pomodoro/audio/ru/reflection.wav");
+ gPlaybackActive=false;synthOwned=true;int before=plays;
+ assert(!playFocusCue(FocusState::Focus)&&plays==before);focusTone(440,20);assert(tones==0);
+ synthOwned=false;focusTone(440,20);assert(tones==1);
  files.erase(pomodoroMeditationAssetPath("ru","start"));assert(!pomodoroMeditationAssetsPresent());
  mounted=false;assert(!pomodoroMeditationAssetsPresent());
 }

@@ -1,5 +1,6 @@
 bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, size_t audioLen,
                                      const String& diag, fs::FS* storage = nullptr) {
+  stopPocketSynth();
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry playback",1500); return false; }
   fs::FS* fs = storage ? storage : activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {
@@ -33,6 +34,7 @@ bool startPlaybackStreamFromRawPcmFile(const String& path, uint32_t sampleRate, 
 }
 
 bool startPlaybackStreamFromWavFile(const String& path, const String& diag) {
+  stopPocketSynth();
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry playback",1500); return false; }
   fs::FS* fs = activeVoiceFs();
   if (!fs || !fsExists(*fs, path)) {
@@ -227,6 +229,8 @@ bool mapActionUiMode(String mode, UiMode& out) {
     out = UiMode::Library;
   } else if (mode == "files" || mode == "file_manager") {
     out = UiMode::Files;
+  } else if (mode == "pocket_synth" || mode == "synth" || mode == "piano") {
+    out = UiMode::PocketSynth;
   } else if (mode == "chess") {
     out = UiMode::Chess;
   } else if (mode == "checkers" || mode == "draughts") {

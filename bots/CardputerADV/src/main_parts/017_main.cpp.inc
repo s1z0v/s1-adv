@@ -125,6 +125,7 @@ void prepareOtaMaintenanceMode() {
 }
 
 bool applyOtaFromManifest() {
+  stopPocketSynth();
   if (radioBusy()) { stopInternetRadio(); setStatus("Radio stopping; retry update",1500); return false; }
   if (gOtaApplyInProgress) {
     otaLog("apply ignored: already running", true);

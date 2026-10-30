@@ -23,6 +23,7 @@ code = r'''
 #include <cassert>
 bool radioBusy(){return false;}
 void stopInternetRadio(){}
+bool synthOwned=true;void stopPocketSynth(){synthOwned=false;}
 template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
 #include <cstdlib>
@@ -73,6 +74,7 @@ int main(){
  const String reply="/voice/__reply_1.pcm",original="/voice/u_record.wav";
  LittleFS.files[reply]=80000;SD.files[reply]=123;SD.files[original]=749612;
  assert(startPlaybackStreamFromRawPcmFile(reply,24000,80000,"reply",&LittleFS));
+ assert(!synthOwned);
  assert(gPlaybackStreamFile.backend==&LittleFS&&gPlaybackStreamFs==&LittleFS);
  speakerStopped=false;stopPlaybackStream();assert(!LittleFS.files.count(reply)&&SD.files[reply]==123);
  assert(!gPlaybackStreamFs&&!gPlaybackStreaming);

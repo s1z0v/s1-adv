@@ -71,3 +71,4 @@
 #include "main_parts/070_main.cpp.inc"
 #include "main_parts/071_main.cpp.inc"
 #include "main_parts/072_main.cpp.inc"
+#include "main_parts/073_main.cpp.inc"

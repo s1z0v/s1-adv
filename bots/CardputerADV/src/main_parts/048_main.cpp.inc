@@ -145,6 +145,7 @@ void handleTypingKey(char key, const Keyboard_Class::KeysState& keys) {
   if (gUiMode == UiMode::Radio && handleInternetRadioKey(key, keys)) return;
   if (gUiMode == UiMode::VlcRemote && handleVlcRemoteKey(key, keys)) return;
   if (gUiMode == UiMode::ChessMind && handleChessMindKey(key, keys)) return;
+  if (gUiMode == UiMode::PocketSynth && handlePocketSynthKey(key, keys)) return;
   if (gUiMode == UiMode::KeyRush && handleKeyRushKey(key, keys)) {
     return;
   }

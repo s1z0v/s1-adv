@@ -277,6 +277,7 @@ void setUiMode(UiMode mode) {
   if (deferInternetRadioMode(mode)) return;
   if (deferVlcRemoteMode(mode)) return;
   if (mode != UiMode::Face) gRealtimeScreenVisible=false;
+  if (gUiMode == UiMode::PocketSynth && mode != UiMode::PocketSynth) stopPocketSynth();
   if (mode == UiMode::Nes && gUiMode != UiMode::Nes && !enterNesApp()) return;
   if (gUiMode == UiMode::Nes && mode != UiMode::Nes) leaveNesApp();
   if (mode != gUiMode) gChatCommandsVisible = false;
@@ -305,6 +306,7 @@ void setUiMode(UiMode mode) {
   if (modeChanged && mode == UiMode::Radio) beginInternetRadio();
   if (modeChanged && mode == UiMode::VlcRemote) beginVlcRemote();
   if (modeChanged && mode == UiMode::ChessMind) beginChessMind();
+  if (modeChanged && mode == UiMode::PocketSynth) beginPocketSynth();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.
     gPendingOtaCheckAction = true;

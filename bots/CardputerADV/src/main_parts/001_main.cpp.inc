@@ -48,6 +48,7 @@
 #include "sd_file_manager.h"
 #include "chess_demo.h"
 #include "chess_mind.h"
+#include "pocket_synth.h"
 #include "checkers_demo.h"
 #include "minesweeper.h"
 #include "radio_catalog.h"
@@ -87,7 +88,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.203-dev"
+#define APP_VERSION "0.2.204-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"

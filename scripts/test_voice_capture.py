@@ -25,6 +25,7 @@ code = r'''
 bool radioBusy(){return false;}
 bool vlcBusy(){return false;} namespace vlc_remote{void cancel(){}}
 void stopInternetRadio(){}
+bool synthOwned=true;int synthStops=0;void stopPocketSynth(){synthOwned=false;++synthStops;}
 template<class T>bool deferInternetRadioMode(T){return false;}
 #include <cstdint>
 #include <cstddef>
@@ -78,7 +79,7 @@ void writeWavHeader(uint8_t*,uint32_t,uint32_t){}void fsRemove(fs::FS&,const Str
 void handleRecordingStorageFailure(){assert(false);}void logHeapStats(const char*){}
 bool ensureRecordBuffer(){return true;}void beginVoiceWifiPerformance(){}
 void beginVoiceRequestUi(){++captureUis;assert(gRecording&&!gVoiceCapturePreparing);}
-bool startMic(){assert(!gRecording&&gVoiceCapturePreparing);++starts;now+=150;micReadyAt=now;return micAvailable;}
+bool startMic(){assert(!synthOwned);assert(!gRecording&&gVoiceCapturePreparing);++starts;now+=150;micReadyAt=now;return micAvailable;}
 void serviceRecordingToFile(){++queued;if(queueAvailable)gRecordInflightChunks.push_back(0);}
 void render(){++frames;assert(gCanvasSpriteActive);frameLabels.push_back(status);
  if(gVoiceCapturePreparing)assert(!gRecording);
@@ -103,8 +104,10 @@ code += r'''
 int main(){
  for(bool asleep:{false,true}){
   sleeping=asleep;gRecording=false;gG0VoiceHeld=false;gUiMode=asleep?UiMode::Clock:UiMode::Home;
+  synthOwned=true;int beforeSynthStops=synthStops;
   int before=starts;uint32_t requested=now;
   M5Cardputer.BtnA.pressed=true;updateG0VoiceTrigger();
+  assert(!synthOwned&&synthStops==beforeSynthStops+1);
   assert(starts==before+1&&gRecording&&!sleeping);
   assert(now-requested==220&&gRecordStartMs==micReadyAt); // Excludes initialization from REC time.
   assert(frameLabels[frameLabels.size()-2]=="Loading voice..."&&frameLabels.back()=="Recording");

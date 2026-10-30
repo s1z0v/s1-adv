@@ -8,6 +8,9 @@
       case UiMode::ChessMind:
         renderChessMindUi();
         break;
+      case UiMode::PocketSynth:
+        renderPocketSynthUi();
+        break;
       case UiMode::Minesweeper:
         renderMinesweeperUi();
         break;
@@ -376,6 +379,15 @@ void loop() {
     updateBatterySnapshot();
     serviceSmartLamp(); serviceFocusLamp(); serviceAlarm();
     if (millis()-gLastRenderMs>=kRenderIntervalMs) { render(); gLastRenderMs=millis(); }
+    delay(1); return;
+  }
+  servicePocketSynth();
+  if (synthForegroundAllowed()) {
+    // Local PCM needs short input/service gaps, not SD/TLS background work.
+    // Voice/OTA/network owners above disable this path before taking audio.
+    updateBatterySnapshot(); serviceOtaBootGuard(); serviceAlarm();
+    updateVoiceTrigger(); serviceIdleScreensaver();
+    if (millis()-gLastRenderMs>=33U) { render(); gLastRenderMs=millis(); }
     delay(1); return;
   }
   if (gMeshBusOwned) {
