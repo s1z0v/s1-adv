@@ -285,6 +285,7 @@ void setUiMode(UiMode mode) {
   if (mode != gUiMode) gChatCommandsVisible = false;
   if (gUiMode==UiMode::BrainFlow && mode!=UiMode::BrainFlow) pauseBrainFlow();
   bool modeChanged = mode != gUiMode;
+  if (modeChanged && gUiMode == UiMode::Snake) pauseSnake();
   if (modeChanged && gUiMode == UiMode::KeyRush && mode != UiMode::KeyRush && gKeyRush.running) {
     uint32_t bestScore = gKeyRush.bestScore;
     bool bestLoaded = gKeyRush.bestLoaded;
@@ -308,6 +309,7 @@ void setUiMode(UiMode mode) {
   if (modeChanged && mode == UiMode::Radio) beginInternetRadio();
   if (modeChanged && mode == UiMode::VlcRemote) beginVlcRemote();
   if (modeChanged && mode == UiMode::ChessMind) beginChessMind();
+  if (modeChanged && mode == UiMode::Snake) beginSnake();
   if (modeChanged && mode == UiMode::PocketSynth) beginPocketSynth();
   if (modeChanged && mode == UiMode::Ota && !gOtaBootApplyMode) {
     // Let the new screen paint before its bounded manifest request.

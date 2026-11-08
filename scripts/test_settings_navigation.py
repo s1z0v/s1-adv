@@ -41,7 +41,7 @@ int main(){
  int settingsGroups=0,settingsEntries=0;
  for(const auto&g:kLauncherGroups){for(int i=0;i<g.count;++i)if(isSettingsMode(g.items[i].mode)){++settingsEntries;assert(std::strcmp(g.title,"Settings")==0);}
  if(std::strcmp(g.title,"Settings")==0){++settingsGroups;assert(g.count==3);}}
- assert(settingsGroups==1&&settingsEntries==3&&kLauncherMaxSubItems==8);
+ assert(settingsGroups==1&&settingsEntries==3&&kLauncherMaxSubItems==9);
  for(auto m:{UiMode::Settings,UiMode::ScreenSettings,UiMode::FocusSettings}){
   gUiMode=m;gLauncherVisible=false;gSelectedSetting=0;adjusted=0;
   assert(handleSettingsNavigation(true,false,false,false)&&gSelectedSetting==10);

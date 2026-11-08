@@ -59,6 +59,7 @@ struct Fixture {
  size_t freeBytes=initialFreeBytes;
  bool core0Idle=false,core1HigherReady=false,wifi=true;
  unsigned usb=0,rt=0,typing=0,blink=0,keys=0,m5=0,health=0,nes=0,dial=0,focus=0;
+ unsigned snakePauses=0;
  unsigned delayCalls=0,yieldCalls=0,idle0=0,idle1=0,reaped=0,logs=0;
  std::vector<PendingWorker> pending;
  std::vector<uint32_t> renders;
@@ -97,6 +98,7 @@ void handleHostSerialInput(){++f.usb;f.calls.push_back("usb");}
 void serviceNesTransfer(){++f.nes;f.calls.push_back("nes");}
 void serviceRealtimeDialCompletion(){++f.dial;f.calls.push_back("dial");}
 void updateFocusTimer(){++f.focus;f.calls.push_back("focus");}
+void pauseSnake(){++f.snakePauses;}
 void pollTyping(){++f.typing;f.calls.push_back("typing");}
 void serviceRealtimeVoice(){++f.rt;f.calls.push_back("rt");f.now+=f.rtCost;}
 void updateBlink(){++f.blink;f.calls.push_back("blink");}
@@ -116,7 +118,7 @@ void assertServices(unsigned count){
 
 POSITIVE = r'''
 void idleOpportunity(){
- reset();addDeletedWorker();loop();assertServices(1);
+ reset();addDeletedWorker();loop();assertServices(1);assert(f.snakePauses==1);
  assert(f.delayCalls==1 && f.idle1==1 && f.reaped==1 && f.pending.empty());
  assert(f.freeBytes==initialFreeBytes && f.now==1 && gWifiReady);
  const std::vector<std::string> expected={"health","m5","keys","usb","nes","dial","focus","wifi","typing","rt","blink","delay"};

@@ -49,6 +49,7 @@
 #include "chess_demo.h"
 #include "chess_mind.h"
 #include "pocket_synth.h"
+#include "snake_game.h"
 #include "pocket_synth_audio.h"
 #include "checkers_demo.h"
 #include "minesweeper.h"
@@ -89,7 +90,7 @@ namespace {
 constexpr const char* kDeviceType = "cardputer_adv";
 constexpr const char* kDefaultDisplayName = "ADV Cardputer";
 #ifndef APP_VERSION
-#define APP_VERSION "0.2.205-dev"
+#define APP_VERSION "0.2.206-dev"
 #endif
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "local"
@@ -209,7 +210,7 @@ constexpr uint32_t kVoiceSocketSettleMs = 300;
 constexpr uint32_t kCtrlDoubleTapWindowMs = 420;
 constexpr uint32_t kLauncherToggleDebounceMs = 140;
 constexpr uint8_t kLauncherGroupCount = 7;
-constexpr uint8_t kLauncherMaxSubItems = 8;
+constexpr uint8_t kLauncherMaxSubItems = 9;
 constexpr uint32_t kKeyRushDurationMs = 30000;
 constexpr const char* kKeyRushPrefsNs = "keyrush";
 constexpr uint16_t kSmartLampUdpPort = 61197;

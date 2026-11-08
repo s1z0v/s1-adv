@@ -190,6 +190,7 @@ enum class UiMode : uint8_t {
   VlcRemote,
   ChessMind,
   PocketSynth,
+  Snake,
 };
 
 enum class FocusState : uint8_t {

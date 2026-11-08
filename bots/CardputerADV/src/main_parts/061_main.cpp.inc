@@ -11,6 +11,9 @@
       case UiMode::PocketSynth:
         renderPocketSynthUi();
         break;
+      case UiMode::Snake:
+        renderSnakeUi();
+        break;
       case UiMode::Minesweeper:
         renderMinesweeperUi();
         break;
@@ -359,12 +362,14 @@ void loop() {
   serviceNesTransfer();
   serviceRealtimeDialCompletion();
   updateFocusTimer();
+  if (gRealtimeExclusiveMode) pauseSnake();
   if (gRealtimeExclusiveMode) {
     serviceRealtimeExclusiveLoop(loopStartMs);
     return;
   }
   updateG0VoiceTrigger();
   pollTyping();
+  serviceSnake();
   serviceInternetRadio();
   serviceVlcRemote();
   if (vlcBusy()) {

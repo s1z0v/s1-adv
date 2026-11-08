@@ -231,6 +231,8 @@ bool mapActionUiMode(String mode, UiMode& out) {
     out = UiMode::Files;
   } else if (mode == "pocket_synth" || mode == "synth" || mode == "piano") {
     out = UiMode::PocketSynth;
+  } else if (mode == "snake") {
+    out = UiMode::Snake;
   } else if (mode == "chess") {
     out = UiMode::Chess;
   } else if (mode == "checkers" || mode == "draughts") {

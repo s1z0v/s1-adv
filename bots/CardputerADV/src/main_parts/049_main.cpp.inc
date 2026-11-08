@@ -31,6 +31,8 @@
     moveLauncherSelection(1);
   } else if (gUiMode == UiMode::Mesh && (upDown || downDown)) {
     handleTypingKey(upDown ? char(1) : char(2),keys);
+  } else if (gUiMode == UiMode::Snake && (upDown || downDown || leftDown || rightDown)) {
+    handleTypingKey(upDown ? 'w' : downDown ? 's' : leftDown ? 'a' : 'd', keys);
   } else if (gUiMode == UiMode::Files && (upDown || downDown || leftDown || rightDown)) {
     handleTypingKey((upDown || leftDown) ? ',' : '.', keys);
   } else if ((gUiMode == UiMode::Minesweeper || gUiMode == UiMode::Radio || gUiMode == UiMode::VlcRemote) && (upDown || downDown || leftDown || rightDown)) {
@@ -85,6 +87,8 @@
   } else if (gUiMode == UiMode::Tetris && downDown) {
     handleTypingKey('s', keys);
   } else if (spaceDown && keys.ctrl) {
+    handleTypingKey(' ', keys);
+  } else if (gUiMode == UiMode::Snake && !gLauncherVisible && spaceDown) {
     handleTypingKey(' ', keys);
   } else if (enterDown) {
     handleTypingKey('\n', keys);
